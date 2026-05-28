@@ -13,6 +13,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -199,7 +201,7 @@ fun MainScreen(onRevisitTutorial: () -> Unit) {
                 Box(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
-                        .offset(y = bottomBarOffset)
+                        .graphicsLayer { translationY = bottomBarOffset.toPx() }
                         .padding(bottom = innerPadding.calculateBottomPadding())
                         .padding(horizontal = 24.dp, vertical = 20.dp)
                         .fillMaxWidth()
@@ -232,7 +234,7 @@ fun MainScreen(onRevisitTutorial: () -> Unit) {
 
                 if (showLanguagePicker) {
                     val settingsViewModel: SettingsViewModel = hiltViewModel()
-                    val settingsState by settingsViewModel.state.collectAsState()
+                    val settingsState by settingsViewModel.state.collectAsStateWithLifecycle()
                     
                     LanguagePickerBottomSheet(
                         selectedLanguage = settingsState.language,

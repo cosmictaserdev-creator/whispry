@@ -5,9 +5,9 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.whispry.presentation.main.MainScreen
 import com.example.whispry.presentation.main.MainViewModel
 import com.example.whispry.presentation.onboarding.OnboardingNavGraph
@@ -30,9 +30,9 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            val onboardingCompleted = viewModel.onboardingCompleted.collectAsState().value
-            val onboardingStartDestination by viewModel.onboardingStartDestination.collectAsState()
-            val accentColor by viewModel.accentColor.collectAsState()
+            val onboardingCompleted = viewModel.onboardingCompleted.collectAsStateWithLifecycle().value
+            val onboardingStartDestination by viewModel.onboardingStartDestination.collectAsStateWithLifecycle()
+            val accentColor by viewModel.accentColor.collectAsStateWithLifecycle()
             
             WhispryTheme(accentPreset = accentColor) {
                 when (onboardingCompleted) {

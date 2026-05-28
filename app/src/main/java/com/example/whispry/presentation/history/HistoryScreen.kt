@@ -44,6 +44,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import android.graphics.RenderEffect
+import android.graphics.Shader
+import androidx.compose.ui.graphics.asComposeRenderEffect
 import com.example.whispry.domain.model.Transcript
 import com.example.whispry.presentation.common.GlassCard
 import com.example.whispry.presentation.common.Screen
@@ -69,7 +73,7 @@ fun HistoryScreen(
     onSearchActiveChange: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    val state by viewModel.state.collectAsState()
+    val state by viewModel.state.collectAsStateWithLifecycle()
     val focusManager = LocalFocusManager.current
     var showFilterMenu by remember { mutableStateOf(false) }
     var isSearchActive by remember { mutableStateOf(false) }
@@ -111,13 +115,17 @@ fun HistoryScreen(
                         scaleX = s
                         scaleY = s
                         alpha = 1f - (0.3f * searchProgress)
-                    }
-                    // un-blurred when typing results
-                    .blur(
-                        radius = (lerp(0.dp, 12.dp, searchProgress))
-                            .times(if (state.searchQuery.isEmpty()) 1f else 0f)
-                            .coerceAtLeast(0.dp)
-                    ),
+                        
+                        // Render Effect blur (skip Recomposition)
+                        if (searchProgress > 0f && state.searchQuery.isEmpty()) {
+                            val blurPx = (lerp(0.dp, 12.dp, searchProgress)).toPx()
+                            if (blurPx > 0f) {
+                                renderEffect = RenderEffect.createBlurEffect(
+                                    blurPx, blurPx, Shader.TileMode.CLAMP
+                                ).asComposeRenderEffect()
+                            }
+                        }
+                    },
                 contentPadding = PaddingValues(
                     top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 150.dp,
                     bottom = 140.dp,
@@ -128,8 +136,7 @@ fun HistoryScreen(
                 userScrollEnabled = !isSearchActive 
             ) {
                 // Favorites Section
-                val pinned = state.filteredTranscripts.filter { it.isPinned }
-                if (pinned.isNotEmpty()) {
+                if (state.pinnedTranscripts.isNotEmpty()) {
                     item {
                         SectionHeader(
                             title = "Favorites", 
@@ -137,7 +144,7 @@ fun HistoryScreen(
                             onSeeMore = { navController.navigate(Screen.FavoriteDetails.route) }
                         )
                     }
-                    items(pinned.take(3), key = { "pinned_preview_${it.id}" }) { transcript ->
+                    items(state.pinnedTranscripts.take(3), key = { "pinned_preview_${it.id}" }) { transcript ->
                         Box(modifier = Modifier.animateItem()) {
                             LibraryTranscriptItem(
                                 transcript = transcript,
@@ -152,8 +159,7 @@ fun HistoryScreen(
                 }
 
                 // Recent Section
-                val recents = state.filteredTranscripts.filter { !it.isPinned }
-                if (recents.isNotEmpty()) {
+                if (state.recentTranscripts.isNotEmpty()) {
                     item {
                         SectionHeader(
                             title = "Recents", 
@@ -161,7 +167,7 @@ fun HistoryScreen(
                             onSeeMore = { navController.navigate(Screen.RecentDetails.route) }
                         )
                     }
-                    items(recents.take(5), key = { "recent_preview_${it.id}" }) { transcript ->
+                    items(state.recentTranscripts.take(5), key = { "recent_preview_${it.id}" }) { transcript ->
                         Box(modifier = Modifier.animateItem()) {
                             LibraryTranscriptItem(
                                 transcript = transcript,

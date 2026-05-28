@@ -20,6 +20,8 @@ import javax.inject.Inject
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.Dispatchers
 
 @HiltViewModel
 class HistoryViewModel @Inject constructor(
@@ -63,14 +65,19 @@ class HistoryViewModel @Inject constructor(
                 
                 Triple(transcripts, sorted, query)
             }
+            .flowOn(Dispatchers.Default)
             .onStart { _state.update { it.copy(isLoading = true) } }
             .catch { e -> _state.update { it.copy(isLoading = false, error = e.message) } }
             .collect { (all, filtered, query) ->
+                val pinned = filtered.filter { it.isPinned }
+                val recent = filtered.filter { !it.isPinned }
                 _state.update { 
                     it.copy(
                         isLoading = false,
                         transcripts = all,
                         filteredTranscripts = filtered,
+                        pinnedTranscripts = pinned,
+                        recentTranscripts = recent,
                         searchQuery = query,
                         error = null
                     )

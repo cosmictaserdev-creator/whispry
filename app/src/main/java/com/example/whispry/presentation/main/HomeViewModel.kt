@@ -44,21 +44,24 @@ class HomeViewModel @Inject constructor(
     }
 
     private fun observeTranscripts() {
-        repository.getAllTranscripts().onEach { transcripts ->
-            val totalWords = transcripts.sumOf { it.text.split("\\s+".toRegex()).size }
-            val avgDuration = if (transcripts.isNotEmpty()) {
-                transcripts.sumOf { it.durationMs } / transcripts.size
-            } else 0L
+        repository.getAllTranscripts()
+            .onEach { transcripts ->
+                val totalWords = transcripts.sumOf { it.text.split("\\s+".toRegex()).size }
+                val avgDuration = if (transcripts.isNotEmpty()) {
+                    transcripts.sumOf { it.durationMs } / transcripts.size
+                } else 0L
 
-            _state.update {
-                it.copy(
-                    totalTranscripts = transcripts.size,
-                    totalWords = totalWords,
-                    avgDurationMs = avgDuration,
-                    recentTranscripts = transcripts.take(3)
-                )
+                _state.update {
+                    it.copy(
+                        totalTranscripts = transcripts.size,
+                        totalWords = totalWords,
+                        avgDurationMs = avgDuration,
+                        recentTranscripts = transcripts.take(3)
+                    )
+                }
             }
-        }.launchIn(viewModelScope)
+            .flowOn(kotlinx.coroutines.Dispatchers.Default)
+            .launchIn(viewModelScope)
     }
 
     private fun checkPermissions() {

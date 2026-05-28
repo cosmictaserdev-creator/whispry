@@ -12,6 +12,8 @@ enum class HistorySortOrder {
 data class HistoryState(
     val transcripts: List<Transcript> = emptyList(),
     val filteredTranscripts: List<Transcript> = emptyList(),
+    val pinnedTranscripts: List<Transcript> = emptyList(),
+    val recentTranscripts: List<Transcript> = emptyList(),
     val searchQuery: String = "",
     val sortOrder: HistorySortOrder = HistorySortOrder.DATE_DESC,
     val isLoading: Boolean = false,

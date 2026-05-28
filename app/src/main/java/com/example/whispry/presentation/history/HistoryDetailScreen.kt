@@ -29,6 +29,11 @@ import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberCombinedBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import android.graphics.RenderEffect
+import android.graphics.Shader
+import androidx.compose.ui.graphics.asComposeRenderEffect
+
 @Composable
 fun HistoryDetailScreen(
     title: String,
@@ -38,7 +43,7 @@ fun HistoryDetailScreen(
     backdrop: Backdrop,
     onSearchActiveChange: (Boolean) -> Unit = {}
 ) {
-    val state by viewModel.state.collectAsState()
+    val state by viewModel.state.collectAsStateWithLifecycle()
     val focusManager = LocalFocusManager.current
     var isSearchActive by remember { mutableStateOf(false) }
 
@@ -65,8 +70,8 @@ fun HistoryDetailScreen(
         }
     }
 
-    val filteredList = remember(state.filteredTranscripts, isPinnedOnly) {
-        if (isPinnedOnly) state.filteredTranscripts.filter { it.isPinned }
+    val filteredList = remember(state.filteredTranscripts, state.pinnedTranscripts, isPinnedOnly) {
+        if (isPinnedOnly) state.pinnedTranscripts
         else state.filteredTranscripts
     }
 
@@ -81,12 +86,17 @@ fun HistoryDetailScreen(
                         scaleX = s
                         scaleY = s
                         alpha = 1f - (0.3f * searchProgress)
-                    }
-                    .blur(
-                        radius = (lerp(0.dp, 12.dp, searchProgress))
-                            .times(if (state.searchQuery.isEmpty()) 1f else 0.2f)
-                            .coerceAtLeast(0.dp)
-                    ),
+
+                        // Render Effect blur (skip Recomposition)
+                        if (searchProgress > 0f && state.searchQuery.isEmpty()) {
+                            val blurPx = (lerp(0.dp, 12.dp, searchProgress)).toPx()
+                            if (blurPx > 0f) {
+                                renderEffect = RenderEffect.createBlurEffect(
+                                    blurPx, blurPx, Shader.TileMode.CLAMP
+                                ).asComposeRenderEffect()
+                            }
+                        }
+                    },
                 contentPadding = PaddingValues(
                     top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 140.dp,
                     bottom = 40.dp,
