@@ -56,6 +56,10 @@ import com.kyant.capsule.ContinuousRoundedRectangle
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
+import android.graphics.RenderEffect
+import android.graphics.Shader
+import androidx.compose.ui.graphics.asComposeRenderEffect
+
 @Composable
 fun LanguagePickerBottomSheet(
     selectedLanguage: String,
@@ -64,13 +68,15 @@ fun LanguagePickerBottomSheet(
     onDragProgress: (Float) -> Unit,
     backdrop: Backdrop
 ) {
-    val languages = listOf(
-        "Auto" to "Detect Language", "en" to "English", "es" to "Spanish", "fr" to "French",
-        "de" to "German", "it" to "Italian", "pt" to "Portuguese", "nl" to "Dutch",
-        "ja" to "Japanese", "ko" to "Korean", "zh" to "Chinese", "ru" to "Russian",
-        "tr" to "Turkish", "ar" to "Arabic", "hi" to "Hindi", "vi" to "Vietnamese",
-        "pl" to "Polish", "uk" to "Ukrainian", "id" to "Indonesian", "th" to "Thai"
-    )
+    val languages = remember {
+        listOf(
+            "Auto" to "Detect Language", "en" to "English", "es" to "Spanish", "fr" to "French",
+            "de" to "German", "it" to "Italian", "pt" to "Portuguese", "nl" to "Dutch",
+            "ja" to "Japanese", "ko" to "Korean", "zh" to "Chinese", "ru" to "Russian",
+            "tr" to "Turkish", "ar" to "Arabic", "hi" to "Hindi", "vi" to "Vietnamese",
+            "pl" to "Polish", "uk" to "Ukrainian", "id" to "Indonesian", "th" to "Thai"
+        )
+    }
 
     var searchQuery by remember { mutableStateOf("") }
     val filteredLanguages = remember(searchQuery) {
@@ -85,7 +91,8 @@ fun LanguagePickerBottomSheet(
     val scope = rememberCoroutineScope()
     val configuration = LocalConfiguration.current
     val focusManager = LocalFocusManager.current
-    val screenHeightPx = with(LocalDensity.current) { configuration.screenHeightDp.dp.toPx() }
+    val density = LocalDensity.current
+    val screenHeightPx = with(density) { configuration.screenHeightDp.dp.toPx() }
     
     val offsetY = remember { Animatable(screenHeightPx) }
     var isSearchActive by remember { mutableStateOf(false) }
@@ -102,7 +109,7 @@ fun LanguagePickerBottomSheet(
     }
     
     LaunchedEffect(Unit) {
-        offsetY.animateTo(0f, spring(dampingRatio = 0.55f, stiffness = Spring.StiffnessLow))
+        offsetY.animateTo(0f, spring(dampingRatio = 0.65f, stiffness = Spring.StiffnessLow))
     }
 
     val dismiss = {
@@ -129,25 +136,29 @@ fun LanguagePickerBottomSheet(
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = { dismiss() }),
         contentAlignment = Alignment.BottomCenter
     ) {
-        // Scrim
+        // Scrim - Moved alpha to graphicsLayer
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.4f))
-                .graphicsLayer { alpha = (1f - (offsetY.value / screenHeightPx)).coerceIn(0f, 1f) }
+                .background(Color.Black.copy(alpha = 0.45f))
+                .graphicsLayer { 
+                    alpha = (1f - (offsetY.value / screenHeightPx)).coerceIn(0f, 1f)
+                }
         )
 
-        // The Glass Sheet
+        // The Glass Sheet - Moved offset and layout calculations to graphicsLayer
         Box(
             modifier = Modifier
-                .offset { IntOffset(0, offsetY.value.roundToInt()) }
                 .fillMaxWidth()
                 .fillMaxHeight(0.85f)
+                .graphicsLayer {
+                    translationY = offsetY.value
+                }
                 .pointerInput(Unit) {
                     detectVerticalDragGestures(
                         onDragEnd = {
                             if (offsetY.value > screenHeightPx * 0.25f) dismiss()
-                            else scope.launch { offsetY.animateTo(0f, spring(dampingRatio = 0.6f, stiffness = Spring.StiffnessLow)) }
+                            else scope.launch { offsetY.animateTo(0f, spring(dampingRatio = 0.7f, stiffness = Spring.StiffnessLow)) }
                         },
                         onVerticalDrag = { _, drag ->
                             if (!isSearchActive) {
@@ -161,7 +172,7 @@ fun LanguagePickerBottomSheet(
                     backdrop = backdrop,
                     shape = { ContinuousRoundedRectangle(topStart = 44.dp, topEnd = 44.dp) },
                     effects = { vibrancy(); blur(32.dp.toPx()) },
-                    onDrawSurface = { drawRect(Color.Black.copy(0.7f)) }
+                    onDrawSurface = { drawRect(Color.Black.copy(0.75f)) }
                 )
         ) {
             // Content List
@@ -173,12 +184,17 @@ fun LanguagePickerBottomSheet(
                             val s = 1f - (0.02f * searchProgress)
                             scaleX = s; scaleY = s
                             alpha = 1f - (0.3f * searchProgress)
-                        }
-                        .blur(
-                            radius = (lerp(0.dp, 12.dp, searchProgress))
-                                .times(if (searchQuery.isEmpty()) 1f else 0f)
-                                .coerceAtLeast(0.dp)
-                        ),
+
+                            // Render Effect blur (skip Recomposition)
+                            if (searchProgress > 0f && searchQuery.isEmpty()) {
+                                val blurPx = (lerp(0.dp, 12.dp, searchProgress)).toPx()
+                                if (blurPx > 0f) {
+                                    renderEffect = RenderEffect.createBlurEffect(
+                                        blurPx, blurPx, Shader.TileMode.CLAMP
+                                    ).asComposeRenderEffect()
+                                }
+                            }
+                        },
                     contentPadding = PaddingValues(top = 180.dp, bottom = 40.dp, start = 24.dp, end = 24.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                     userScrollEnabled = !isSearchActive
@@ -201,7 +217,7 @@ fun LanguagePickerBottomSheet(
                         detectVerticalDragGestures(
                             onDragEnd = {
                                 if (offsetY.value > screenHeightPx * 0.25f) dismiss()
-                                else scope.launch { offsetY.animateTo(0f, spring(dampingRatio = 0.6f, stiffness = Spring.StiffnessLow)) }
+                                else scope.launch { offsetY.animateTo(0f, spring(dampingRatio = 0.7f, stiffness = Spring.StiffnessLow)) }
                             },
                             onVerticalDrag = { _, drag ->
                                 if (!isSearchActive) {
@@ -219,7 +235,7 @@ fun LanguagePickerBottomSheet(
                         .drawWithContent {
                             drawContent()
                             drawRect(
-                                brush = Brush.verticalGradient(0.7f to Color.Black, 1.0f to Color.Transparent),
+                                brush = Brush.verticalGradient(0.75f to Color.Black, 1.0f to Color.Transparent),
                                 blendMode = BlendMode.DstIn
                             )
                         }
