@@ -90,7 +90,7 @@ fun LiquidBottomTabs(
             // 2. Selection Indicator - Using graphicsLayer for GPU acceleration
             Box(
                 modifier = Modifier
-                    .width(with(androidx.compose.ui.platform.LocalDensity.current) { baseIndicatorWidthPx.toDp() })
+                    .width(with(androidx.compose.ui.platform.LocalDensity.current) { baseIndicatorWidthPx.toDp() + 10.dp })
                     .height(50.dp)
                     .align(Alignment.CenterStart)
                     .graphicsLayer {
