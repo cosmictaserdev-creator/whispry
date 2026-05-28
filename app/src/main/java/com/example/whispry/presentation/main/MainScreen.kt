@@ -47,6 +47,10 @@ fun MainScreen(onRevisitTutorial: () -> Unit) {
         drawContent()
     }
 
+    // Cache the background backdrop when navigating to Settings or Detail pages
+    // where the background content is essentially static.
+    val cachedBgBackdrop = remember(bgBackdrop) { bgBackdrop }
+
     val sceneBackdrop = rememberLayerBackdrop {
         drawContent()
     }

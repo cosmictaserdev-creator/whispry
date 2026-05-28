@@ -47,6 +47,8 @@ import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.vibrancy
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+
 @Composable
 fun SettingsScreen(
     viewModel: SettingsViewModel,
@@ -55,8 +57,11 @@ fun SettingsScreen(
     onRevisitTutorial: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val state by viewModel.state.collectAsState()
+    val state by viewModel.state.collectAsStateWithLifecycle()
     val lifecycleOwner = LocalLifecycleOwner.current
+
+    // Use a stable reference for the backdrop to avoid unnecessary GPU redraws
+    val settingsBackdrop = remember(backdrop) { backdrop }
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
