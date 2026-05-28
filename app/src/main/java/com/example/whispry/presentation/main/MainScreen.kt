@@ -62,6 +62,7 @@ fun MainScreen(onRevisitTutorial: () -> Unit) {
         screens.indexOfFirst { it.route == currentRoute }.coerceAtLeast(0)
     }
 
+    var targetTabIndex by remember(currentTabIndex) { mutableIntStateOf(currentTabIndex) }
     var showLanguagePicker by remember { mutableStateOf(false) }
     var sheetProgress by remember { mutableFloatStateOf(0f) }
     var isSearchActiveGlobal by remember { mutableStateOf(false) }
@@ -113,38 +114,30 @@ fun MainScreen(onRevisitTutorial: () -> Unit) {
                             startDestination = Screen.Home.route,
                             modifier = Modifier.fillMaxSize(),
                             enterTransition = {
-                                fadeIn(tween(400)) + 
+                                fadeIn(tween(300)) + 
                                 slideIntoContainer(
                                     towards = AnimatedContentTransitionScope.SlideDirection.Start,
-                                    animationSpec = spring(
-                                        stiffness = Spring.StiffnessMediumLow,
-                                        dampingRatio = Spring.DampingRatioLowBouncy
-                                    )
-                                ) + scaleIn(initialScale = 0.95f, animationSpec = spring(stiffness = Spring.StiffnessLow))
+                                    animationSpec = tween(400, easing = FastOutSlowInEasing)
+                                )
                             },
                             exitTransition = {
+                                fadeOut(tween(300)) +
                                 scaleOut(
-                                    targetScale = 0.92f,
-                                    animationSpec = spring(stiffness = Spring.StiffnessMediumLow)
-                                ) + fadeOut(tween(durationMillis = 400, delayMillis = 100))
+                                    targetScale = 0.95f,
+                                    animationSpec = tween(400, easing = FastOutSlowInEasing)
+                                )
                             },
                             popEnterTransition = {
-                                fadeIn(tween(400)) + 
+                                fadeIn(tween(300)) + 
                                 scaleIn(
-                                    initialScale = 0.92f,
-                                    animationSpec = spring(stiffness = Spring.StiffnessMediumLow)
+                                    initialScale = 0.95f,
+                                    animationSpec = tween(400, easing = FastOutSlowInEasing)
                                 )
                             },
                             popExitTransition = {
                                 slideOutOfContainer(
                                     towards = AnimatedContentTransitionScope.SlideDirection.End,
-                                    animationSpec = spring(
-                                        stiffness = Spring.StiffnessMediumLow,
-                                        dampingRatio = Spring.DampingRatioLowBouncy
-                                    )
-                                ) + scaleOut(
-                                    targetScale = 0.85f,
-                                    animationSpec = spring(stiffness = Spring.StiffnessMediumLow)
+                                    animationSpec = tween(400, easing = FastOutSlowInEasing)
                                 ) + fadeOut(tween(300))
                             }
                         ) {
@@ -207,21 +200,24 @@ fun MainScreen(onRevisitTutorial: () -> Unit) {
                         .fillMaxWidth()
                 ) {
                     LiquidBottomTabs(
-                        selectedTabIndex = { currentTabIndex },
+                        selectedTabIndex = { targetTabIndex },
                         tabsCount = screens.size,
                         backdrop = sceneBackdrop,
                         accentColor = themeAccent
                     ) {
-                        screens.forEach { screen ->
+                        screens.forEachIndexed { index, screen ->
                             LiquidBottomTab(
                                 selected = currentRoute == screen.route,
                                 onClick = {
-                                    navController.navigate(screen.route) {
-                                        popUpTo(navController.graph.startDestinationId) {
-                                            saveState = true
+                                    if (currentRoute != screen.route) {
+                                        targetTabIndex = index
+                                        navController.navigate(screen.route) {
+                                            popUpTo(navController.graph.startDestinationId) {
+                                                saveState = true
+                                            }
+                                            launchSingleTop = true
+                                            restoreState = true
                                         }
-                                        launchSingleTop = true
-                                        restoreState = true
                                     }
                                 },
                                 icon = screen.icon ?: Screen.Home.icon!!,

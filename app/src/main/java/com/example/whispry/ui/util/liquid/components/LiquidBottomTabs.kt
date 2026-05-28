@@ -54,22 +54,17 @@ fun LiquidBottomTabs(
         val effectiveWidth = totalWidth - (horizontalPadding * 2)
         val tabWidth = effectiveWidth / tabsCount
         
-        val indicatorWidthPx = tabWidth * 1.05f
+        // Fixed base width for indicator to avoid layout changes during animation
+        val baseIndicatorWidthPx = tabWidth
         
-        val targetOffset = horizontalPadding + (selectedTabIndex() * tabWidth) - (indicatorWidthPx - tabWidth) / 2
-        val animatedOffset by animateFloatAsState(
-            targetValue = targetOffset,
+        // Use a very snappy spring for instant movement
+        val animatedCenterOffset by animateFloatAsState(
+            targetValue = horizontalPadding + (selectedTabIndex() * tabWidth) + (tabWidth / 2),
             animationSpec = spring(
-                stiffness = 500f, // Even snappier
-                dampingRatio = 0.7f  // Slightly more bouncy
+                stiffness = 800f, // Instant and snappy
+                dampingRatio = 0.75f
             ),
-            label = "TabOffset"
-        )
-
-        val animatedWidthPx by animateFloatAsState(
-            targetValue = indicatorWidthPx,
-            animationSpec = spring(stiffness = 500f, dampingRatio = 0.7f),
-            label = "TabWidth"
+            label = "TabCenterOffset"
         )
 
         // 1. Unified Bottom Bar Container
@@ -82,7 +77,7 @@ fun LiquidBottomTabs(
                     shape = { ContinuousRoundedRectangle(38.dp) },
                     effects = {
                         vibrancy()
-                        blur(3.dp.toPx()) // Increased blur for better readability
+                        blur(3.dp.toPx())
                         lens(40f, 40f , depthEffect = true , chromaticAberration = true)
                     },
                     shadow = { Shadow(alpha = 0.2f, radius = 20.dp) },
@@ -92,40 +87,42 @@ fun LiquidBottomTabs(
                     }
                 )
         ) {
-            // 2. Selection Indicator - Now inside the same box to reduce rendering layers
+            // 2. Selection Indicator - Using graphicsLayer for GPU acceleration
             Box(
                 modifier = Modifier
-                    .width(with(androidx.compose.ui.platform.LocalDensity.current) { animatedWidthPx.toDp() })
+                    .width(with(androidx.compose.ui.platform.LocalDensity.current) { baseIndicatorWidthPx.toDp() })
                     .height(50.dp)
                     .align(Alignment.CenterStart)
                     .graphicsLayer {
-                        translationX = animatedOffset
-                        // Squish effect based on distance moved (simplified for performance)
-                        val stretch = 1.05f
-                        scaleX = stretch
+                        // Position based on center minus half width
+                        translationX = animatedCenterOffset - (baseIndicatorWidthPx / 2)
+                        
+                        // Snappy liquid stretch effect: scaleX slightly larger than 1
+                        scaleX = 1.08f 
+                        clip = true
+                        shape = ContinuousRoundedRectangle(32.dp)
                     }
-                    .padding(horizontal = 4.dp)
+                    .padding(horizontal = 6.dp)
                     .background(
                         brush = Brush.verticalGradient(
-                            listOf(accentColor.copy(alpha = 0.15f), Color.Transparent)
+                            listOf(accentColor.copy(alpha = 0.18f), Color.Transparent)
                         ),
                         shape = ContinuousRoundedRectangle(32.dp)
                     )
                     .border(
                         width = 1.dp,
                         brush = Brush.verticalGradient(
-                            listOf(accentColor.copy(alpha = 0.5f), Color.Transparent)
+                            listOf(accentColor.copy(alpha = 0.55f), Color.Transparent)
                         ),
                         shape = ContinuousRoundedRectangle(32.dp)
                     )
             ) {
-                // Glow effect inside the indicator
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
                         .background(
                             brush = Brush.radialGradient(
-                                0.0f to accentColor.copy(alpha = 0.2f),
+                                0.0f to accentColor.copy(alpha = 0.25f),
                                 1.0f to Color.Transparent
                             )
                         )
@@ -156,9 +153,10 @@ fun RowScope.LiquidBottomTab(
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
     
+    // Snappy scale animation in graphicsLayer
     val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.88f else if (selected) 1.05f else 1f,
-        animationSpec = spring(stiffness = 600f, dampingRatio = 0.6f),
+        targetValue = if (isPressed) 0.88f else if (selected) 1.02f else 1f,
+        animationSpec = spring(stiffness = 900f, dampingRatio = 0.7f),
         label = "TabScale"
     )
     
@@ -183,8 +181,8 @@ fun RowScope.LiquidBottomTab(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         val iconColor by animateColorAsState(
-            targetValue = if (selected) accentColor else Color.White.copy(alpha = 0.4f),
-            animationSpec = tween(300),
+            targetValue = if (selected) accentColor else Color.White.copy(alpha = 0.35f),
+            animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
             label = "IconColor"
         )
 
@@ -192,20 +190,16 @@ fun RowScope.LiquidBottomTab(
             imageVector = if (selected) filledIcon else icon,
             contentDescription = label,
             tint = iconColor,
-            modifier = Modifier.size(24.dp)
+            modifier = Modifier.size(22.dp)
         )
         
         Text(
             text = label,
             style = MaterialTheme.typography.labelSmall,
-            color = iconColor, // Follows icon color (accent or faded white)
-            fontSize = 10.sp,
+            color = iconColor,
+            fontSize = 9.sp,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-            modifier = Modifier.padding(top = 2.dp).graphicsLayer {
-                val s = if (selected) 1.05f else 1f
-                scaleX = s
-                scaleY = s
-            }
+            modifier = Modifier.padding(top = 1.dp)
         )
     }
 }
