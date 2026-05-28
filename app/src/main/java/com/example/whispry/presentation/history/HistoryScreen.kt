@@ -78,13 +78,16 @@ fun HistoryScreen(
     var showFilterMenu by remember { mutableStateOf(false) }
     var isSearchActive by remember { mutableStateOf(false) }
 
-    // Unified animation progress with faster exit
+    // Unified animation progress with bouncy overshoot effect
     val searchProgress by animateFloatAsState(
         targetValue = if (isSearchActive) 1f else 0f,
-        animationSpec = if (isSearchActive) 
-            spring(stiffness = Spring.StiffnessMediumLow, dampingRatio = 0.8f)
-        else 
-            tween(350, easing = FastOutSlowInEasing),
+        animationSpec = tween(
+            durationMillis = 450,
+            easing = if (isSearchActive) 
+                CubicBezierEasing(0.34f, 1.56f, 0.64f, 1f) // Bouncy Overshoot
+            else 
+                FastOutSlowInEasing
+        ),
         label = "SearchProgress"
     )
 
