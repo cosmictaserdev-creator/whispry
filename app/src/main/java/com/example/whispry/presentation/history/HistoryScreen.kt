@@ -78,10 +78,13 @@ fun HistoryScreen(
     var showFilterMenu by remember { mutableStateOf(false) }
     var isSearchActive by remember { mutableStateOf(false) }
 
-    // Unified animation progress
+    // Unified animation progress with faster exit
     val searchProgress by animateFloatAsState(
         targetValue = if (isSearchActive) 1f else 0f,
-        animationSpec = spring(stiffness = Spring.StiffnessMediumLow, dampingRatio = 0.8f),
+        animationSpec = if (isSearchActive) 
+            spring(stiffness = Spring.StiffnessMediumLow, dampingRatio = 0.8f)
+        else 
+            tween(350, easing = FastOutSlowInEasing),
         label = "SearchProgress"
     )
 
@@ -92,8 +95,16 @@ fun HistoryScreen(
     // Handle back gesture to close search
     BackHandler(enabled = isSearchActive) {
         isSearchActive = false
-        viewModel.onIntent(HistoryIntent.Search(""))
         focusManager.clearFocus()
+        // Clear query after a small delay to keep animation smooth
+    }
+
+    // Reset query when search is fully closed to avoid list jump during animation
+    LaunchedEffect(isSearchActive) {
+        if (!isSearchActive) {
+            kotlinx.coroutines.delay(350)
+            viewModel.onIntent(HistoryIntent.Search(""))
+        }
     }
 
     // Reset global state on navigate/dispose
@@ -117,9 +128,10 @@ fun HistoryScreen(
                         alpha = 1f - (0.3f * searchProgress)
                         
                         // Render Effect blur (skip Recomposition)
-                        if (searchProgress > 0f && state.searchQuery.isEmpty()) {
+                        // Use a stable check to prevent blur "jumps" when query clears
+                        if (searchProgress > 0.01f && state.searchQuery.isEmpty()) {
                             val blurPx = (lerp(0.dp, 12.dp, searchProgress)).toPx()
-                            if (blurPx > 0f) {
+                            if (blurPx > 0.1f) {
                                 renderEffect = RenderEffect.createBlurEffect(
                                     blurPx, blurPx, Shader.TileMode.CLAMP
                                 ).asComposeRenderEffect()
@@ -419,7 +431,6 @@ fun RubberySearchBar(
                     }
                     .clickable {
                         onSearchActiveChange(false)
-                        onQueryChange("")
                         focusManager.clearFocus()
                     },
                 color = WhispryTheme.colors.accent,

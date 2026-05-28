@@ -97,9 +97,13 @@ fun LanguagePickerBottomSheet(
     val offsetY = remember { Animatable(screenHeightPx) }
     var isSearchActive by remember { mutableStateOf(false) }
 
+    // Unified animation progress with faster exit for cancel
     val searchProgress by animateFloatAsState(
         targetValue = if (isSearchActive) 1f else 0f,
-        animationSpec = spring(stiffness = Spring.StiffnessMediumLow, dampingRatio = 0.8f),
+        animationSpec = if (isSearchActive) 
+            spring(stiffness = Spring.StiffnessMediumLow, dampingRatio = 0.8f)
+        else 
+            tween(350, easing = FastOutSlowInEasing),
         label = "SearchProgress"
     )
 
@@ -110,6 +114,14 @@ fun LanguagePickerBottomSheet(
     
     LaunchedEffect(Unit) {
         offsetY.animateTo(0f, spring(dampingRatio = 0.65f, stiffness = Spring.StiffnessLow))
+    }
+
+    // Reset query when search is fully closed to avoid list jump during animation
+    LaunchedEffect(isSearchActive) {
+        if (!isSearchActive) {
+            kotlinx.coroutines.delay(350)
+            searchQuery = ""
+        }
     }
 
     val dismiss = {
@@ -124,7 +136,7 @@ fun LanguagePickerBottomSheet(
     BackHandler { 
         if (isSearchActive) {
             isSearchActive = false
-            searchQuery = ""
+            focusManager.clearFocus()
         } else {
             dismiss()
         }
@@ -186,9 +198,10 @@ fun LanguagePickerBottomSheet(
                             alpha = 1f - (0.3f * searchProgress)
 
                             // Render Effect blur (skip Recomposition)
-                            if (searchProgress > 0f && searchQuery.isEmpty()) {
+                            // Use a stable check to prevent blur "jumps" when query clears
+                            if (searchProgress > 0.01f && searchQuery.isEmpty()) {
                                 val blurPx = (lerp(0.dp, 12.dp, searchProgress)).toPx()
-                                if (blurPx > 0f) {
+                                if (blurPx > 0.1f) {
                                     renderEffect = RenderEffect.createBlurEffect(
                                         blurPx, blurPx, Shader.TileMode.CLAMP
                                     ).asComposeRenderEffect()
@@ -356,7 +369,8 @@ fun RubberySheetSearchBar(
         }
         if (progress > 0.01f) {
             Text("Cancel", modifier = Modifier.padding(start = 16.dp).alpha(progress).clickable {
-                onSearchActiveChange(false); onQueryChange(""); focusManager.clearFocus()
+                onSearchActiveChange(false)
+                focusManager.clearFocus()
             }, color = WhispryTheme.colors.accent, fontWeight = FontWeight.SemiBold)
         }
     }
