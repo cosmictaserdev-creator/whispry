@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">Whispry</string>
+
+    <string name="accessibility_service_description">
+    Whispry uses accessibility to detect the double press and hold volume
+    button gesture to start voice recording. It does not read screen content
+    or collect any personal data.</string>
+</resources>

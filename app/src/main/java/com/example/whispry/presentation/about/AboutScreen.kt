@@ -1,0 +1,153 @@
+package com.example.whispry.presentation.about
+
+import android.content.Intent
+import android.net.Uri
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.example.whispry.presentation.common.GlassCard
+import com.example.whispry.ui.theme.DeepPurple
+import com.kyant.backdrop.Backdrop
+
+@Composable
+fun AboutScreen(
+    backdrop: Backdrop,
+    viewModel: AboutViewModel = hiltViewModel()
+) {
+    val state by viewModel.state.collectAsState()
+    val context = LocalContext.current
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(
+            top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 24.dp,
+            start = 24.dp, 
+            end = 24.dp
+        ),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        item {
+            Box(modifier = Modifier.animateItem()) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    // App Icon Placeholder
+                    Box(
+                        modifier = Modifier
+                            .size(100.dp)
+                            .background(DeepPurple.copy(alpha = 0.1f), CircleShape)
+                            .padding(16.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Rounded.Mic, null, modifier = Modifier.size(56.dp), tint = DeepPurple)
+                    }
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    Text("Whispry", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                    Text("Your voice, anywhere.", style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = 0.5f))
+                }
+            }
+            Spacer(modifier = Modifier.height(32.dp))
+        }
+
+        // Stats Section
+        item {
+            Box(modifier = Modifier.animateItem()) {
+                GlassCard(
+                    backdrop = backdrop,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("Impact", style = MaterialTheme.typography.labelSmall, color = DeepPurple)
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                            AboutStatItem("${state.totalWords}", "Words")
+                            AboutStatItem("${state.totalRecordings}", "Recordings")
+                            AboutStatItem("${state.totalTimeSavedSeconds}s", "Time Saved")
+                        }
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(24.dp))
+        }
+
+        // Actions Section
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                AboutActionRow(Icons.Rounded.Star, "Rate the app", backdrop) {
+                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=${context.packageName}"))
+                    context.startActivity(intent)
+                }
+                AboutActionRow(Icons.Rounded.BugReport, "Report a bug", backdrop) {
+                    val intent = Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:support@whispry.app"))
+                    context.startActivity(intent)
+                }
+                AboutActionRow(Icons.Rounded.Share, "Share Whispry", backdrop) {
+                    val intent = Intent(Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(Intent.EXTRA_TEXT, "Check out Whispry for instant voice transcription!")
+                    }
+                    context.startActivity(Intent.createChooser(intent, "Share via"))
+                }
+            }
+            Spacer(modifier = Modifier.height(32.dp))
+        }
+
+        item {
+            Box(modifier = Modifier.animateItem()) {
+                Text(
+                    text = "Version ${state.version} (${state.buildNumber})",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.White.copy(alpha = 0.3f)
+                )
+            }
+            Spacer(modifier = Modifier.height(140.dp))
+        }
+    }
+}
+
+@Composable
+fun AboutStatItem(value: String, label: String) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(value, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+        Text(label, style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.4f))
+    }
+}
+
+@Composable
+fun AboutActionRow(
+    icon: ImageVector,
+    title: String,
+    backdrop: Backdrop,
+    onClick: () -> Unit
+) {
+    GlassCard(
+        backdrop = backdrop,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(icon, null, tint = Color.White.copy(alpha = 0.6f), modifier = Modifier.size(20.dp))
+            Spacer(modifier = Modifier.width(16.dp))
+            Text(title, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+            Icon(Icons.Rounded.ChevronRight, null, tint = Color.White.copy(alpha = 0.2f))
+        }
+    }
+}
