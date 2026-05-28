@@ -106,8 +106,8 @@ private fun PillContent(
     val animatedWidth by animateDpAsState(
         targetValue = targetWidth,
         animationSpec = spring(
-            dampingRatio = 0.5f,
-            stiffness = 200f
+            dampingRatio = Spring.DampingRatioNoBouncy,
+            stiffness = Spring.StiffnessLow
         ),
         label = "PillWidth"
     )
@@ -116,6 +116,11 @@ private fun PillContent(
         modifier = Modifier
             .width(animatedWidth)
             .height(58.dp)
+            .graphicsLayer {
+                // Ensure GPU handles the clipping and shape
+                clip = true
+                shape = ContinuousRoundedRectangle(29.dp)
+            }
             .drawBackdrop(
                 backdrop = backdrop,
                 shape = { ContinuousRoundedRectangle(29.dp) },

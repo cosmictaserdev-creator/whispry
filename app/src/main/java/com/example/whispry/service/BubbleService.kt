@@ -106,7 +106,7 @@ class BubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedState
         private const val CHANNEL_ID = "bubble_service_channel"
         private const val SUCCESS_DISMISS_DELAY_MS = 2200L
         private const val ERROR_DISMISS_DELAY_MS = 4000L
-        private const val AMPLITUDE_POLL_INTERVAL_MS = 80L
+        private const val AMPLITUDE_POLL_INTERVAL_MS = 120L // Reduced from 80ms for battery efficiency
     }
 
     // ------------------------------------------------------------------
