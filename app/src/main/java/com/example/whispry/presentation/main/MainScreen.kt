@@ -247,7 +247,7 @@ fun MainScreen(onRevisitTutorial: () -> Unit) {
                         onDragProgress = { progress ->
                             sheetProgress = progress
                         },
-                        backdrop = cachedBgBackdrop
+                        backdrop = sceneBackdrop
                     )
                 }
             }
