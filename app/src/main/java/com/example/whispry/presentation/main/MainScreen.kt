@@ -114,31 +114,32 @@ fun MainScreen(onRevisitTutorial: () -> Unit) {
                             startDestination = Screen.Home.route,
                             modifier = Modifier.fillMaxSize(),
                             enterTransition = {
-                                fadeIn(tween(300)) + 
+                                fadeIn(tween(200)) + 
                                 slideIntoContainer(
                                     towards = AnimatedContentTransitionScope.SlideDirection.Start,
-                                    animationSpec = tween(400, easing = FastOutSlowInEasing)
+                                    animationSpec = tween(300, easing = LinearOutSlowInEasing)
                                 )
                             },
                             exitTransition = {
-                                fadeOut(tween(300)) +
-                                scaleOut(
-                                    targetScale = 0.95f,
-                                    animationSpec = tween(400, easing = FastOutSlowInEasing)
+                                fadeOut(tween(200)) +
+                                slideOutOfContainer(
+                                    towards = AnimatedContentTransitionScope.SlideDirection.Start,
+                                    animationSpec = tween(300, easing = FastOutLinearInEasing)
                                 )
                             },
                             popEnterTransition = {
-                                fadeIn(tween(300)) + 
-                                scaleIn(
-                                    initialScale = 0.95f,
-                                    animationSpec = tween(400, easing = FastOutSlowInEasing)
+                                fadeIn(tween(200)) + 
+                                slideIntoContainer(
+                                    towards = AnimatedContentTransitionScope.SlideDirection.End,
+                                    animationSpec = tween(300, easing = LinearOutSlowInEasing)
                                 )
                             },
                             popExitTransition = {
+                                fadeOut(tween(200)) +
                                 slideOutOfContainer(
                                     towards = AnimatedContentTransitionScope.SlideDirection.End,
-                                    animationSpec = tween(400, easing = FastOutSlowInEasing)
-                                ) + fadeOut(tween(300))
+                                    animationSpec = tween(300, easing = FastOutLinearInEasing)
+                                )
                             }
                         ) {
                             composable(Screen.Home.route) {
