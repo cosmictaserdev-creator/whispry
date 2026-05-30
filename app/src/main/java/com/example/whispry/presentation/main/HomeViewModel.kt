@@ -1,3 +1,5 @@
+package com.example.whispry.presentation.main
+
 import android.Manifest
 import android.app.ActivityManager
 import android.content.Context

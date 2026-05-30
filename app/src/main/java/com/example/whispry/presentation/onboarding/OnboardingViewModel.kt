@@ -21,6 +21,7 @@ import javax.inject.Inject
 data class OnboardingState(
     val micPermissionGranted: Boolean = false,
     val overlayPermissionGranted: Boolean = false,
+    val phoneStatePermissionGranted: Boolean = false,
     val accessibilityEnabled: Boolean = false,
     val apiKey: String = "",
     val isApiKeyValid: Boolean = false,
@@ -94,6 +95,7 @@ class OnboardingViewModel @Inject constructor(
     fun checkPermissions() {
         val mic = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
         val overlay = Settings.canDrawOverlays(context)
+        val phone = ContextCompat.checkSelfPermission(context, Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_GRANTED
         
         val accessibility = isAccessibilityServiceEnabled() && ServiceLocator.triggerService != null
         
@@ -101,8 +103,9 @@ class OnboardingViewModel @Inject constructor(
             it.copy(
                 micPermissionGranted = mic,
                 overlayPermissionGranted = overlay,
+                phoneStatePermissionGranted = phone,
                 accessibilityEnabled = accessibility,
-                allPermissionsGranted = mic && overlay && accessibility
+                allPermissionsGranted = mic && overlay && phone && accessibility
             )
         }
     }

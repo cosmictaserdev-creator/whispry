@@ -86,6 +86,13 @@ fun OnboardingNavGraph(
         }
     )
 
+    val phonePermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+        onResult = { isGranted ->
+            viewModel.checkPermissions()
+        }
+    )
+
     val onboardingBackdrop = rememberLayerBackdrop {
         drawContent()
     }
@@ -151,6 +158,9 @@ fun OnboardingNavGraph(
                             Uri.parse("package:${context.packageName}")
                         )
                         context.startActivity(intent)
+                    },
+                    onGrantPhone = {
+                        phonePermissionLauncher.launch(Manifest.permission.READ_PHONE_STATE)
                     },
                     onGrantAccessibility = {
                         val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)

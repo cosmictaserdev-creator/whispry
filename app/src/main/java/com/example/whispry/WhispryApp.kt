@@ -1,3 +1,5 @@
+package com.example.whispry
+
 import android.app.Application
 import dagger.hilt.android.HiltAndroidApp
 

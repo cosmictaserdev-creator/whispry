@@ -1,4 +1,7 @@
+package com.example.whispry.di
+
 import android.content.Context
+import android.media.AudioManager
 import com.example.whispry.data.local.datasource.ApiKeyProvider
 import com.example.whispry.data.local.datasource.TranscriptLocalDataSource
 import com.example.whispry.data.remote.datasource.GroqRemoteDataSource
@@ -61,5 +64,13 @@ object AppModule {
         dao: com.example.whispry.data.local.db.TranscriptDao
     ): TranscriptLocalDataSource {
         return TranscriptLocalDataSource(dao)
+    }
+
+    @Provides
+    @Singleton
+    fun provideAudioManager(
+        @ApplicationContext context: Context
+    ): AudioManager {
+        return context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
     }
 }

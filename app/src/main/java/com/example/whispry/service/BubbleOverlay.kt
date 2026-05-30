@@ -24,8 +24,8 @@ import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.vibrancy
 import com.kyant.capsule.ContinuousRoundedRectangle
-import com.kyant.backdrop.rememberLayerBackdrop
-import com.kyant.backdrop.layerBackdrop
+import com.kyant.backdrop.backdrops.rememberLayerBackdrop
+import com.kyant.backdrop.backdrops.layerBackdrop
 
 /**
  * Modern Pill-style Overlay that slides up from the bottom with spring physics.
@@ -252,7 +252,7 @@ private fun ThreeDotLoader() {
             val delay = i * 150
             val translationY by infiniteTransition.animateFloat(
                 initialValue = 0f,
-                targetValue = -6dp.value,
+                targetValue = -6.dp.value,
                 animationSpec = infiniteRepeatable(
                     animation = tween(600, delayMillis = delay, easing = FastOutSlowInEasing),
                     repeatMode = RepeatMode.Reverse

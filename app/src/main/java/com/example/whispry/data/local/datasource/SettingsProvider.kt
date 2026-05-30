@@ -16,7 +16,7 @@ private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(na
 class SettingsProvider @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
-    private val dataStore = context.dataStore
+    val dataStore = context.dataStore
 
     // ------------------------------------------------------------------
     // Flows

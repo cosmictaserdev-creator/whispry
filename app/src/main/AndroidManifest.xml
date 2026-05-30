@@ -84,9 +84,9 @@
             </intent-filter>
         </receiver>
         <service
-            android:name=\".service.WakeWordService\"
-            android:exported=\"false\"
-            android:foregroundServiceType=\"microphone\" />
+            android:name=".service.WakeWordService"
+            android:exported="false"
+            android:foregroundServiceType="microphone" />
 
     </application>
 

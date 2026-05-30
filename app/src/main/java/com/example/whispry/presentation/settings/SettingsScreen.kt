@@ -32,10 +32,12 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.whispry.domain.model.TriggerMode
+import com.example.whispry.domain.model.WakeWordMode
 import com.example.whispry.presentation.common.GlassCard
 import com.example.whispry.service.TriggerSound
 import com.example.whispry.ui.theme.AccentPreset
@@ -144,15 +146,9 @@ fun SettingsScreen(
             Box(modifier = Modifier.animateItem()) {
                 SettingsSection(title = "Trigger Method", backdrop = backdrop) {
                     TriggerPickerSection(
-                        selectedMode = state.triggerMode,
-                        availableModes = state.availableTriggerModes,
-                        onModeSelected = { viewModel.onIntent(SettingsIntent.SetTriggerMode(it)) },
-                        smartSuppression = state.smartTriggerSuppression,
-                        onSmartSuppressionChange = { viewModel.onIntent(SettingsIntent.SetSmartTriggerSuppression(it)) },
-                        wakeWordEnabled = state.wakeWordEnabled,
-                        onWakeWordEnabledChange = { viewModel.onIntent(SettingsIntent.SetWakeWordEnabled(it)) },
-                        wakeWordPhrase = state.wakeWordPhrase,
-                        onWakeWordPhraseChange = { viewModel.onIntent(SettingsIntent.SetWakeWordPhrase(it)) },
+                        state = state,
+                        onIntent = { viewModel.onIntent(it) },
+                        onShowTrainingSheet = { showTrainingSheet = true },
                         backdrop = backdrop
                     )
                 }
@@ -390,23 +386,23 @@ fun SoundChip(
 
 @Composable
 fun TriggerPickerSection(
-    selectedMode: TriggerMode,
-    availableModes: List<TriggerMode>,
-    onModeSelected: (TriggerMode) -> Unit,
-    smartSuppression: Boolean,
-    onSmartSuppressionChange: (Boolean) -> Unit,
-    wakeWordEnabled: Boolean,
-    onWakeWordEnabledChange: (Boolean) -> Unit,
-    wakeWordPhrase: String,
-    onWakeWordPhraseChange: (String) -> Unit,
+    state: SettingsState,
+    onIntent: (SettingsIntent) -> Unit,
+    onShowTrainingSheet: () -> Unit,
     backdrop: Backdrop
 ) {
+    val selectedMode = state.triggerMode
+    val availableModes = state.availableTriggerModes
+    val smartSuppression = state.smartTriggerSuppression
+    val wakeWordEnabled = state.wakeWordEnabled
+    val wakeWordPhrase = state.wakeWordPhrase
+
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         availableModes.forEach { mode ->
             TriggerCard(
                 mode = mode,
                 isSelected = selectedMode::class == mode::class,
-                onClick = { onModeSelected(mode) },
+                onClick = { onIntent(SettingsIntent.SetTriggerMode(mode)) },
                 backdrop = backdrop
             )
             
@@ -420,7 +416,7 @@ fun TriggerPickerSection(
                         icon = Icons.Rounded.AutoAwesome,
                         title = "Smart Suppression",
                         checked = smartSuppression,
-                        onCheckedChange = onSmartSuppressionChange,
+                        onCheckedChange = { onIntent(SettingsIntent.SetSmartTriggerSuppression(it)) },
                         backdrop = backdrop
                     )
                     Text(
@@ -442,31 +438,31 @@ fun TriggerPickerSection(
                         icon = Icons.Rounded.GraphicEq,
                         title = "Enable Detection",
                         checked = wakeWordEnabled,
-                        onCheckedChange = onWakeWordEnabledChange,
+                        onCheckedChange = { onIntent(SettingsIntent.SetWakeWordEnabled(it)) },
                         backdrop = backdrop
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        WakeWordModeChip(\"Default\", state.wakeWordMode == WakeWordMode.DEFAULT) {
-                            viewModel.onIntent(SettingsIntent.SetWakeWordMode(WakeWordMode.DEFAULT))
+                        WakeWordModeChip("Default", state.wakeWordMode == WakeWordMode.DEFAULT) {
+                            onIntent(SettingsIntent.SetWakeWordMode(WakeWordMode.DEFAULT))
                         }
-                        WakeWordModeChip(\"Custom\", state.wakeWordMode == WakeWordMode.CUSTOM) {
-                            viewModel.onIntent(SettingsIntent.SetWakeWordMode(WakeWordMode.CUSTOM))
+                        WakeWordModeChip("Custom", state.wakeWordMode == WakeWordMode.CUSTOM) {
+                            onIntent(SettingsIntent.SetWakeWordMode(WakeWordMode.CUSTOM))
                         }
-                        WakeWordModeChip(\"Trained\", state.wakeWordMode == WakeWordMode.TRAINED) {
+                        WakeWordModeChip("Trained", state.wakeWordMode == WakeWordMode.TRAINED) {
                             if (state.wakeWordMode != WakeWordMode.TRAINED) {
-                                showTrainingSheet = true
+                                onShowTrainingSheet()
                             }
-                            viewModel.onIntent(SettingsIntent.SetWakeWordMode(WakeWordMode.TRAINED))
+                            onIntent(SettingsIntent.SetWakeWordMode(WakeWordMode.TRAINED))
                         }
                     }
 
                     AnimatedVisibility(visible = state.wakeWordMode == WakeWordMode.CUSTOM) {
                         OutlinedTextField(
                             value = wakeWordPhrase,
-                            onValueChange = onWakeWordPhraseChange,
-                            label = { Text(\"Wake Phrase\", fontSize = 10.sp) },
+                            onValueChange = { onIntent(SettingsIntent.SetWakeWordPhrase(it)) },
+                            label = { Text("Wake Phrase", fontSize = 10.sp) },
                             modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                             textStyle = MaterialTheme.typography.bodySmall,
                             shape = RoundedCornerShape(12.dp),
@@ -479,12 +475,12 @@ fun TriggerPickerSection(
 
                     AnimatedVisibility(visible = state.wakeWordMode == WakeWordMode.TRAINED) {
                         LiquidButton(
-                            onClick = { showTrainingSheet = true },
+                            onClick = { onShowTrainingSheet() },
                             backdrop = backdrop,
                             modifier = Modifier.fillMaxWidth().padding(top = 8.dp).height(36.dp),
                             tint = WhispryTheme.colors.accent.copy(alpha = 0.1f)
                         ) {
-                            Text(\"Retrain voice model\", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                            Text("Retrain voice model", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                         }
                     }
                 }

@@ -162,17 +162,16 @@ class TriggerService : AccessibilityService() {
                     soundManager.play(SoundEvent.TRIGGER_START)
                     serviceBridge.emit(ServiceBridge.TriggerEvent.RecordingStarted)
                     true
-                    } else false
-                    }
-                    KeyEvent.ACTION_UP -> {
-                    if (triggerState == TriggerState.RECORDING) {
+                } else false
+            }
+            KeyEvent.ACTION_UP -> {
+                if (triggerState == TriggerState.RECORDING) {
                     triggerState = TriggerState.IDLE
                     soundManager.play(SoundEvent.TRIGGER_STOP)
                     serviceBridge.emit(ServiceBridge.TriggerEvent.RecordingStopped)
                     true
-                    } else false
-                    }
-
+                } else false
+            }
             else -> false
         }
     }
@@ -231,8 +230,12 @@ class TriggerService : AccessibilityService() {
         if (result == AudioManager.AUDIOFOCUS_REQUEST_FAILED) focusHeld = true
         else audioManager.abandonAudioFocusRequest(focusRequest)
         if (focusHeld) return true
-        val telephonyManager = getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
-        if (telephonyManager.callState != TelephonyManager.CALL_STATE_IDLE) return true
+        try {
+            val telephonyManager = getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
+            if (telephonyManager.callState != TelephonyManager.CALL_STATE_IDLE) return true
+        } catch (e: SecurityException) {
+            Log.w(TAG, "Missing READ_PHONE_STATE permission, skipping call state check")
+        }
         return false
     }
 

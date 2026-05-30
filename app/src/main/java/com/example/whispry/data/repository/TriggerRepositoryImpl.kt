@@ -3,6 +3,7 @@ package com.example.whispry.data.repository
 import android.os.Build
 import android.view.KeyCharacterMap
 import android.view.KeyEvent
+import androidx.datastore.preferences.core.edit
 import com.example.whispry.data.local.datasource.DataStoreKeys
 import com.example.whispry.data.local.datasource.SettingsProvider
 import com.example.whispry.domain.model.TriggerMode
@@ -47,15 +48,14 @@ class TriggerRepositoryImpl @Inject constructor(
 
     private fun hasActionButton(): Boolean {
         // Check for Samsung's Bixby key (KEYCODE_VOICE_ASSIST = 231)
-        val kcm = KeyCharacterMap.load(KeyCharacterMap.VIRTUAL_KEYBOARD)
-        if (kcm.deviceHasKey(KeyEvent.KEYCODE_VOICE_ASSIST)) return true
+        if (KeyCharacterMap.deviceHasKey(KeyEvent.KEYCODE_VOICE_ASSIST)) return true
         
         // Check for generic action button
-        if (kcm.deviceHasKey(KeyEvent.KEYCODE_ASSIST)) return true
+        if (KeyCharacterMap.deviceHasKey(KeyEvent.KEYCODE_ASSIST)) return true
         
         // Check build properties for known action button devices
         val model = Build.MODEL.lowercase()
-        val knownActionButtonDevices = listOf(\"pixel 8 pro\", \"pixel 9\", \"iphone\") 
+        val knownActionButtonDevices = listOf("pixel 8 pro", "pixel 9", "iphone") 
         return knownActionButtonDevices.any { model.contains(it) }
     }
 }

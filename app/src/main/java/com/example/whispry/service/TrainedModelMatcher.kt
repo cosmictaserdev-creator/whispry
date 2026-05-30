@@ -49,12 +49,12 @@ class TrainedModelMatcher @Inject constructor() {
     }
 
     fun getFingerprintString(): String? {
-        return storedFingerprint?.joinToString(\",\")
+        return storedFingerprint?.joinToString(",")
     }
 
     fun loadFromPrefsString(saved: String) {
         try {
-            storedFingerprint = saved.split(\",\").map { it.toFloat() }.toFloatArray()
+            storedFingerprint = saved.split(",").map { it.toFloat() }.toFloatArray()
         } catch (e: Exception) {
             storedFingerprint = null
         }

@@ -5,6 +5,7 @@ import android.content.Intent
 import android.provider.Settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.datastore.preferences.core.edit
 import com.example.whispry.data.local.datasource.ApiKeyProvider
 import com.example.whispry.data.local.datasource.DataStoreKeys
 import com.example.whispry.data.local.datasource.SettingsProvider
@@ -12,6 +13,7 @@ import com.example.whispry.domain.model.WakeWordMode
 import com.example.whispry.domain.repository.TriggerRepository
 import com.example.whispry.service.BubbleService
 import com.example.whispry.service.ServiceLocator
+import com.example.whispry.service.TrainedModelMatcher
 import com.example.whispry.service.TriggerSound
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext

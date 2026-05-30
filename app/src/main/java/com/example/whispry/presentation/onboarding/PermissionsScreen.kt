@@ -35,6 +35,7 @@ fun PermissionsScreen(
     state: OnboardingState,
     onGrantMic: () -> Unit,
     onGrantOverlay: () -> Unit,
+    onGrantPhone: () -> Unit,
     onGrantAccessibility: () -> Unit,
     onContinue: () -> Unit,
     onRefresh: () -> Unit,
@@ -87,9 +88,9 @@ fun PermissionsScreen(
                 delayMs = 200
             )
 
-            Spacer(modifier = Modifier.height(48.dp))
+            Spacer(modifier = Modifier.height(32.dp))
 
-            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 PermissionCard(
                     title = "Microphone",
                     description = "To capture and transcribe your voice",
@@ -106,8 +107,19 @@ fun PermissionsScreen(
                     description = "To display the floating recording bubble",
                     isGranted = state.overlayPermissionGranted,
                     onClick = onGrantOverlay,
-                    delayMs = 550,
+                    delayMs = 500,
                     icon = Icons.Rounded.Layers,
+                    backdrop = backdrop,
+                    isRequired = true
+                )
+
+                PermissionCard(
+                    title = "Phone State",
+                    description = "To suppress triggers during active calls",
+                    isGranted = state.phoneStatePermissionGranted,
+                    onClick = onGrantPhone,
+                    delayMs = 600,
+                    icon = Icons.Rounded.Phone,
                     backdrop = backdrop,
                     isRequired = true
                 )

@@ -37,6 +37,7 @@ import androidx.savedstate.SavedStateRegistryController
 import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.example.whispry.R
+import com.example.whispry.data.local.datasource.DataStoreKeys
 import com.example.whispry.domain.usecase.TranscribeAudioUseCase
 import com.example.whispry.ui.theme.AccentPreset
 import com.example.whispry.ui.theme.WhispryTheme
@@ -342,6 +343,7 @@ class BubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedState
         message.value = ""
         bubbleState.value = BubbleState.Listening
         isRecording.value = true
+        isMiniMode = false // Reset mini mode
 
         val path = audioRecorder.startRecording()
         if (path != null) {
