@@ -49,6 +49,8 @@ import com.kyant.backdrop.effects.vibrancy
 
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
+import com.example.whispry.domain.model.TriggerMode
+
 @Composable
 fun SettingsScreen(
     viewModel: SettingsViewModel,
@@ -81,7 +83,8 @@ fun SettingsScreen(
             top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 24.dp,
             start = 24.dp, 
             end = 24.dp
-        )
+        ),
+        verticalArrangement = Arrangement.spacedBy(24.dp)
     ) {
         item {
             Box(modifier = Modifier.animateItem()) {
@@ -91,7 +94,6 @@ fun SettingsScreen(
                     fontWeight = FontWeight.Bold
                 )
             }
-            Spacer(modifier = Modifier.height(24.dp))
         }
 
         item {
@@ -127,9 +129,37 @@ fun SettingsScreen(
         }
 
         item {
-            Spacer(modifier = Modifier.height(24.dp))
             Box(modifier = Modifier.animateItem()) {
-                SettingsSection(title = "Appearance", backdrop = backdrop) {
+                SettingsSection(title = "Trigger Method", backdrop = backdrop) {
+                    TriggerPickerSection(
+                        selectedMode = state.triggerMode,
+                        availableModes = state.availableTriggerModes,
+                        onModeSelected = { viewModel.onIntent(SettingsIntent.SetTriggerMode(it)) },
+                        smartSuppression = state.smartTriggerSuppression,
+                        onSmartSuppressionChange = { viewModel.onIntent(SettingsIntent.SetSmartTriggerSuppression(it)) },
+                        wakeWordEnabled = state.wakeWordEnabled,
+                        onWakeWordEnabledChange = { viewModel.onIntent(SettingsIntent.SetWakeWordEnabled(it)) },
+                        wakeWordPhrase = state.wakeWordPhrase,
+                        onWakeWordPhraseChange = { viewModel.onIntent(SettingsIntent.SetWakeWordPhrase(it)) },
+                        backdrop = backdrop
+                    )
+                }
+            }
+        }
+
+        item {
+            Box(modifier = Modifier.animateItem()) {
+                SettingsSection(title = "Interface", backdrop = backdrop) {
+                    LiquidSettingsToggle(
+                        icon = Icons.Rounded.OpenInNew,
+                        title = "Floating Widget",
+                        checked = state.floatingWidgetEnabled,
+                        onCheckedChange = { viewModel.onIntent(SettingsIntent.SetFloatingWidgetEnabled(it)) },
+                        backdrop = backdrop
+                    )
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+
                     AccentColorSelector(
                         selectedPreset = AccentPreset.entries.find { it.name == state.accentColor } ?: AccentPreset.Purple,
                         onPresetSelected = { viewModel.onIntent(SettingsIntent.SetAccentColor(it.name)) }
@@ -139,9 +169,8 @@ fun SettingsScreen(
         }
 
         item {
-            Spacer(modifier = Modifier.height(24.dp))
             Box(modifier = Modifier.animateItem()) {
-                SettingsSection(title = "Trigger", backdrop = backdrop) {
+                SettingsSection(title = "Controls", backdrop = backdrop) {
                     LiquidSettingsSlider(
                         title = "Double Press Interval",
                         value = state.doublePressInterval.toFloat(),
@@ -166,7 +195,6 @@ fun SettingsScreen(
         }
 
         item {
-            Spacer(modifier = Modifier.height(24.dp))
             Box(modifier = Modifier.animateItem()) {
                 SettingsSection(title = "Service", backdrop = backdrop) {
                     StatusRow(
@@ -191,7 +219,6 @@ fun SettingsScreen(
         }
 
         item {
-            Spacer(modifier = Modifier.height(24.dp))
             Box(modifier = Modifier.animateItem()) {
                 SettingsSection(title = "Tutorial", backdrop = backdrop) {
                     SettingsRow(
@@ -205,18 +232,226 @@ fun SettingsScreen(
         }
 
         item {
-            Spacer(modifier = Modifier.height(24.dp))
             Box(modifier = Modifier.animateItem()) {
                 SettingsSection(title = "About", backdrop = backdrop) {
                     SettingsRow(
                         icon = Icons.Rounded.Info,
                         title = "Version",
-                        value = "1.0.0 (Build 12)",
+                        value = "1.1.0",
                         showChevron = false
                     )
                 }
             }
+        }
+
+        item {
+            var showResetDialog by remember { mutableStateOf(false) }
+            
+            if (showResetDialog) {
+                AlertDialog(
+                    onDismissRequest = { showResetDialog = false },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            viewModel.onIntent(SettingsIntent.ResetToDefaults)
+                            showResetDialog = false
+                        }) {
+                            Text("Reset", color = Color.Red)
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showResetDialog = false }) {
+                            Text("Cancel")
+                        }
+                    },
+                    title = { Text("Reset to Defaults?") },
+                    text = { Text("This will clear all settings and your API key. This action cannot be undone.") },
+                    shape = RoundedCornerShape(24.dp),
+                    containerColor = Color(0xFF1A1A1A), // Dark glass feel
+                    textContentColor = Color.White,
+                    titleContentColor = Color.White
+                )
+            }
+
+            LiquidButton(
+                onClick = { showResetDialog = true },
+                backdrop = backdrop,
+                modifier = Modifier.fillMaxWidth().height(56.dp),
+                tint = Color.White.copy(alpha = 0.05f)
+            ) {
+                Text("Reset to defaults", color = Color.Red.copy(alpha = 0.8f), fontWeight = FontWeight.SemiBold)
+            }
             Spacer(modifier = Modifier.height(140.dp))
+        }
+    }
+}
+
+@Composable
+fun TriggerPickerSection(
+    selectedMode: TriggerMode,
+    availableModes: List<TriggerMode>,
+    onModeSelected: (TriggerMode) -> Unit,
+    smartSuppression: Boolean,
+    onSmartSuppressionChange: (Boolean) -> Unit,
+    wakeWordEnabled: Boolean,
+    onWakeWordEnabledChange: (Boolean) -> Unit,
+    wakeWordPhrase: String,
+    onWakeWordPhraseChange: (String) -> Unit,
+    backdrop: Backdrop
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        availableModes.forEach { mode ->
+            TriggerCard(
+                mode = mode,
+                isSelected = selectedMode::class == mode::class,
+                onClick = { onModeSelected(mode) },
+                backdrop = backdrop
+            )
+            
+            // Sub-settings
+            AnimatedVisibility(
+                visible = selectedMode::class == mode::class && mode is TriggerMode.VolumeButton,
+                enter = expandVertically() + fadeIn(),
+                exit = shrinkVertically() + fadeOut()
+            ) {
+                Column(modifier = Modifier.padding(start = 16.dp, top = 4.dp)) {
+                    LiquidSettingsToggle(
+                        icon = Icons.Rounded.AutoAwesome,
+                        title = "Smart Suppression",
+                        checked = smartSuppression,
+                        onCheckedChange = onSmartSuppressionChange,
+                        backdrop = backdrop
+                    )
+                    Text(
+                        "Prevents activation while music or calls are active",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.White.copy(alpha = 0.4f),
+                        modifier = Modifier.padding(start = 36.dp)
+                    )
+                }
+            }
+
+            AnimatedVisibility(
+                visible = selectedMode::class == mode::class && mode is TriggerMode.WakeWord,
+                enter = expandVertically() + fadeIn(),
+                exit = shrinkVertically() + fadeOut()
+            ) {
+                Column(modifier = Modifier.padding(start = 16.dp, top = 4.dp)) {
+                    LiquidSettingsToggle(
+                        icon = Icons.Rounded.GraphicEq,
+                        title = "Enable Detection",
+                        checked = wakeWordEnabled,
+                        onCheckedChange = onWakeWordEnabledChange,
+                        backdrop = backdrop
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = wakeWordPhrase,
+                        onValueChange = onWakeWordPhraseChange,
+                        label = { Text("Wake Phrase", fontSize = 10.sp) },
+                        modifier = Modifier.fillMaxWidth().padding(start = 36.dp),
+                        textStyle = MaterialTheme.typography.bodySmall,
+                        shape = RoundedCornerShape(12.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = WhispryTheme.colors.accent,
+                            unfocusedBorderColor = Color.White.copy(alpha = 0.1f)
+                        )
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun TriggerCard(
+    mode: TriggerMode,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    backdrop: Backdrop
+) {
+    val title = when (mode) {
+        is TriggerMode.VolumeButton -> "Volume Button"
+        is TriggerMode.ActionButton -> "Action Button"
+        is TriggerMode.WakeWord -> "Wake Word"
+        is TriggerMode.FloatingWidget -> "Floating Widget"
+        is TriggerMode.Manual -> "Manual Only"
+    }
+    
+    val description = when (mode) {
+        is TriggerMode.VolumeButton -> "Double press and hold volume down"
+        is TriggerMode.ActionButton -> "Press and hold your device's action button"
+        is TriggerMode.WakeWord -> "Say 'Hey Whispry' to start recording"
+        is TriggerMode.FloatingWidget -> "Tap the floating bubble to record"
+        is TriggerMode.Manual -> "Use the record button inside the app only"
+    }
+
+    val icon = when (mode) {
+        is TriggerMode.VolumeButton -> Icons.Rounded.VolumeDown
+        is TriggerMode.ActionButton -> Icons.Rounded.SmartButton
+        is TriggerMode.WakeWord -> Icons.Rounded.GraphicEq
+        is TriggerMode.FloatingWidget -> Icons.Rounded.OpenInNew
+        is TriggerMode.Manual -> Icons.Rounded.Mic
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .border(
+                width = if (isSelected) 1.5.dp else 1.dp,
+                color = if (isSelected) WhispryTheme.colors.accent else Color.White.copy(alpha = 0.1f),
+                shape = RoundedCornerShape(16.dp)
+            )
+            .background(
+                if (isSelected) WhispryTheme.colors.accent.copy(alpha = 0.08f)
+                else Color.White.copy(alpha = 0.02f)
+            )
+            .clickable { onClick() }
+            .padding(12.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(
+                        if (isSelected) WhispryTheme.colors.accent.copy(alpha = 0.15f)
+                        else Color.White.copy(alpha = 0.05f)
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = if (isSelected) WhispryTheme.colors.accent else Color.White.copy(alpha = 0.5f),
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+            
+            Spacer(modifier = Modifier.width(16.dp))
+            
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (isSelected) Color.White else Color.White.copy(alpha = 0.9f)
+                )
+                Text(
+                    text = description,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.White.copy(alpha = 0.5f)
+                )
+            }
+            
+            if (isSelected) {
+                Icon(
+                    Icons.Rounded.CheckCircle,
+                    null,
+                    tint = WhispryTheme.colors.accent,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
         }
     }
 }

@@ -8,7 +8,8 @@ import androidx.lifecycle.viewModelScope
 import com.example.whispry.data.local.datasource.ApiKeyProvider
 import com.example.whispry.data.local.datasource.SettingsProvider
 import com.example.whispry.service.BubbleService
-import com.example.whispry.service.ServiceLocator
+import com.example.whispry.data.local.datasource.DataStoreKeys
+import com.example.whispry.domain.repository.TriggerRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.*
@@ -19,14 +20,18 @@ import javax.inject.Inject
 class SettingsViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val apiKeyProvider: ApiKeyProvider,
-    private val settingsProvider: SettingsProvider
+    private val settingsProvider: SettingsProvider,
+    private val triggerRepository: TriggerRepository
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(SettingsState())
     val state: StateFlow<SettingsState> = _state.asStateFlow()
 
     init {
-        _state.update { it.copy(apiKey = apiKeyProvider.getApiKey()) }
+        _state.update { it.copy(
+            apiKey = apiKeyProvider.getApiKey(),
+            availableTriggerModes = triggerRepository.getAvailableTriggerModes()
+        ) }
         observeSettings()
         refreshStatus()
     }
@@ -40,6 +45,12 @@ class SettingsViewModel @Inject constructor(
         settingsProvider.bubbleSize.onEach { v -> _state.update { it.copy(bubbleSize = v) } }.launchIn(viewModelScope)
         settingsProvider.autoStartBoot.onEach { v -> _state.update { it.copy(autoStartBoot = v) } }.launchIn(viewModelScope)
         settingsProvider.accentColor.onEach { v -> _state.update { it.copy(accentColor = v) } }.launchIn(viewModelScope)
+        
+        triggerRepository.getActiveTriggerMode().onEach { v -> _state.update { it.copy(triggerMode = v) } }.launchIn(viewModelScope)
+        settingsProvider.smartTriggerSuppression.onEach { v -> _state.update { it.copy(smartTriggerSuppression = v) } }.launchIn(viewModelScope)
+        settingsProvider.dataStore.data.map { it[DataStoreKeys.FLOATING_WIDGET_ENABLED] ?: true }.onEach { v -> _state.update { it.copy(floatingWidgetEnabled = v) } }.launchIn(viewModelScope)
+        settingsProvider.dataStore.data.map { it[DataStoreKeys.WAKE_WORD_ENABLED] ?: false }.onEach { v -> _state.update { it.copy(wakeWordEnabled = v) } }.launchIn(viewModelScope)
+        settingsProvider.dataStore.data.map { it[DataStoreKeys.WAKE_WORD_PHRASE] ?: "hey whispry" }.onEach { v -> _state.update { it.copy(wakeWordPhrase = v) } }.launchIn(viewModelScope)
     }
 
     fun onIntent(intent: SettingsIntent) {
@@ -77,6 +88,16 @@ class SettingsViewModel @Inject constructor(
                 is SettingsIntent.ResetOnboarding -> {
                     settingsProvider.setOnboardingCompleted(false)
                 }
+                is SettingsIntent.ResetToDefaults -> {
+                    settingsProvider.dataStore.edit { it.clear() }
+                    apiKeyProvider.clearApiKey()
+                    refreshStatus()
+                }
+                is SettingsIntent.SetTriggerMode -> triggerRepository.setTriggerMode(intent.mode)
+                is SettingsIntent.SetSmartTriggerSuppression -> settingsProvider.setSmartTriggerSuppression(intent.enabled)
+                is SettingsIntent.SetFloatingWidgetEnabled -> settingsProvider.dataStore.edit { it[DataStoreKeys.FLOATING_WIDGET_ENABLED] = intent.enabled }
+                is SettingsIntent.SetWakeWordEnabled -> settingsProvider.dataStore.edit { it[DataStoreKeys.WAKE_WORD_ENABLED] = intent.enabled }
+                is SettingsIntent.SetWakeWordPhrase -> settingsProvider.dataStore.edit { it[DataStoreKeys.WAKE_WORD_PHRASE] = intent.phrase }
             }
         }
     }

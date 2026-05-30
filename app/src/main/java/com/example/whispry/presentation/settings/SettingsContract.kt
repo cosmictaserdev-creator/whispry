@@ -1,5 +1,7 @@
 package com.example.whispry.presentation.settings
 
+import com.example.whispry.domain.model.TriggerMode
+
 data class SettingsState(
     val apiKey: String = "",
     val language: String = "en",
@@ -13,7 +15,19 @@ data class SettingsState(
     val isAccessibilityEnabled: Boolean = false,
     val isSaved: Boolean = false,
     val error: String? = null,
-    val accentColor: String = "Purple"
+    val accentColor: String = "Purple",
+    
+    // Feature 3
+    val triggerMode: TriggerMode = TriggerMode.VolumeButton,
+    val availableTriggerModes: List<TriggerMode> = emptyList(),
+    val smartTriggerSuppression: Boolean = true,
+    
+    // Feature 1
+    val floatingWidgetEnabled: Boolean = true,
+    
+    // Feature 2 & 6
+    val wakeWordEnabled: Boolean = false,
+    val wakeWordPhrase: String = "hey whispry"
 )
 
 sealed class SettingsIntent {
@@ -32,4 +46,16 @@ sealed class SettingsIntent {
     object OpenAccessibilitySettings : SettingsIntent()
     object RestartService : SettingsIntent()
     object ResetOnboarding : SettingsIntent()
+    object ResetToDefaults : SettingsIntent()
+    
+    // Feature 3
+    data class SetTriggerMode(val mode: TriggerMode) : SettingsIntent()
+    data class SetSmartTriggerSuppression(val enabled: Boolean) : SettingsIntent()
+    
+    // Feature 1
+    data class SetFloatingWidgetEnabled(val enabled: Boolean) : SettingsIntent()
+    
+    // Feature 2 & 6
+    data class SetWakeWordEnabled(val enabled: Boolean) : SettingsIntent()
+    data class SetWakeWordPhrase(val phrase: String) : SettingsIntent()
 }
