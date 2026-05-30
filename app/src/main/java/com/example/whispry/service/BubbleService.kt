@@ -51,8 +51,106 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 
+import android.animation.ValueAnimator
+import android.view.animation.PathInterpolator
+
 @AndroidEntryPoint
 class BubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedStateRegistryOwner {
+    // ... rest of the properties
+    
+    private var isMiniMode = false
+
+    private fun transitionToMiniProcessing() {
+        if (bubbleState.value !is BubbleState.Processing) return
+        
+        // Step 1: animate bubble to corner
+        val displayMetrics = resources.displayMetrics
+        val screenWidth = displayMetrics.widthPixels
+        val targetX = screenWidth - 72.dpToPx() - 16.dpToPx()
+        val targetY = 120.dpToPx() // top area
+        
+        animateBubbleToPosition(
+            targetX = targetX,
+            targetY = targetY,
+            onComplete = {
+                // Step 2: shrink to pill
+                animateBubbleSize(
+                    fromSize = 150.dpToPx(), // Assuming full size is 150dp
+                    toSize = 56.dpToPx(),
+                    onComplete = {
+                        isMiniMode = true
+                        bubbleState.value = (bubbleState.value as BubbleState.Processing).copy(miniMode = true)
+                        layoutParams?.flags = layoutParams?.flags?.or(WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL) ?: return@animateBubbleSize
+                        try { windowManager.updateViewLayout(composeView, layoutParams) } catch (e: Exception) {}
+                    }
+                )
+            }
+        )
+    }
+
+    private fun expandFromMini(onExpanded: () -> Unit) {
+        val displayMetrics = resources.displayMetrics
+        val screenWidth = displayMetrics.widthPixels
+        val screenHeight = displayMetrics.heightPixels
+        val centerX = (screenWidth / 2) - 75.dpToPx()
+        val centerY = (screenHeight / 2) - 75.dpToPx()
+        
+        // Remove NOT_TOUCH_MODAL flag
+        layoutParams?.flags = layoutParams?.flags?.and(WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL.inv()) ?: return
+        
+        // Position spring to center
+        animateBubbleToPosition(centerX, centerY)
+        
+        // Size spring to full
+        animateBubbleSize(
+            fromSize = 56.dpToPx(),
+            toSize = 150.dpToPx(),
+            onComplete = {
+                isMiniMode = false
+                onExpanded()
+            }
+        )
+    }
+
+    private fun animateBubbleToPosition(targetX: Int, targetY: Int, onComplete: () -> Unit = {}) {
+        val startX = layoutParams?.x ?: 0
+        val startY = layoutParams?.y ?: 0
+        
+        val animator = ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = 400
+            interpolator = PathInterpolator(0.34f, 1.56f, 0.64f, 1f)
+            addUpdateListener { anim ->
+                val progress = anim.animatedValue as Float
+                layoutParams?.x = (startX + (targetX - startX) * progress).toInt()
+                layoutParams?.y = (startY + (targetY - startY) * progress).toInt()
+                try { windowManager.updateViewLayout(composeView, layoutParams) } catch (e: Exception) {}
+            }
+            addListener(object : android.animation.AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: android.animation.Animator) {
+                    onComplete()
+                }
+            })
+        }
+        animator.start()
+    }
+
+    private fun animateBubbleSize(fromSize: Int, toSize: Int, onComplete: () -> Unit = {}) {
+        val animator = ValueAnimator.ofInt(fromSize, toSize).apply {
+            duration = 350
+            interpolator = PathInterpolator(0.34f, 1.56f, 0.64f, 1f)
+            addUpdateListener { anim ->
+                layoutParams?.width = anim.animatedValue as Int
+                layoutParams?.height = anim.animatedValue as Int
+                try { windowManager.updateViewLayout(composeView, layoutParams) } catch (e: Exception) {}
+            }
+            addListener(object : android.animation.AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: android.animation.Animator) {
+                    onComplete()
+                }
+            })
+        }
+        animator.start()
+    }
 
     private val TAG = "Whispry_BubbleService"
 
@@ -281,6 +379,13 @@ class BubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedState
         lastAudioFilePath = result.filePath
         lastAudioDurationMs = result.durationMs
 
+        // Start 400ms timer to transition to mini mode
+        mainHandler.postDelayed({
+            if (bubbleState.value is BubbleState.Processing) {
+                transitionToMiniProcessing()
+            }
+        }, 400)
+
         performTranscription(result.filePath, result.durationMs)
     }
 
@@ -293,7 +398,9 @@ class BubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedState
             val hintJob = launch {
                 delay(CANCEL_HINT_DELAY_MS)
                 showCancelHint.value = true
-                bubbleState.value = BubbleState.Processing(showCancelHint = true)
+                if (bubbleState.value is BubbleState.Processing) {
+                    bubbleState.value = (bubbleState.value as BubbleState.Processing).copy(showCancelHint = true)
+                }
             }
 
             try {
@@ -311,45 +418,63 @@ class BubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedState
                 hintJob.cancel()
                 showCancelHint.value = false
 
-                when (transcribeResult) {
-                    is com.example.whispry.domain.util.Result.Success -> {
-                        val insertResult = textInserter.insertText(
-                            text = transcribeResult.data,
-                            context = this@BubbleService,
-                            accessibilityService = ServiceLocator.triggerService
-                        )
+                val handleResult = {
+                    when (transcribeResult) {
+                        is com.example.whispry.domain.util.Result.Success -> {
+                            val insertResult = textInserter.insertText(
+                                text = transcribeResult.data,
+                                context = this@BubbleService,
+                                accessibilityService = ServiceLocator.triggerService
+                            )
 
-                        // Emit result for potential observers (like Tutorial)
-                        serviceBridge.emit(ServiceBridge.TriggerEvent.TranscriptionResult(transcribeResult.data))
+                            // Emit result for potential observers (like Tutorial)
+                            serviceBridge.emit(ServiceBridge.TriggerEvent.TranscriptionResult(transcribeResult.data))
 
-                        bubbleState.value = BubbleState.Success
-                        hapticHelper.vibrateSuccess()
-                        message.value = if (insertResult == TextInserter.InsertResult.PASTED) "Pasted ✓" else "Copied ✓"
-                        scheduleBubbleDismissal(SUCCESS_DISMISS_DELAY_MS)
-                        
-                        // Clear cache on success
-                        lastAudioFilePath = null
+                            bubbleState.value = BubbleState.Success
+                            hapticHelper.vibrateSuccess()
+                            message.value = if (insertResult == TextInserter.InsertResult.PASTED) "Pasted ✓" else "Copied ✓"
+                            scheduleBubbleDismissal(SUCCESS_DISMISS_DELAY_MS)
+                            
+                            // Clear cache on success
+                            lastAudioFilePath = null
+                        }
+                        is com.example.whispry.domain.util.Result.Error -> {
+                            val isNoInternet = transcribeResult.message == "no_internet"
+                            bubbleState.value = BubbleState.Error(
+                                message = transcribeResult.message,
+                                isNetworkError = isNoInternet
+                            )
+                            message.value = if (isNoInternet) "No Internet" else transcribeResult.message
+                            hapticHelper.vibrateError()
+                            scheduleBubbleDismissal(ERROR_DISMISS_DELAY_MS)
+                        }
+                        else -> {}
                     }
-                    is com.example.whispry.domain.util.Result.Error -> {
-                        val isNoInternet = transcribeResult.message == "no_internet"
-                        bubbleState.value = BubbleState.Error(
-                            message = transcribeResult.message,
-                            isNetworkError = isNoInternet
-                        )
-                        message.value = if (isNoInternet) "No Internet" else transcribeResult.message
-                        hapticHelper.vibrateError()
-                        scheduleBubbleDismissal(ERROR_DISMISS_DELAY_MS)
-                    }
-                    else -> {}
                 }
+
+                if (isMiniMode) {
+                    expandFromMini { handleResult() }
+                } else {
+                    handleResult()
+                }
+
             } catch (e: CancellationException) {
                 Log.d(TAG, "Transcription cancelled by user")
             } catch (e: Exception) {
                 hintJob.cancel()
                 showCancelHint.value = false
-                bubbleState.value = BubbleState.Error("Error")
-                message.value = "Error"
-                scheduleBubbleDismissal(ERROR_DISMISS_DELAY_MS)
+                
+                val handleError = {
+                    bubbleState.value = BubbleState.Error("Error")
+                    message.value = "Error"
+                    scheduleBubbleDismissal(ERROR_DISMISS_DELAY_MS)
+                }
+
+                if (isMiniMode) {
+                    expandFromMini { handleError() }
+                } else {
+                    handleError()
+                }
             }
         }
     }
