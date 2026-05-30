@@ -1,10 +1,9 @@
-package com.example.whispry.presentation.main
-
+import android.content.Intent
+import android.provider.Settings
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -13,6 +12,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.Mic
+import androidx.compose.material.icons.rounded.PowerSettingsNew
+import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -21,6 +22,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -29,6 +31,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.whispry.service.BubbleService
 import com.example.whispry.ui.theme.WhispryTheme
 import com.example.whispry.ui.theme.WhispryTokens
 import com.example.whispry.ui.util.liquid.components.LiquidButton
@@ -45,6 +48,7 @@ fun HomeScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val lifecycleOwner = LocalLifecycleOwner.current
+    val context = LocalContext.current
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -85,54 +89,73 @@ fun HomeScreen(
             }
         }
 
-        // Permissions Warning
+        // Service Status Banners
         item {
-            AnimatedVisibility(
-                visible = state.missingPermissions.isNotEmpty(),
-                enter = expandVertically() + fadeIn(),
-                exit = shrinkVertically() + fadeOut()
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .drawBackdrop(
-                            backdrop = backdrop,
-                            shape = { ContinuousRoundedRectangle(24.dp) },
-                            effects = {
-                                vibrancy()
-                                blur(4.dp.toPx())
-                            },
-                            onDrawSurface = {
-                                drawRect(WhispryTokens.ErrorSoft.copy(alpha = 0.15f))
-                            }
-                        )
-                        .padding(16.dp)
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                // Accessibility Revoked Banner (Red)
+                AnimatedVisibility(
+                    visible = state.serviceState == ServiceState.Stopped && state.missingPermissions.contains("Accessibility"),
+                    enter = expandVertically() + fadeIn(),
+                    exit = shrinkVertically() + fadeOut()
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.ErrorOutline,
-                            contentDescription = null,
-                            tint = WhispryTokens.ErrorSoft,
-                            modifier = Modifier.size(24.dp)
-                        )
-                        Spacer(modifier = Modifier.width(16.dp))
-                        Column {
-                            Text(
-                                text = "Action Required",
-                                style = MaterialTheme.typography.labelLarge,
-                                color = WhispryTokens.TextPrimary,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            Text(
-                                text = "Missing: ${state.missingPermissions.joinToString(", ")}",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = WhispryTokens.TextSecondary
-                            )
+                    StatusBanner(
+                        title = "Accessibility disabled",
+                        description = "Whispry won't work without it",
+                        actionLabel = "Fix",
+                        color = Color.Red,
+                        icon = Icons.Rounded.ErrorOutline,
+                        backdrop = backdrop,
+                        onClick = {
+                            context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
                         }
-                    }
+                    )
+                }
+
+                // Service Stopped Banner (Amber)
+                AnimatedVisibility(
+                    visible = state.serviceState == ServiceState.Stopped && !state.missingPermissions.contains("Accessibility"),
+                    enter = expandVertically() + fadeIn(),
+                    exit = shrinkVertically() + fadeOut()
+                ) {
+                    StatusBanner(
+                        title = "Service stopped",
+                        description = "Tap to restart the voice trigger",
+                        actionLabel = "Restart",
+                        color = Color(0xFFFFA000), // Amber
+                        icon = Icons.Rounded.PowerSettingsNew,
+                        backdrop = backdrop,
+                        onClick = {
+                            val intent = Intent(context, BubbleService::class.java)
+                            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                                context.startForegroundService(intent)
+                            } else {
+                                context.startService(intent)
+                            }
+                        }
+                    )
+                }
+
+                // General Permissions Warning
+                AnimatedVisibility(
+                    visible = state.missingPermissions.any { it != "Accessibility" },
+                    enter = expandVertically() + fadeIn(),
+                    exit = shrinkVertically() + fadeOut()
+                ) {
+                    StatusBanner(
+                        title = "Action Required",
+                        description = "Missing: ${state.missingPermissions.filter { it != "Accessibility" }.joinToString(", ")}",
+                        actionLabel = "Grant",
+                        color = WhispryTokens.ErrorSoft,
+                        icon = Icons.Rounded.ErrorOutline,
+                        backdrop = backdrop,
+                        onClick = {
+                            // Link to app settings
+                            val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                                data = android.net.Uri.fromParts("package", context.packageName, null)
+                            }
+                            context.startActivity(intent)
+                        }
+                    )
                 }
             }
         }
@@ -288,6 +311,67 @@ fun StatCard(
                 style = MaterialTheme.typography.labelSmall,
                 fontSize = 10.sp,
                 color = Color.White.copy(alpha = 0.4f)
+            )
+        }
+    }
+}
+
+@Composable
+fun StatusBanner(
+    title: String,
+    description: String,
+    actionLabel: String,
+    color: Color,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    backdrop: Backdrop,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .drawBackdrop(
+                backdrop = backdrop,
+                shape = { ContinuousRoundedRectangle(24.dp) },
+                effects = {
+                    vibrancy()
+                    blur(4.dp.toPx())
+                },
+                onDrawSurface = {
+                    drawRect(color.copy(alpha = 0.15f))
+                }
+            )
+            .clickable { onClick() }
+            .padding(16.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = color,
+                modifier = Modifier.size(24.dp)
+            )
+            Spacer(modifier = Modifier.width(16.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = Color.White,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = description,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.White.copy(alpha = 0.6f)
+                )
+            }
+            Text(
+                text = actionLabel,
+                color = color,
+                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.labelLarge
             )
         }
     }

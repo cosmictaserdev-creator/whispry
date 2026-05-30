@@ -1,6 +1,5 @@
-package com.example.whispry.presentation.main
-
 import android.Manifest
+import android.app.ActivityManager
 import android.content.Context
 import android.content.pm.PackageManager
 import android.provider.Settings
@@ -9,10 +8,16 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.whispry.domain.model.Transcript
 import com.example.whispry.domain.repository.TranscriptRepository
+import com.example.whispry.service.BubbleService
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import javax.inject.Inject
+
+enum class ServiceState {
+    Active, Stopped, Unknown
+}
 
 data class HomeState(
     val totalTranscripts: Int = 0,
@@ -20,7 +25,8 @@ data class HomeState(
     val avgDurationMs: Long = 0,
     val recentTranscripts: List<Transcript> = emptyList(),
     val isServiceRunning: Boolean = false,
-    val missingPermissions: List<String> = emptyList()
+    val missingPermissions: List<String> = emptyList(),
+    val serviceState: ServiceState = ServiceState.Unknown
 )
 
 sealed class HomeIntent {
@@ -38,9 +44,29 @@ class HomeViewModel @Inject constructor(
     private val _state = MutableStateFlow(HomeState())
     val state: StateFlow<HomeState> = _state.asStateFlow()
 
+    val serviceState: StateFlow<ServiceState> = flow {
+        while (true) {
+            val running = isServiceRunning() && isAccessibilityServiceEnabled(context)
+            emit(if (running) ServiceState.Active else ServiceState.Stopped)
+            delay(2000)
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ServiceState.Unknown)
+
     init {
         observeTranscripts()
         checkPermissions()
+        
+        // Sync serviceState with HomeState
+        serviceState.onEach { state ->
+            _state.update { it.copy(serviceState = state) }
+        }.launchIn(viewModelScope)
+    }
+
+    private fun isServiceRunning(): Boolean {
+        val am = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+        @Suppress("DEPRECATION")
+        return am.getRunningServices(Int.MAX_VALUE)
+            ?.any { it.service.className == BubbleService::class.java.name } == true
     }
 
     private fun observeTranscripts() {

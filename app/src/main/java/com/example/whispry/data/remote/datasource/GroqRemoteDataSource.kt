@@ -1,10 +1,14 @@
 package com.example.whispry.data.remote.datasource
 
+import android.content.Context
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.util.Log
 import com.example.whispry.data.remote.api.GroqApiService
 import com.example.whispry.data.remote.api.dto.TranscriptionResponseDto
 import com.example.whispry.domain.util.Result
 import com.google.gson.Gson
+import dagger.hilt.android.qualifiers.ApplicationContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.asRequestBody
@@ -14,7 +18,8 @@ import javax.inject.Inject
 
 class GroqRemoteDataSource @Inject constructor(
     private val apiService: GroqApiService,
-    private val gson: Gson
+    private val gson: Gson,
+    @ApplicationContext private val context: Context
 ) {
 
     private val TAG = "Whispry_Groq"
@@ -25,6 +30,10 @@ class GroqRemoteDataSource @Inject constructor(
         languageCode: String
     ): Result<String> {
         Log.d(TAG, "transcribeAudio: keyPrefix=${apiKey.take(5)}..., file=$audioFilePath")
+
+        if (!isNetworkAvailable(context)) {
+            return Result.Error("no_internet")
+        }
 
         return try {
             val audioFile = File(audioFilePath)
@@ -87,5 +96,13 @@ class GroqRemoteDataSource @Inject constructor(
         } catch (e: Exception) {
             "Unknown error"
         }
+    }
+
+    private fun isNetworkAvailable(context: Context): Boolean {
+        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val network = cm.activeNetwork ?: return false
+        val caps = cm.getNetworkCapabilities(network) ?: return false
+        return caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+               caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
     }
 }

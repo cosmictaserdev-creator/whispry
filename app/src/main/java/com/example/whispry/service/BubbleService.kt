@@ -80,6 +80,11 @@ class BubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedState
     private val amplitude = mutableStateOf(0f)
     private val message = mutableStateOf("")
     private val isRecording = mutableStateOf(false)
+    private val showCancelHint = mutableStateOf(false)
+
+    // Retry state
+    private var lastAudioFilePath: String? = null
+    private var lastAudioDurationMs: Long = 0L
 
     // ------------------------------------------------------------------
     // Lifecycle / VM Boilerplate for Compose in Service
@@ -99,6 +104,7 @@ class BubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedState
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var amplitudeJob: Job? = null
+    private var transcriptionJob: Job? = null
     private val mainHandler = Handler(Looper.getMainLooper())
 
     companion object {
@@ -107,6 +113,7 @@ class BubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedState
         private const val SUCCESS_DISMISS_DELAY_MS = 2200L
         private const val ERROR_DISMISS_DELAY_MS = 4000L
         private const val AMPLITUDE_POLL_INTERVAL_MS = 120L // Reduced from 80ms for battery efficiency
+        private const val CANCEL_HINT_DELAY_MS = 3000L
     }
 
     // ------------------------------------------------------------------
@@ -165,15 +172,19 @@ class BubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedState
     }
     
     override fun onTaskRemoved(rootIntent: Intent?) {
-        val restartIntent = Intent(applicationContext, BubbleService::class.java)
+        val restartIntent = Intent(applicationContext, BubbleService::class.java).apply {
+            action = "ACTION_RESTART_FROM_TASK_REMOVED"
+        }
         val pendingIntent = android.app.PendingIntent.getService(
-            applicationContext, 1, restartIntent,
-            android.app.PendingIntent.FLAG_ONE_SHOT or android.app.PendingIntent.FLAG_IMMUTABLE
+            applicationContext,
+            1001,
+            restartIntent,
+            android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
         )
         val alarmManager = getSystemService(ALARM_SERVICE) as android.app.AlarmManager
-        alarmManager.set(
-            android.app.AlarmManager.ELAPSED_REALTIME,
-            android.os.SystemClock.elapsedRealtime() + 3000,
+        alarmManager.setExactAndAllowWhileIdle(
+            android.app.AlarmManager.ELAPSED_REALTIME_WAKEUP,
+            android.os.SystemClock.elapsedRealtime() + 2000L, // restart after 2 seconds
             pendingIntent
         )
         super.onTaskRemoved(rootIntent)
@@ -231,7 +242,7 @@ class BubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedState
 
     private fun onRecordingStopped() {
         stopAmplitudePolling()
-        bubbleState.value = BubbleState.Loading
+        bubbleState.value = BubbleState.Processing()
         isRecording.value = false
 
         // On API 34+, demote back to specialUse after recording finishes
@@ -251,54 +262,93 @@ class BubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedState
             return
         }
 
-        serviceScope.launch(Dispatchers.IO) {
+        // Cache for retry
+        lastAudioFilePath = result.filePath
+        lastAudioDurationMs = result.durationMs
+
+        performTranscription(result.filePath, result.durationMs)
+    }
+
+    private fun performTranscription(filePath: String, durationMs: Long) {
+        showCancelHint.value = false
+        transcriptionJob?.cancel()
+        
+        transcriptionJob = serviceScope.launch {
+            // Show cancel hint after 3 seconds
+            val hintJob = launch {
+                delay(CANCEL_HINT_DELAY_MS)
+                showCancelHint.value = true
+                bubbleState.value = BubbleState.Processing(showCancelHint = true)
+            }
+
             try {
                 // Get selected language from DataStore
                 val language = settingsProvider.language.first()
                 
-                val transcribeResult = transcribeAudioUseCase(
-                    audioFilePath = result.filePath,
-                    durationMs = result.durationMs,
-                    language = if (language == "Auto") null else language
-                )
+                val transcribeResult = withContext(Dispatchers.IO) {
+                    transcribeAudioUseCase(
+                        audioFilePath = filePath,
+                        durationMs = durationMs,
+                        language = if (language == "Auto") null else language
+                    )
+                }
 
-                launch(Dispatchers.Main) {
-                    when (transcribeResult) {
-                        is com.example.whispry.domain.util.Result.Success -> {
-                            val insertResult = textInserter.insertText(
-                                text = transcribeResult.data,
-                                context = this@BubbleService,
-                                accessibilityService = ServiceLocator.triggerService
-                            )
+                hintJob.cancel()
+                showCancelHint.value = false
 
-                            // Emit result for potential observers (like Tutorial)
-                            serviceBridge.emit(ServiceBridge.TriggerEvent.TranscriptionResult(transcribeResult.data))
+                when (transcribeResult) {
+                    is com.example.whispry.domain.util.Result.Success -> {
+                        val insertResult = textInserter.insertText(
+                            text = transcribeResult.data,
+                            context = this@BubbleService,
+                            accessibilityService = ServiceLocator.triggerService
+                        )
 
-                            bubbleState.value = BubbleState.Success
-                            hapticHelper.vibrateSuccess()
-                            message.value = if (insertResult == TextInserter.InsertResult.PASTED) "Pasted ✓" else "Copied ✓"
-                            scheduleBubbleDismissal(SUCCESS_DISMISS_DELAY_MS)
-                        }
-                        is com.example.whispry.domain.util.Result.Error -> {
-                            bubbleState.value = BubbleState.Error(transcribeResult.message)
-                            message.value = transcribeResult.message
-                            hapticHelper.vibrateError()
-                            scheduleBubbleDismissal(ERROR_DISMISS_DELAY_MS)
-                        }
-                        else -> {}
+                        // Emit result for potential observers (like Tutorial)
+                        serviceBridge.emit(ServiceBridge.TriggerEvent.TranscriptionResult(transcribeResult.data))
+
+                        bubbleState.value = BubbleState.Success
+                        hapticHelper.vibrateSuccess()
+                        message.value = if (insertResult == TextInserter.InsertResult.PASTED) "Pasted ✓" else "Copied ✓"
+                        scheduleBubbleDismissal(SUCCESS_DISMISS_DELAY_MS)
+                        
+                        // Clear cache on success
+                        lastAudioFilePath = null
                     }
+                    is com.example.whispry.domain.util.Result.Error -> {
+                        val isNoInternet = transcribeResult.message == "no_internet"
+                        bubbleState.value = BubbleState.Error(
+                            message = transcribeResult.message,
+                            isNetworkError = isNoInternet
+                        )
+                        message.value = if (isNoInternet) "No Internet" else transcribeResult.message
+                        hapticHelper.vibrateError()
+                        scheduleBubbleDismissal(ERROR_DISMISS_DELAY_MS)
+                    }
+                    else -> {}
                 }
+            } catch (e: CancellationException) {
+                Log.d(TAG, "Transcription cancelled by user")
             } catch (e: Exception) {
-                launch(Dispatchers.Main) {
-                    bubbleState.value = BubbleState.Error("Error")
-                    message.value = "Error"
-                    scheduleBubbleDismissal(ERROR_DISMISS_DELAY_MS)
-                }
+                hintJob.cancel()
+                showCancelHint.value = false
+                bubbleState.value = BubbleState.Error("Error")
+                message.value = "Error"
+                scheduleBubbleDismissal(ERROR_DISMISS_DELAY_MS)
             }
         }
     }
 
+    private fun retryTranscription() {
+        val path = lastAudioFilePath ?: return
+        bubbleState.value = BubbleState.Processing()
+        message.value = ""
+        mainHandler.removeCallbacksAndMessages(null) // Cancel dismissal
+        performTranscription(path, lastAudioDurationMs)
+    }
+
     private fun startAmplitudePolling() {
+
         amplitudeJob?.cancel()
         amplitudeJob = serviceScope.launch {
             while (isActive) {
@@ -347,7 +397,13 @@ class BubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedState
                                 BubbleOverlay(
                                     state = bubbleState.value,
                                     amplitudeProvider = { amplitude.value },
-                                    message = message.value
+                                    message = message.value,
+                                    onRetry = { retryTranscription() },
+                                    onCancel = {
+                                        transcriptionJob?.cancel()
+                                        bubbleState.value = BubbleState.Idle
+                                        scheduleBubbleDismissal(0)
+                                    }
                                 )
                             }
                         }

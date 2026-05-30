@@ -19,46 +19,34 @@ class SettingsProvider @Inject constructor(
     private val dataStore = context.dataStore
 
     // ------------------------------------------------------------------
-    // Keys
-    // ------------------------------------------------------------------
-
-    private object Keys {
-        val LANGUAGE = stringPreferencesKey("language")
-        val DOUBLE_PRESS_INTERVAL = longPreferencesKey("double_press_interval")
-        val HAPTIC_FEEDBACK = booleanPreferencesKey("haptic_feedback")
-        val ONBOARDING_COMPLETED = booleanPreferencesKey("onboarding_completed")
-        val CUSTOM_VOCABULARY = stringPreferencesKey("custom_vocabulary")
-        val TEMPERATURE = floatPreferencesKey("temperature")
-        val BUBBLE_SIZE = stringPreferencesKey("bubble_size")
-        val AUTO_START_BOOT = booleanPreferencesKey("auto_start_boot")
-        val ACCENT_COLOR = stringPreferencesKey("accent_color")
-    }
-
-    // ------------------------------------------------------------------
     // Flows
     // ------------------------------------------------------------------
 
-    val language: Flow<String> = dataStore.data.map { it[Keys.LANGUAGE] ?: "en" }
-    val doublePressInterval: Flow<Long> = dataStore.data.map { it[Keys.DOUBLE_PRESS_INTERVAL] ?: 400L }
-    val hapticFeedback: Flow<Boolean> = dataStore.data.map { it[Keys.HAPTIC_FEEDBACK] ?: true }
-    val onboardingCompleted: Flow<Boolean> = dataStore.data.map { it[Keys.ONBOARDING_COMPLETED] ?: false }
-    val customVocabulary: Flow<String> = dataStore.data.map { it[Keys.CUSTOM_VOCABULARY] ?: "" }
-    val temperature: Flow<Float> = dataStore.data.map { it[Keys.TEMPERATURE] ?: 0.0f }
-    val bubbleSize: Flow<String> = dataStore.data.map { it[Keys.BUBBLE_SIZE] ?: "Medium" }
-    val autoStartBoot: Flow<Boolean> = dataStore.data.map { it[Keys.AUTO_START_BOOT] ?: true }
-    val accentColor: Flow<String> = dataStore.data.map { it[Keys.ACCENT_COLOR] ?: "Purple" }
+    val language: Flow<String> = dataStore.data.map { it[DataStoreKeys.LANGUAGE] ?: "en" }
+    val doublePressInterval: Flow<Long> = dataStore.data.map { it[DataStoreKeys.DOUBLE_PRESS_INTERVAL] ?: 400L }
+    val hapticFeedback: Flow<Boolean> = dataStore.data.map { it[DataStoreKeys.HAPTIC_FEEDBACK] ?: true }
+    val onboardingCompleted: Flow<Boolean> = dataStore.data.map { it[DataStoreKeys.ONBOARDING_COMPLETED] ?: false }
+    val customVocabulary: Flow<String> = dataStore.data.map { it[DataStoreKeys.CUSTOM_VOCABULARY] ?: "" }
+    val temperature: Flow<Float> = dataStore.data.map { it[DataStoreKeys.TEMPERATURE] ?: 0.0f }
+    val bubbleSize: Flow<String> = dataStore.data.map { it[DataStoreKeys.BUBBLE_SIZE] ?: "Medium" }
+    val autoStartBoot: Flow<Boolean> = dataStore.data.map { it[DataStoreKeys.AUTO_START_BOOT] ?: true }
+    val accentColor: Flow<String> = dataStore.data.map { it[DataStoreKeys.ACCENT_COLOR] ?: "Purple" }
+
+    // Bug 1
+    val smartTriggerSuppression: Flow<Boolean> = dataStore.data.map { it[DataStoreKeys.SMART_TRIGGER_SUPPRESSION] ?: true }
 
     // ------------------------------------------------------------------
     // Setters
     // ------------------------------------------------------------------
 
-    suspend fun setLanguage(value: String) = dataStore.edit { it[Keys.LANGUAGE] = value }
-    suspend fun setDoublePressInterval(value: Long) = dataStore.edit { it[Keys.DOUBLE_PRESS_INTERVAL] = value }
-    suspend fun setHapticFeedback(value: Boolean) = dataStore.edit { it[Keys.HAPTIC_FEEDBACK] = value }
-    suspend fun setOnboardingCompleted(value: Boolean) = dataStore.edit { it[Keys.ONBOARDING_COMPLETED] = value }
-    suspend fun setCustomVocabulary(value: String) = dataStore.edit { it[Keys.CUSTOM_VOCABULARY] = value }
-    suspend fun setTemperature(value: Float) = dataStore.edit { it[Keys.TEMPERATURE] = value }
-    suspend fun setBubbleSize(value: String) = dataStore.edit { it[Keys.BUBBLE_SIZE] = value }
-    suspend fun setAutoStartBoot(value: Boolean) = dataStore.edit { it[Keys.AUTO_START_BOOT] = value }
-    suspend fun setAccentColor(value: String) = dataStore.edit { it[Keys.ACCENT_COLOR] = value }
+    suspend fun setLanguage(value: String) = dataStore.edit { it[DataStoreKeys.LANGUAGE] = value }
+    suspend fun setDoublePressInterval(value: Long) = dataStore.edit { it[DataStoreKeys.DOUBLE_PRESS_INTERVAL] = value }
+    suspend fun setHapticFeedback(value: Boolean) = dataStore.edit { it[DataStoreKeys.HAPTIC_FEEDBACK] = value }
+    suspend fun setOnboardingCompleted(value: Boolean) = dataStore.edit { it[DataStoreKeys.ONBOARDING_COMPLETED] = value }
+    suspend fun setCustomVocabulary(value: String) = dataStore.edit { it[DataStoreKeys.CUSTOM_VOCABULARY] = value }
+    suspend fun setTemperature(value: Float) = dataStore.edit { it[DataStoreKeys.TEMPERATURE] = value }
+    suspend fun setBubbleSize(value: String) = dataStore.edit { it[DataStoreKeys.BUBBLE_SIZE] = value }
+    suspend fun setAutoStartBoot(value: Boolean) = dataStore.edit { it[DataStoreKeys.AUTO_START_BOOT] = value }
+    suspend fun setAccentColor(value: String) = dataStore.edit { it[DataStoreKeys.ACCENT_COLOR] = value }
+    suspend fun setSmartTriggerSuppression(value: Boolean) = dataStore.edit { it[DataStoreKeys.SMART_TRIGGER_SUPPRESSION] = value }
 }

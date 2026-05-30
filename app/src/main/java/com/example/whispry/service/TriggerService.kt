@@ -2,8 +2,13 @@ package com.example.whispry.service
 
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.AccessibilityServiceInfo
+import android.content.Context
+import android.media.AudioAttributes
+import android.media.AudioFocusRequest
+import android.media.AudioManager
 import android.os.Handler
 import android.os.Looper
+import android.telephony.TelephonyManager
 import android.util.Log
 import android.view.KeyEvent
 import android.view.accessibility.AccessibilityEvent
@@ -26,9 +31,13 @@ class TriggerService : AccessibilityService() {
     @Inject
     lateinit var settingsProvider: com.example.whispry.data.local.datasource.SettingsProvider
 
+    @Inject
+    lateinit var audioManager: AudioManager
+
     // cached settings
     private var doublePressWindowMs = 400L
     private var useHaptics = true
+    private var useSmartSuppression = true
 
     // ------------------------------------------------------------------
     // State machine
@@ -63,6 +72,11 @@ class TriggerService : AccessibilityService() {
         serviceScope.launch {
             settingsProvider.hapticFeedback.collect {
                 useHaptics = it
+            }
+        }
+        serviceScope.launch {
+            settingsProvider.smartTriggerSuppression.collect {
+                useSmartSuppression = it
             }
         }
         
@@ -143,8 +157,16 @@ class TriggerService : AccessibilityService() {
         Log.d(TAG, "Second press detected, gap=$gap")
 
         return if (gap < doublePressWindowMs) {
-            Log.d(TAG, "Valid double press! Emitting RecordingStarted")
             handler.removeCallbacksAndMessages(null)
+            
+            // NEW — suppress if audio context is wrong
+            if (useSmartSuppression && shouldSuppressTrigger()) {
+                Log.d(TAG, "Trigger suppressed due to audio/call activity")
+                resetToIdle()
+                return false // pass through — volume changes normally
+            }
+
+            Log.d(TAG, "Valid double press! Emitting RecordingStarted")
             triggerState = TriggerState.RECORDING
             if (useHaptics) hapticHelper.vibrateShort()
             
@@ -168,6 +190,37 @@ class TriggerService : AccessibilityService() {
             }, doublePressWindowMs)
             false
         }
+    }
+
+    private fun shouldSuppressTrigger(): Boolean {
+        // Primary check — is music actively playing?
+        if (audioManager.isMusicActive) return true
+        
+        // Secondary check — does any app hold audio focus?
+        // (covers games, navigation, podcasts, video)
+        var focusHeld = false
+        val focusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
+            .setAudioAttributes(AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .build())
+            .setOnAudioFocusChangeListener { }
+            .build()
+            
+        val result = audioManager.requestAudioFocus(focusRequest)
+        if (result == AudioManager.AUDIOFOCUS_REQUEST_FAILED) {
+            focusHeld = true
+        } else {
+            // we got focus — means nothing was holding it — immediately release
+            audioManager.abandonAudioFocusRequest(focusRequest)
+        }
+        if (focusHeld) return true
+        
+        // Check phone call state via TelephonyManager
+        val telephonyManager = getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
+        if (telephonyManager.callState != TelephonyManager.CALL_STATE_IDLE) return true
+        
+        return false
     }
 
     private fun handleRecordingState(event: KeyEvent): Boolean {
