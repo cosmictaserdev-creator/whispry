@@ -6,10 +6,12 @@ import android.provider.Settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.whispry.data.local.datasource.ApiKeyProvider
-import com.example.whispry.data.local.datasource.SettingsProvider
-import com.example.whispry.service.BubbleService
 import com.example.whispry.data.local.datasource.DataStoreKeys
+import com.example.whispry.data.local.datasource.SettingsProvider
+import com.example.whispry.domain.model.WakeWordMode
 import com.example.whispry.domain.repository.TriggerRepository
+import com.example.whispry.service.BubbleService
+import com.example.whispry.service.ServiceLocator
 import com.example.whispry.service.TriggerSound
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -22,7 +24,8 @@ class SettingsViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val apiKeyProvider: ApiKeyProvider,
     private val settingsProvider: SettingsProvider,
-    private val triggerRepository: TriggerRepository
+    private val triggerRepository: TriggerRepository,
+    val trainedModelMatcher: TrainedModelMatcher // Make it val
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(SettingsState())
@@ -51,7 +54,8 @@ class SettingsViewModel @Inject constructor(
         settingsProvider.smartTriggerSuppression.onEach { v -> _state.update { it.copy(smartTriggerSuppression = v) } }.launchIn(viewModelScope)
         settingsProvider.dataStore.data.map { it[DataStoreKeys.FLOATING_WIDGET_ENABLED] ?: true }.onEach { v -> _state.update { it.copy(floatingWidgetEnabled = v) } }.launchIn(viewModelScope)
         settingsProvider.dataStore.data.map { it[DataStoreKeys.WAKE_WORD_ENABLED] ?: false }.onEach { v -> _state.update { it.copy(wakeWordEnabled = v) } }.launchIn(viewModelScope)
-        settingsProvider.dataStore.data.map { it[DataStoreKeys.WAKE_WORD_PHRASE] ?: \"hey whispry\" }.onEach { v -> _state.update { it.copy(wakeWordPhrase = v) } }.launchIn(viewModelScope)
+        settingsProvider.dataStore.data.map { it[DataStoreKeys.WAKE_WORD_PHRASE] ?: "hey whispry" }.onEach { v -> _state.update { it.copy(wakeWordPhrase = v) } }.launchIn(viewModelScope)
+        settingsProvider.dataStore.data.map { WakeWordMode.valueOf(it[DataStoreKeys.WAKE_WORD_MODE] ?: "DEFAULT") }.onEach { v -> _state.update { it.copy(wakeWordMode = v) } }.launchIn(viewModelScope)
         
         // Feature 5
         settingsProvider.dataStore.data.map { it[DataStoreKeys.SOUND_ENABLED] ?: true }.onEach { v -> _state.update { it.copy(soundEnabled = v) } }.launchIn(viewModelScope)
@@ -63,8 +67,51 @@ class SettingsViewModel @Inject constructor(
     fun onIntent(intent: SettingsIntent) {
         viewModelScope.launch {
             when (intent) {
-                // ...
+                is SettingsIntent.UpdateApiKey -> _state.update { it.copy(apiKey = intent.apiKey, isSaved = false) }
+                is SettingsIntent.SaveApiKey -> {
+                    apiKeyProvider.saveApiKey(_state.value.apiKey)
+                    _state.update { it.copy(isSaved = true) }
+                }
+                is SettingsIntent.ClearApiKey -> {
+                    apiKeyProvider.clearApiKey()
+                    _state.update { it.copy(apiKey = "", isSaved = false) }
+                }
+                is SettingsIntent.SetLanguage -> settingsProvider.setLanguage(intent.language)
+                is SettingsIntent.SetDoublePressInterval -> settingsProvider.setDoublePressInterval(intent.ms)
+                is SettingsIntent.SetHapticFeedback -> settingsProvider.setHapticFeedback(intent.enabled)
+                is SettingsIntent.SetCustomVocabulary -> settingsProvider.setCustomVocabulary(intent.vocab)
+                is SettingsIntent.SetTemperature -> settingsProvider.setTemperature(intent.temp)
+                is SettingsIntent.SetBubbleSize -> settingsProvider.setBubbleSize(intent.size)
+                is SettingsIntent.SetAutoStartBoot -> settingsProvider.setAutoStartBoot(intent.enabled)
+                is SettingsIntent.SetAccentColor -> settingsProvider.setAccentColor(intent.colorName)
+                is SettingsIntent.RefreshStatus -> refreshStatus()
+                is SettingsIntent.OpenAccessibilitySettings -> {
+                    val i = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    context.startActivity(i)
+                }
+                is SettingsIntent.RestartService -> {
+                    val i = Intent(context, BubbleService::class.java)
+                    context.stopService(i)
+                    context.startForegroundService(i)
+                }
+                is SettingsIntent.ResetOnboarding -> {
+                    settingsProvider.setOnboardingCompleted(false)
+                }
+                is SettingsIntent.ResetToDefaults -> {
+                    settingsProvider.dataStore.edit { it.clear() }
+                    apiKeyProvider.clearApiKey()
+                    apiKeyProvider.clearFingerprint()
+                    refreshStatus()
+                }
+                is SettingsIntent.SetTriggerMode -> triggerRepository.setTriggerMode(intent.mode)
+                is SettingsIntent.SetSmartTriggerSuppression -> settingsProvider.setSmartTriggerSuppression(intent.enabled)
+                is SettingsIntent.SetFloatingWidgetEnabled -> settingsProvider.dataStore.edit { it[DataStoreKeys.FLOATING_WIDGET_ENABLED] = intent.enabled }
+                is SettingsIntent.SetWakeWordEnabled -> settingsProvider.dataStore.edit { it[DataStoreKeys.WAKE_WORD_ENABLED] = intent.enabled }
                 is SettingsIntent.SetWakeWordPhrase -> settingsProvider.dataStore.edit { it[DataStoreKeys.WAKE_WORD_PHRASE] = intent.phrase }
+                is SettingsIntent.SetWakeWordMode -> settingsProvider.dataStore.edit { it[DataStoreKeys.WAKE_WORD_MODE] = intent.mode.name }
+                is SettingsIntent.SaveVoiceFingerprint -> apiKeyProvider.saveFingerprint(intent.fp)
                 
                 // Feature 5
                 is SettingsIntent.SetSoundEnabled -> settingsProvider.dataStore.edit { it[DataStoreKeys.SOUND_ENABLED] = intent.enabled }

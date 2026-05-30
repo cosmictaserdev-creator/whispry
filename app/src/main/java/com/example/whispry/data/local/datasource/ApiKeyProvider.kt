@@ -35,7 +35,12 @@ class ApiKeyProvider @Inject constructor(
     fun clearApiKey() =
         prefs.edit().remove(KEY_API_KEY).apply()
 
+    fun getFingerprint(): String? = prefs.getString(KEY_FINGERPRINT, null)
+    fun saveFingerprint(fp: String) = prefs.edit().putString(KEY_FINGERPRINT, fp).apply()
+    fun clearFingerprint() = prefs.edit().remove(KEY_FINGERPRINT).apply()
+
     companion object {
         private const val KEY_API_KEY = "groq_api_key"
+        private const val KEY_FINGERPRINT = "voice_fingerprint_v1"
     }
 }

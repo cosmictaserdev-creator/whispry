@@ -47,7 +47,8 @@ import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.vibrancy
-import com.kyant.capsule.ContinuousRoundedRectangle
+import com.example.whispry.presentation.settings.components.VoiceTrainingBottomSheet
+import com.example.whispry.service.TrainedModelMatcher
 
 @Composable
 fun SettingsScreen(
@@ -55,10 +56,26 @@ fun SettingsScreen(
     backdrop: Backdrop,
     onShowLanguagePicker: () -> Unit,
     onRevisitTutorial: () -> Unit,
+    trainedModelMatcher: TrainedModelMatcher, // Pass this in
     modifier: Modifier = Modifier
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val lifecycleOwner = LocalLifecycleOwner.current
+
+    var showTrainingSheet by remember { mutableStateOf(false) }
+
+    if (showTrainingSheet) {
+        VoiceTrainingBottomSheet(
+            onDismiss = { showTrainingSheet = false },
+            onComplete = { fp ->
+                viewModel.onIntent(SettingsIntent.SaveVoiceFingerprint(fp))
+                viewModel.onIntent(SettingsIntent.SetWakeWordMode(WakeWordMode.TRAINED))
+            },
+            trainedModelMatcher = trainedModelMatcher,
+            backdrop = backdrop
+        )
+    }
+
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -429,21 +446,65 @@ fun TriggerPickerSection(
                         backdrop = backdrop
                     )
                     Spacer(modifier = Modifier.height(8.dp))
-                    OutlinedTextField(
-                        value = wakeWordPhrase,
-                        onValueChange = onWakeWordPhraseChange,
-                        label = { Text("Wake Phrase", fontSize = 10.sp) },
-                        modifier = Modifier.fillMaxWidth().padding(start = 36.dp),
-                        textStyle = MaterialTheme.typography.bodySmall,
-                        shape = RoundedCornerShape(12.dp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = WhispryTheme.colors.accent,
-                            unfocusedBorderColor = Color.White.copy(alpha = 0.1f)
+                    
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        WakeWordModeChip(\"Default\", state.wakeWordMode == WakeWordMode.DEFAULT) {
+                            viewModel.onIntent(SettingsIntent.SetWakeWordMode(WakeWordMode.DEFAULT))
+                        }
+                        WakeWordModeChip(\"Custom\", state.wakeWordMode == WakeWordMode.CUSTOM) {
+                            viewModel.onIntent(SettingsIntent.SetWakeWordMode(WakeWordMode.CUSTOM))
+                        }
+                        WakeWordModeChip(\"Trained\", state.wakeWordMode == WakeWordMode.TRAINED) {
+                            if (state.wakeWordMode != WakeWordMode.TRAINED) {
+                                showTrainingSheet = true
+                            }
+                            viewModel.onIntent(SettingsIntent.SetWakeWordMode(WakeWordMode.TRAINED))
+                        }
+                    }
+
+                    AnimatedVisibility(visible = state.wakeWordMode == WakeWordMode.CUSTOM) {
+                        OutlinedTextField(
+                            value = wakeWordPhrase,
+                            onValueChange = onWakeWordPhraseChange,
+                            label = { Text(\"Wake Phrase\", fontSize = 10.sp) },
+                            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                            textStyle = MaterialTheme.typography.bodySmall,
+                            shape = RoundedCornerShape(12.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = WhispryTheme.colors.accent,
+                                unfocusedBorderColor = Color.White.copy(alpha = 0.1f)
+                            )
                         )
-                    )
+                    }
+
+                    AnimatedVisibility(visible = state.wakeWordMode == WakeWordMode.TRAINED) {
+                        LiquidButton(
+                            onClick = { showTrainingSheet = true },
+                            backdrop = backdrop,
+                            modifier = Modifier.fillMaxWidth().padding(top = 8.dp).height(36.dp),
+                            tint = WhispryTheme.colors.accent.copy(alpha = 0.1f)
+                        ) {
+                            Text(\"Retrain voice model\", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
                 }
             }
         }
+    }
+}
+
+@Composable
+fun WakeWordModeChip(label: String, isSelected: Boolean, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .height(32.dp)
+            .clip(CircleShape)
+            .background(if (isSelected) WhispryTheme.colors.accent else Color.White.copy(alpha = 0.05f))
+            .clickable { onClick() }
+            .padding(horizontal = 12.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(label, color = if (isSelected) Color.White else Color.White.copy(alpha = 0.6f), fontSize = 11.sp, fontWeight = FontWeight.Bold)
     }
 }
 

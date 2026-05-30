@@ -186,7 +186,8 @@ fun MainScreen(onRevisitTutorial: () -> Unit) {
                                     viewModel = viewModel, 
                                     backdrop = bgBackdrop,
                                     onShowLanguagePicker = { showLanguagePicker = true },
-                                    onRevisitTutorial = onRevisitTutorial
+                                    onRevisitTutorial = onRevisitTutorial,
+                                    trainedModelMatcher = viewModel.trainedModelMatcher
                                 )
                             }
                             composable(Screen.About.route) {
