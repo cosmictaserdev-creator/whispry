@@ -66,6 +66,8 @@ class BubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedState
     @Inject lateinit var textInserter: TextInserter
     @Inject lateinit var hapticHelper: HapticHelper
     @Inject lateinit var settingsProvider: com.example.whispry.data.local.datasource.SettingsProvider
+    @Inject lateinit var overlayCoordinator: WindowOverlayCoordinator
+    @Inject lateinit var floatingWidgetManager: FloatingWidgetManager
 
     // ------------------------------------------------------------------
     // WindowManager & Compose
@@ -129,6 +131,18 @@ class BubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedState
         
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         observeTriggerEvents()
+        observeSettings()
+    }
+
+    private fun observeSettings() {
+        serviceScope.launch {
+            settingsProvider.smartTriggerSuppression.collect { /* already handled in TriggerService */ }
+        }
+        serviceScope.launch {
+            settingsProvider.dataStore.data.map { it[DataStoreKeys.FLOATING_WIDGET_ENABLED] ?: true }.collect { enabled ->
+                overlayCoordinator.setWidgetEnabled(enabled)
+            }
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -214,6 +228,7 @@ class BubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedState
 
     private fun onRecordingStarted() {
         mainHandler.removeCallbacksAndMessages(null)
+        overlayCoordinator.showBubble() // Notify coordinator
         showBubble()
 
         // On API 34+, we need to promote the FGS type to microphone to access the mic from background
@@ -447,6 +462,7 @@ class BubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedState
         composeView = null
         layoutParams = null
         isRecording.value = false
+        overlayCoordinator.hideBubble() // Notify coordinator
     }
 
     private fun scheduleBubbleDismissal(delayMs: Long) {
