@@ -1,6 +1,7 @@
 package com.example.whispry.presentation.settings
 
 import com.example.whispry.domain.model.TriggerMode
+import com.example.whispry.service.TriggerSound
 
 data class SettingsState(
     val apiKey: String = "",
@@ -27,7 +28,13 @@ data class SettingsState(
     
     // Feature 2 & 6
     val wakeWordEnabled: Boolean = false,
-    val wakeWordPhrase: String = "hey whispry"
+    val wakeWordPhrase: String = "hey whispry",
+    
+    // Feature 5
+    val soundEnabled: Boolean = true,
+    val soundStart: TriggerSound = TriggerSound.SIRI_CLICK,
+    val soundSuccess: TriggerSound = TriggerSound.SOFT_CHIME,
+    val soundError: TriggerSound = TriggerSound.SOFT_POP
 )
 
 sealed class SettingsIntent {
@@ -58,4 +65,10 @@ sealed class SettingsIntent {
     // Feature 2 & 6
     data class SetWakeWordEnabled(val enabled: Boolean) : SettingsIntent()
     data class SetWakeWordPhrase(val phrase: String) : SettingsIntent()
+    
+    // Feature 5
+    data class SetSoundEnabled(val enabled: Boolean) : SettingsIntent()
+    data class SetSoundStart(val sound: TriggerSound) : SettingsIntent()
+    data class SetSoundSuccess(val sound: TriggerSound) : SettingsIntent()
+    data class SetSoundError(val sound: TriggerSound) : SettingsIntent()
 }

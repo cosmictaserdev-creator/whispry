@@ -39,6 +39,9 @@ class TriggerService : AccessibilityService() {
     @Inject
     lateinit var triggerRepository: TriggerRepository
 
+    @Inject
+    lateinit var soundManager: SoundManager
+
     // cached settings
     private var doublePressWindowMs = 400L
     private var useHaptics = true
@@ -156,17 +159,20 @@ class TriggerService : AccessibilityService() {
                 if (event.repeatCount == 0) {
                     triggerState = TriggerState.RECORDING
                     if (useHaptics) hapticHelper.vibrateShort()
+                    soundManager.play(SoundEvent.TRIGGER_START)
                     serviceBridge.emit(ServiceBridge.TriggerEvent.RecordingStarted)
                     true
-                } else false
-            }
-            KeyEvent.ACTION_UP -> {
-                if (triggerState == TriggerState.RECORDING) {
+                    } else false
+                    }
+                    KeyEvent.ACTION_UP -> {
+                    if (triggerState == TriggerState.RECORDING) {
                     triggerState = TriggerState.IDLE
+                    soundManager.play(SoundEvent.TRIGGER_STOP)
                     serviceBridge.emit(ServiceBridge.TriggerEvent.RecordingStopped)
                     true
-                } else false
-            }
+                    } else false
+                    }
+
             else -> false
         }
     }
@@ -192,6 +198,7 @@ class TriggerService : AccessibilityService() {
             }
             triggerState = TriggerState.RECORDING
             if (useHaptics) hapticHelper.vibrateShort()
+            soundManager.play(SoundEvent.TRIGGER_START)
             
             val intent = android.content.Intent(this, BubbleService::class.java)
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {

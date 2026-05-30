@@ -30,6 +30,7 @@ class WakeWordService : Service() {
 
     @Inject lateinit var serviceBridge: ServiceBridge
     @Inject lateinit var settingsProvider: SettingsProvider
+    @Inject lateinit var soundManager: SoundManager
     
     private var speechRecognizer: SpeechRecognizer? = null
     private var isListening = false
@@ -118,10 +119,12 @@ class WakeWordService : Service() {
                                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                                         vibrator.vibrate(VibrationEffect.createOneShot(50, VibrationEffect.DEFAULT_AMPLITUDE))
                                     } else {
-                                        @Suppress("DEPRECATION")
-                                        vibrator.vibrate(50)
-                                    }
-                                    serviceBridge.emit(ServiceBridge.TriggerEvent.RecordingStarted)
+                                        @Suppress(\"DEPRECATION\")
+                                            vibrator.vibrate(50)
+                                        }
+                                        soundManager.play(SoundEvent.WAKE_WORD_DETECTED)
+                                        serviceBridge.emit(ServiceBridge.TriggerEvent.RecordingStarted)
+
                                 }
                                 restartListening()
                             }

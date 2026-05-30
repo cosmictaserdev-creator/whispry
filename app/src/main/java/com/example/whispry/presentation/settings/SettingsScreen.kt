@@ -13,9 +13,6 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
@@ -28,15 +25,19 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
-import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.whispry.domain.model.TriggerMode
 import com.example.whispry.presentation.common.GlassCard
+import com.example.whispry.service.TriggerSound
 import com.example.whispry.ui.theme.AccentPreset
 import com.example.whispry.ui.theme.WhispryTheme
 import com.example.whispry.ui.util.liquid.components.LiquidButton
@@ -46,10 +47,7 @@ import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.vibrancy
-
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-
-import com.example.whispry.domain.model.TriggerMode
+import com.kyant.capsule.ContinuousRoundedRectangle
 
 @Composable
 fun SettingsScreen(
@@ -61,9 +59,6 @@ fun SettingsScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val lifecycleOwner = LocalLifecycleOwner.current
-
-    // Use a stable reference for the backdrop to avoid unnecessary GPU redraws
-    val settingsBackdrop = remember(backdrop) { backdrop }
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -170,6 +165,44 @@ fun SettingsScreen(
 
         item {
             Box(modifier = Modifier.animateItem()) {
+                SettingsSection(title = "Sounds", backdrop = backdrop) {
+                    LiquidSettingsToggle(
+                        icon = Icons.Rounded.VolumeUp,
+                        title = "Trigger Sounds",
+                        checked = state.soundEnabled,
+                        onCheckedChange = { viewModel.onIntent(SettingsIntent.SetSoundEnabled(it)) },
+                        backdrop = backdrop
+                    )
+                    
+                    AnimatedVisibility(
+                        visible = state.soundEnabled,
+                        enter = expandVertically() + fadeIn(),
+                        exit = shrinkVertically() + fadeOut()
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.padding(top = 16.dp)) {
+                            SoundSelectorRow(
+                                title = "On trigger",
+                                selectedSound = state.soundStart,
+                                onSoundSelected = { viewModel.onIntent(SettingsIntent.SetSoundStart(it)) }
+                            )
+                            SoundSelectorRow(
+                                title = "On success",
+                                selectedSound = state.soundSuccess,
+                                onSoundSelected = { viewModel.onIntent(SettingsIntent.SetSoundSuccess(it)) }
+                            )
+                            SoundSelectorRow(
+                                title = "On error",
+                                selectedSound = state.soundError,
+                                onSoundSelected = { viewModel.onIntent(SettingsIntent.SetSoundError(it)) }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        item {
+            Box(modifier = Modifier.animateItem()) {
                 SettingsSection(title = "Controls", backdrop = backdrop) {
                     LiquidSettingsSlider(
                         title = "Double Press Interval",
@@ -266,7 +299,7 @@ fun SettingsScreen(
                     title = { Text("Reset to Defaults?") },
                     text = { Text("This will clear all settings and your API key. This action cannot be undone.") },
                     shape = RoundedCornerShape(24.dp),
-                    containerColor = Color(0xFF1A1A1A), // Dark glass feel
+                    containerColor = Color(0xFF1A1A1A),
                     textContentColor = Color.White,
                     titleContentColor = Color.White
                 )
@@ -282,6 +315,59 @@ fun SettingsScreen(
             }
             Spacer(modifier = Modifier.height(140.dp))
         }
+    }
+}
+
+@Composable
+fun SoundSelectorRow(
+    title: String,
+    selectedSound: TriggerSound,
+    onSoundSelected: (TriggerSound) -> Unit
+) {
+    Column {
+        Text(title, style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.5f))
+        Spacer(modifier = Modifier.height(8.dp))
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(TriggerSound.entries) { sound ->
+                SoundChip(
+                    sound = sound,
+                    isSelected = sound == selectedSound,
+                    onClick = { onSoundSelected(sound) }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun SoundChip(
+    sound: TriggerSound,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .height(36.dp)
+            .clip(CircleShape)
+            .background(
+                if (isSelected) WhispryTheme.colors.accent
+                else Color.White.copy(alpha = 0.05f)
+            )
+            .border(
+                1.dp,
+                if (isSelected) Color.Transparent else Color.White.copy(alpha = 0.1f),
+                CircleShape
+            )
+            .clickable { onClick() }
+            .padding(horizontal = 12.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = sound.displayName,
+            style = MaterialTheme.typography.labelMedium,
+            color = if (isSelected) Color.White else Color.White.copy(alpha = 0.6f),
+            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+        )
     }
 }
 
@@ -307,7 +393,6 @@ fun TriggerPickerSection(
                 backdrop = backdrop
             )
             
-            // Sub-settings
             AnimatedVisibility(
                 visible = selectedMode::class == mode::class && mode is TriggerMode.VolumeButton,
                 enter = expandVertically() + fadeIn(),
@@ -464,7 +549,7 @@ fun SliderMeter(
     modifier: Modifier = Modifier
 ) {
     Box(modifier.fillMaxWidth().height(20.dp).padding(horizontal = 4.dp)) {
-        val totalSteps = if (steps > 0) steps + 2 else 11 // Default 10 segments
+        val totalSteps = if (steps > 0) steps + 2 else 11
         
         Row(
             modifier = Modifier.fillMaxSize(),

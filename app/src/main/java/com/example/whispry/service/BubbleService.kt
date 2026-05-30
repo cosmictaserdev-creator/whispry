@@ -166,6 +166,7 @@ class BubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedState
     @Inject lateinit var settingsProvider: com.example.whispry.data.local.datasource.SettingsProvider
     @Inject lateinit var overlayCoordinator: WindowOverlayCoordinator
     @Inject lateinit var floatingWidgetManager: FloatingWidgetManager
+    @Inject lateinit var soundManager: SoundManager
 
     // ------------------------------------------------------------------
     // WindowManager & Compose
@@ -368,9 +369,11 @@ class BubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedState
         }
 
         val result = audioRecorder.stopRecording()
+        soundManager.play(SoundEvent.TRIGGER_STOP)
         if (result == null) {
             bubbleState.value = BubbleState.Error("Too short")
             message.value = "Too short"
+            soundManager.play(SoundEvent.ERROR)
             scheduleBubbleDismissal(ERROR_DISMISS_DELAY_MS)
             return
         }
@@ -432,6 +435,7 @@ class BubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedState
 
                             bubbleState.value = BubbleState.Success
                             hapticHelper.vibrateSuccess()
+                            soundManager.play(SoundEvent.SUCCESS)
                             message.value = if (insertResult == TextInserter.InsertResult.PASTED) "Pasted ✓" else "Copied ✓"
                             scheduleBubbleDismissal(SUCCESS_DISMISS_DELAY_MS)
                             
@@ -446,6 +450,7 @@ class BubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedState
                             )
                             message.value = if (isNoInternet) "No Internet" else transcribeResult.message
                             hapticHelper.vibrateError()
+                            soundManager.play(SoundEvent.ERROR)
                             scheduleBubbleDismissal(ERROR_DISMISS_DELAY_MS)
                         }
                         else -> {}

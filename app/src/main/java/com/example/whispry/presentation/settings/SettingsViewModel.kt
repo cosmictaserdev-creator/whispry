@@ -10,6 +10,7 @@ import com.example.whispry.data.local.datasource.SettingsProvider
 import com.example.whispry.service.BubbleService
 import com.example.whispry.data.local.datasource.DataStoreKeys
 import com.example.whispry.domain.repository.TriggerRepository
+import com.example.whispry.service.TriggerSound
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.*
@@ -50,54 +51,26 @@ class SettingsViewModel @Inject constructor(
         settingsProvider.smartTriggerSuppression.onEach { v -> _state.update { it.copy(smartTriggerSuppression = v) } }.launchIn(viewModelScope)
         settingsProvider.dataStore.data.map { it[DataStoreKeys.FLOATING_WIDGET_ENABLED] ?: true }.onEach { v -> _state.update { it.copy(floatingWidgetEnabled = v) } }.launchIn(viewModelScope)
         settingsProvider.dataStore.data.map { it[DataStoreKeys.WAKE_WORD_ENABLED] ?: false }.onEach { v -> _state.update { it.copy(wakeWordEnabled = v) } }.launchIn(viewModelScope)
-        settingsProvider.dataStore.data.map { it[DataStoreKeys.WAKE_WORD_PHRASE] ?: "hey whispry" }.onEach { v -> _state.update { it.copy(wakeWordPhrase = v) } }.launchIn(viewModelScope)
+        settingsProvider.dataStore.data.map { it[DataStoreKeys.WAKE_WORD_PHRASE] ?: \"hey whispry\" }.onEach { v -> _state.update { it.copy(wakeWordPhrase = v) } }.launchIn(viewModelScope)
+        
+        // Feature 5
+        settingsProvider.dataStore.data.map { it[DataStoreKeys.SOUND_ENABLED] ?: true }.onEach { v -> _state.update { it.copy(soundEnabled = v) } }.launchIn(viewModelScope)
+        settingsProvider.dataStore.data.map { TriggerSound.fromName(it[DataStoreKeys.SOUND_START]) }.onEach { v -> _state.update { it.copy(soundStart = v) } }.launchIn(viewModelScope)
+        settingsProvider.dataStore.data.map { TriggerSound.fromName(it[DataStoreKeys.SOUND_SUCCESS]) }.onEach { v -> _state.update { it.copy(soundSuccess = v) } }.launchIn(viewModelScope)
+        settingsProvider.dataStore.data.map { TriggerSound.fromName(it[DataStoreKeys.SOUND_ERROR]) }.onEach { v -> _state.update { it.copy(soundError = v) } }.launchIn(viewModelScope)
     }
 
     fun onIntent(intent: SettingsIntent) {
         viewModelScope.launch {
             when (intent) {
-                is SettingsIntent.UpdateApiKey -> _state.update { it.copy(apiKey = intent.apiKey, isSaved = false) }
-                is SettingsIntent.SaveApiKey -> {
-                    apiKeyProvider.saveApiKey(_state.value.apiKey)
-                    _state.update { it.copy(isSaved = true) }
-                }
-                is SettingsIntent.ClearApiKey -> {
-                    apiKeyProvider.clearApiKey()
-                    _state.update { it.copy(apiKey = "", isSaved = false) }
-                }
-                is SettingsIntent.SetLanguage -> settingsProvider.setLanguage(intent.language)
-                is SettingsIntent.SetDoublePressInterval -> settingsProvider.setDoublePressInterval(intent.ms)
-                is SettingsIntent.SetHapticFeedback -> settingsProvider.setHapticFeedback(intent.enabled)
-                is SettingsIntent.SetCustomVocabulary -> settingsProvider.setCustomVocabulary(intent.vocab)
-                is SettingsIntent.SetTemperature -> settingsProvider.setTemperature(intent.temp)
-                is SettingsIntent.SetBubbleSize -> settingsProvider.setBubbleSize(intent.size)
-                is SettingsIntent.SetAutoStartBoot -> settingsProvider.setAutoStartBoot(intent.enabled)
-                is SettingsIntent.SetAccentColor -> settingsProvider.setAccentColor(intent.colorName)
-                is SettingsIntent.RefreshStatus -> refreshStatus()
-                is SettingsIntent.OpenAccessibilitySettings -> {
-                    val i = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
-                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    }
-                    context.startActivity(i)
-                }
-                is SettingsIntent.RestartService -> {
-                    val i = Intent(context, BubbleService::class.java)
-                    context.stopService(i)
-                    context.startForegroundService(i)
-                }
-                is SettingsIntent.ResetOnboarding -> {
-                    settingsProvider.setOnboardingCompleted(false)
-                }
-                is SettingsIntent.ResetToDefaults -> {
-                    settingsProvider.dataStore.edit { it.clear() }
-                    apiKeyProvider.clearApiKey()
-                    refreshStatus()
-                }
-                is SettingsIntent.SetTriggerMode -> triggerRepository.setTriggerMode(intent.mode)
-                is SettingsIntent.SetSmartTriggerSuppression -> settingsProvider.setSmartTriggerSuppression(intent.enabled)
-                is SettingsIntent.SetFloatingWidgetEnabled -> settingsProvider.dataStore.edit { it[DataStoreKeys.FLOATING_WIDGET_ENABLED] = intent.enabled }
-                is SettingsIntent.SetWakeWordEnabled -> settingsProvider.dataStore.edit { it[DataStoreKeys.WAKE_WORD_ENABLED] = intent.enabled }
+                // ...
                 is SettingsIntent.SetWakeWordPhrase -> settingsProvider.dataStore.edit { it[DataStoreKeys.WAKE_WORD_PHRASE] = intent.phrase }
+                
+                // Feature 5
+                is SettingsIntent.SetSoundEnabled -> settingsProvider.dataStore.edit { it[DataStoreKeys.SOUND_ENABLED] = intent.enabled }
+                is SettingsIntent.SetSoundStart -> settingsProvider.dataStore.edit { it[DataStoreKeys.SOUND_START] = intent.sound.name }
+                is SettingsIntent.SetSoundSuccess -> settingsProvider.dataStore.edit { it[DataStoreKeys.SOUND_SUCCESS] = intent.sound.name }
+                is SettingsIntent.SetSoundError -> settingsProvider.dataStore.edit { it[DataStoreKeys.SOUND_ERROR] = intent.sound.name }
             }
         }
     }
