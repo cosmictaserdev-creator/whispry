@@ -11,5 +11,7 @@ data class TranscriptEntity(
     val timestampMs: Long,
     val durationMs: Long,
     val languageCode: String,
-    val isPinned: Boolean = false
+    val isPinned: Boolean = false,
+    val rawText: String = "",
+    val preset: String = "NONE"
 )

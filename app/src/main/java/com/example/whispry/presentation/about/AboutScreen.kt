@@ -2,11 +2,10 @@ package com.example.whispry.presentation.about
 
 import android.content.Intent
 import android.net.Uri
-import androidx.compose.foundation.background
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
@@ -18,17 +17,20 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.example.whispry.R
 import com.example.whispry.presentation.common.GlassCard
 import com.example.whispry.ui.theme.DeepPurple
 import com.kyant.backdrop.Backdrop
+import com.kyant.backdrop.backdrops.LayerBackdrop
 
 @Composable
 fun AboutScreen(
-    backdrop: Backdrop,
+    backdrop: LayerBackdrop,
     viewModel: AboutViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsState()
@@ -46,15 +48,18 @@ fun AboutScreen(
         item {
             Box(modifier = Modifier.animateItem()) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    // App Icon Placeholder
+                    // App Logo
                     Box(
                         modifier = Modifier
-                            .size(100.dp)
-                            .background(DeepPurple.copy(alpha = 0.1f), CircleShape)
-                            .padding(16.dp),
+                            .size(120.dp)
+                            .padding(bottom = 8.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(Icons.Rounded.Mic, null, modifier = Modifier.size(56.dp), tint = DeepPurple)
+                        Image(
+                            painter = painterResource(id = R.drawable.whisperlogo),
+                            contentDescription = "Whispry Logo",
+                            modifier = Modifier.size(100.dp)
+                        )
                     }
                     
                     Spacer(modifier = Modifier.height(16.dp))

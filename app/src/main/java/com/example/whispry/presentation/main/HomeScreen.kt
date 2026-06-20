@@ -23,6 +23,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -38,20 +39,42 @@ import com.example.whispry.service.BubbleService
 import com.example.whispry.ui.theme.WhispryTheme
 import com.example.whispry.ui.theme.WhispryTokens
 import com.example.whispry.ui.util.liquid.components.LiquidButton
-import com.kyant.backdrop.Backdrop
+import com.kyant.backdrop.backdrops.LayerBackdrop
 import com.kyant.backdrop.drawBackdrop
-import com.kyant.backdrop.effects.blur
-import com.kyant.backdrop.effects.vibrancy
-import com.kyant.capsule.ContinuousRoundedRectangle
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.ui.graphics.graphicsLayer
+import com.kyant.backdrop.Backdrop
 
 @Composable
 fun HomeScreen(
-    backdrop: Backdrop,
+    backdrop: LayerBackdrop,
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val lifecycleOwner = LocalLifecycleOwner.current
     val context = LocalContext.current
+
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 1.2f else 1f,
+        animationSpec = spring(dampingRatio = 0.4f, stiffness = Spring.StiffnessLow),
+        label = "MicScale"
+    )
+
+    var hasPressed by remember { mutableStateOf(false) }
+    LaunchedEffect(isPressed) {
+        if (isPressed) {
+            hasPressed = true
+            viewModel.onIntent(HomeIntent.StartManualRecording)
+        } else if (hasPressed) {
+            viewModel.onIntent(HomeIntent.StopManualRecording)
+        }
+    }
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -64,9 +87,9 @@ fun HomeScreen(
             lifecycleOwner.lifecycle.removeObserver(observer)
         }
     }
-
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
+    Box(modifier = Modifier.fillMaxSize()) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(
             top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 24.dp,
             bottom = 140.dp, 
@@ -86,7 +109,7 @@ fun HomeScreen(
                     text = "Whispry",
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold,
-                    color = WhispryTokens.TextPrimary,
+                    color = Color.White,
                     letterSpacing = (-1).sp
                 )
             }
@@ -166,18 +189,29 @@ fun HomeScreen(
         // Hero Mic Button
         item {
             Spacer(modifier = Modifier.height(16.dp))
-            LiquidButton(
-                onClick = { /* Manual trigger */ },
-                backdrop = backdrop,
-                modifier = Modifier.size(160.dp),
-                tint = WhispryTheme.colors.accent
+            Box(
+                modifier = Modifier
+                    .size(160.dp)
+                    .graphicsLayer {
+                        scaleX = scale
+                        scaleY = scale
+                    },
+                contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    imageVector = Icons.Rounded.Mic,
-                    contentDescription = "Record",
-                    modifier = Modifier.size(64.dp),
-                    tint = Color.White
-                )
+                LiquidButton(
+                    onClick = { /* handled by interactionSource */ },
+                    backdrop = backdrop,
+                    modifier = Modifier.fillMaxSize(),
+                    tint = WhispryTheme.colors.accent,
+                    interactionSource = interactionSource
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Mic,
+                        contentDescription = "Record",
+                        modifier = Modifier.size(64.dp),
+                        tint = Color.White
+                    )
+                }
             }
             Spacer(modifier = Modifier.height(16.dp))
         }
@@ -195,7 +229,7 @@ fun HomeScreen(
                         modifier = Modifier
                             .size(8.dp)
                             .background(
-                                if (state.missingPermissions.isEmpty()) WhispryTheme.colors.accent else Color.Gray,
+                                if (state.missingPermissions.isEmpty()) WhispryTokens.SuccessGreen else Color.Gray,
                                 CircleShape
                             )
                     )
@@ -245,18 +279,9 @@ fun HomeScreen(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .animateItem()
-                    .drawBackdrop(
-                        backdrop = backdrop,
-                        shape = { ContinuousRoundedRectangle(20.dp) },
-                        effects = {
-                            vibrancy()
-                            blur(2.dp.toPx())
-                        },
-                        onDrawSurface = {
-                            drawRect(Color.White.copy(alpha = 0.05f))
-                        }
-                    )
+                    .shadow(4.dp, com.kyant.capsule.ContinuousRoundedRectangle(20.dp), spotColor = androidx.compose.ui.graphics.Color.Black)
+                    .background(androidx.compose.ui.graphics.Color(0xFF1C1C1E), com.kyant.capsule.ContinuousRoundedRectangle(20.dp))
+                    .border(1.dp, com.example.whispry.ui.theme.WhispryTokens.GlassBorder, com.kyant.capsule.ContinuousRoundedRectangle(20.dp))
                     .padding(16.dp)
             ) {
                 Column {
@@ -278,6 +303,7 @@ fun HomeScreen(
         }
     }
 }
+}
 
 @Composable
 fun StatCard(
@@ -288,17 +314,9 @@ fun StatCard(
 ) {
     Box(
         modifier = modifier
-            .drawBackdrop(
-                backdrop = backdrop,
-                shape = { ContinuousRoundedRectangle(20.dp) },
-                effects = {
-                    vibrancy()
-                    blur(4.dp.toPx())
-                },
-                onDrawSurface = {
-                    drawRect(Color.White.copy(alpha = 0.05f))
-                }
-            )
+            .shadow(4.dp, com.kyant.capsule.ContinuousRoundedRectangle(20.dp), spotColor = androidx.compose.ui.graphics.Color.Black)
+                    .background(androidx.compose.ui.graphics.Color(0xFF1C1C1E), com.kyant.capsule.ContinuousRoundedRectangle(20.dp))
+                    .border(1.dp, com.example.whispry.ui.theme.WhispryTokens.GlassBorder, com.kyant.capsule.ContinuousRoundedRectangle(20.dp))
             .padding(16.dp),
         contentAlignment = Alignment.Center
     ) {
@@ -326,23 +344,15 @@ fun StatusBanner(
     actionLabel: String,
     color: Color,
     icon: androidx.compose.ui.graphics.vector.ImageVector,
-    backdrop: Backdrop,
+    backdrop: LayerBackdrop,
     onClick: () -> Unit
 ) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .drawBackdrop(
-                backdrop = backdrop,
-                shape = { ContinuousRoundedRectangle(24.dp) },
-                effects = {
-                    vibrancy()
-                    blur(4.dp.toPx())
-                },
-                onDrawSurface = {
-                    drawRect(color.copy(alpha = 0.15f))
-                }
-            )
+            .shadow(4.dp, com.kyant.capsule.ContinuousRoundedRectangle(24.dp), spotColor = androidx.compose.ui.graphics.Color.Black)
+                    .background(androidx.compose.ui.graphics.Color(0xFF1C1C1E), com.kyant.capsule.ContinuousRoundedRectangle(24.dp))
+                    .border(1.dp, com.example.whispry.ui.theme.WhispryTokens.GlassBorder, com.kyant.capsule.ContinuousRoundedRectangle(24.dp))
             .clickable { onClick() }
             .padding(16.dp)
     ) {

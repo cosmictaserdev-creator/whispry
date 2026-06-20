@@ -15,6 +15,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -58,12 +59,9 @@ fun TutorialScreen(
             Box(
                 modifier = Modifier
                     .size(width = 180.dp, height = 310.dp)
-                    .drawBackdrop(
-                        backdrop = backdrop,
-                        shape = { ContinuousRoundedRectangle(36.dp) },
-                        effects = { vibrancy(); blur(20.dp.toPx()) },
-                        onDrawSurface = { drawRect(Color.White.copy(0.06f)) }
-                    )
+                    .shadow(4.dp, com.kyant.capsule.ContinuousRoundedRectangle(36.dp), spotColor = androidx.compose.ui.graphics.Color.Black)
+                    .background(androidx.compose.ui.graphics.Color(0xFF1C1C1E), com.kyant.capsule.ContinuousRoundedRectangle(36.dp))
+                    .border(1.dp, com.example.whispry.ui.theme.WhispryTokens.GlassBorder, com.kyant.capsule.ContinuousRoundedRectangle(36.dp))
                     .border(1.dp, Color.White.copy(0.12f), ContinuousRoundedRectangle(36.dp)),
                 contentAlignment = Alignment.TopEnd
             ) {
@@ -84,8 +82,8 @@ fun TutorialScreen(
                         .size(width = 8.dp, height = 44.dp)
                         .scale(if (state.tutorialStep == TutorialStep.DoublePressMe || state.tutorialStep == TutorialStep.HoldMe) pulseScale else 1f)
                         .background(
-                            if (state.tutorialStep == TutorialStep.Recording) WhispryTheme.colors.accent 
-                            else WhispryTheme.colors.accent.copy(0.45f),
+                            if (state.tutorialStep == TutorialStep.Recording) androidx.compose.ui.graphics.Color.White 
+                            else androidx.compose.ui.graphics.Color.White.copy(alpha = 0.45f),
                             RoundedCornerShape(topStart = 4.dp, bottomStart = 4.dp)
                         )
                 )
@@ -99,14 +97,14 @@ fun TutorialScreen(
                         when(step) {
                             TutorialStep.DoublePressMe -> {
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Icon(Icons.Rounded.TouchApp, null, tint = WhispryTheme.colors.accent, modifier = Modifier.size(48.dp))
+                                    Icon(Icons.Rounded.TouchApp, null, tint = androidx.compose.ui.graphics.Color.White, modifier = Modifier.size(48.dp))
                                     Text("Double Press", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(0.8f))
                                 }
                             }
                             TutorialStep.Recording -> {
                                 Box(contentAlignment = Alignment.Center) {
-                                    CircularProgressIndicator(color = WhispryTheme.colors.accent, strokeWidth = 2.5.dp, modifier = Modifier.size(56.dp))
-                                    Icon(Icons.Rounded.Mic, null, tint = WhispryTheme.colors.accent, modifier = Modifier.size(32.dp))
+                                    CircularProgressIndicator(color = androidx.compose.ui.graphics.Color.White, strokeWidth = 2.5.dp, modifier = Modifier.size(56.dp))
+                                    Icon(Icons.Rounded.Mic, null, tint = androidx.compose.ui.graphics.Color.White, modifier = Modifier.size(32.dp))
                                 }
                             }
                             TutorialStep.Success -> {
@@ -191,7 +189,7 @@ fun TutorialScreen(
                             "Complete Onboarding",
                             fontWeight = FontWeight.Bold,
                             fontSize = 18.sp,
-                            color = WhispryTheme.colors.accent
+                            color = androidx.compose.ui.graphics.Color.White
                         )
                     }
                 }

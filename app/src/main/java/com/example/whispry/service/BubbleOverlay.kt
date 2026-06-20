@@ -8,12 +8,16 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Stop
 import androidx.compose.material.icons.rounded.WifiOff
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -26,6 +30,8 @@ import com.kyant.backdrop.effects.vibrancy
 import com.kyant.capsule.ContinuousRoundedRectangle
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.backdrop.backdrops.layerBackdrop
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
 
 /**
  * Modern Pill-style Overlay that slides up from the bottom with spring physics.
@@ -36,7 +42,10 @@ fun BubbleOverlay(
     amplitudeProvider: () -> Float,
     message: String,
     onRetry: () -> Unit = {},
-    onCancel: () -> Unit = {}
+    onCancel: () -> Unit = {},
+    onStop: () -> Unit = {},
+    onDrag: (dx: Float, dy: Float) -> Unit = { _, _ -> },
+    onDragEnd: () -> Unit = {}
 ) {
     val visibleState = remember { MutableTransitionState(false) }
     
@@ -44,42 +53,32 @@ fun BubbleOverlay(
     LaunchedEffect(state) {
         visibleState.targetState = state !is BubbleState.Idle
     }
-    
-    val backdrop = rememberLayerBackdrop {
-        drawContent()
-    }
 
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.BottomCenter
+    // Modern glass backdrop
+    val backdrop = rememberLayerBackdrop()
+
+    AnimatedVisibility(
+        visibleState = visibleState,
+        enter = slideInVertically(
+            initialOffsetY = { it / 2 },
+            animationSpec = spring(dampingRatio = 0.65f, stiffness = 300f)
+        ) + fadeIn(animationSpec = tween(300)),
+        exit = slideOutVertically(
+            targetOffsetY = { it / 2 },
+            animationSpec = spring(dampingRatio = 0.8f, stiffness = 400f)
+        ) + fadeOut(animationSpec = tween(250))
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .layerBackdrop(backdrop)
-                .background(Color.Black.copy(alpha = 0.1f))
+        PillContent(
+            state = state,
+            amplitudeProvider = amplitudeProvider,
+            message = message,
+            backdrop = backdrop,
+            onRetry = onRetry,
+            onCancel = onCancel,
+            onStop = onStop,
+            onDrag = onDrag,
+            onDragEnd = onDragEnd
         )
-
-        AnimatedVisibility(
-            visibleState = visibleState,
-            enter = slideInVertically(
-                initialOffsetY = { it },
-                animationSpec = spring(dampingRatio = 0.45f, stiffness = 150f)
-            ) + fadeIn(animationSpec = tween(400)),
-            exit = slideOutVertically(
-                targetOffsetY = { it },
-                animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMedium)
-            ) + fadeOut()
-        ) {
-            Box(
-                modifier = Modifier
-                    .padding(bottom = 40.dp)
-                    .padding(horizontal = 24.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                PillContent(state, amplitudeProvider, message, backdrop, onRetry, onCancel)
-            }
-        }
     }
 }
 
@@ -90,25 +89,29 @@ private fun PillContent(
     message: String,
     backdrop: com.kyant.backdrop.Backdrop,
     onRetry: () -> Unit,
-    onCancel: () -> Unit
+    onCancel: () -> Unit,
+    onStop: () -> Unit,
+    onDrag: (dx: Float, dy: Float) -> Unit,
+    onDragEnd: () -> Unit
 ) {
     val isListening = state is BubbleState.Listening
     val isProcessing = state is BubbleState.Processing
+    val isFormatting = state is BubbleState.Formatting
     val isMiniMode = (state as? BubbleState.Processing)?.miniMode == true
     val isError = state is BubbleState.Error
     val accentColor = WhispryTheme.colors.accent
 
     val targetWidth = when {
         isMiniMode -> 56.dp
-        isProcessing -> 180.dp
-        isListening && message.isEmpty() -> 160.dp
-        isError -> 200.dp
-        message.isNotEmpty() -> 240.dp
+        isProcessing || isFormatting -> 200.dp
+        isListening && message.isEmpty() -> 280.dp 
+        isError -> 220.dp
+        message.isNotEmpty() -> 300.dp 
         else -> 120.dp
     }
     
-    val targetHeight = if (isMiniMode) 56.dp else 58.dp
-    val cornerRadius = if (isMiniMode) 28.dp else 29.dp
+    val targetHeight = if (isMiniMode) 56.dp else 68.dp 
+    val cornerRadius = if (isMiniMode) 28.dp else 34.dp
 
     val animatedWidth by animateDpAsState(
         targetValue = targetWidth,
@@ -138,23 +141,33 @@ private fun PillContent(
                     blur(if (isMiniMode) 8.dp.toPx() else 4.dp.toPx())
                 },
                 onDrawSurface = {
-                    drawRect(Color.White.copy(alpha = if (isMiniMode) 0.08f else 0.05f))
-                    if (isListening || isProcessing) {
-                        drawRect(accentColor.copy(alpha = if (isMiniMode) 0.15f else 0.1f))
+                    drawRect(Color.White.copy(alpha = if (isMiniMode) 0.3f else 0.2f))
+                    if (isListening || isProcessing || isFormatting) {
+                        drawRect(accentColor.copy(alpha = if (isMiniMode) 0.4f else 0.3f))
                     }
                     if (isError) {
-                        drawRect(Color.Red.copy(alpha = 0.1f))
+                        drawRect(Color.Red.copy(alpha = 0.3f))
                     }
                 }
             )
+            .pointerInput(Unit) {
+                detectDragGestures(
+                    onDrag = { change, dragAmount ->
+                        change.consume()
+                        onDrag(dragAmount.x, dragAmount.y)
+                    },
+                    onDragEnd = {
+                        onDragEnd()
+                    }
+                )
+            }
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null
             ) {
-                if (isProcessing) onCancel()
                 if (isError) onRetry()
             }
-            .padding(horizontal = if (isMiniMode) 0.dp else 20.dp),
+            .padding(horizontal = if (isMiniMode) 0.dp else 16.dp),
         contentAlignment = Alignment.Center
     ) {
         if (isMiniMode) {
@@ -162,77 +175,127 @@ private fun PillContent(
         } else {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center
+                horizontalArrangement = Arrangement.Center,
+                modifier = Modifier.fillMaxWidth()
             ) {
-                if (isListening || isProcessing) {
+                if (isListening || isProcessing || isFormatting) {
                     SiriRingBubble(
                         isListening = isListening,
-                        isProcessing = isProcessing,
+                        isProcessing = isProcessing || isFormatting,
                         amplitudeProvider = amplitudeProvider,
-                        modifier = Modifier.size(28.dp)
+                        modifier = Modifier.size(32.dp)
                     )
-                    if (message.isNotEmpty() || isProcessing) Spacer(modifier = Modifier.width(12.dp))
+                    Spacer(modifier = Modifier.width(12.dp))
                 }
 
-                if (isError) {
-                    val networkError = (state as? BubbleState.Error)?.isNetworkError == true
-                    if (networkError) {
-                        Icon(
-                            imageVector = Icons.Rounded.WifiOff,
-                            contentDescription = "No Internet",
-                            tint = Color.White.copy(alpha = 0.8f),
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                    }
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            text = if (networkError) "No Internet" else message,
-                            color = Color.White,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Text(
-                            text = "Tap to retry",
-                            color = Color.White.copy(alpha = 0.6f),
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
-                } else if (isProcessing) {
-                    val showHint = (state as? BubbleState.Processing)?.showCancelHint == true
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+                    if (isError) {
+                        val networkError = (state as? BubbleState.Error)?.isNetworkError == true
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (networkError) {
+                                Icon(
+                                    imageVector = Icons.Rounded.WifiOff,
+                                    contentDescription = "No Internet",
+                                    tint = Color.White.copy(alpha = 0.8f),
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                            }
+                            Column {
+                                Text(
+                                    text = if (networkError) "No Internet" else message,
+                                    color = Color.White,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Text(
+                                    text = "Tap to retry",
+                                    color = Color.White.copy(alpha = 0.6f),
+                                    fontSize = 11.sp
+                                )
+                            }
+                        }
+                    } else if (isFormatting) {
+                        val preset = (state as BubbleState.Formatting).preset
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = preset.emoji,
+                                fontSize = 16.sp
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Formatting...",
+                                color = Color.White.copy(alpha = 0.8f),
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    } else if (isProcessing) {
                         Text(
                             text = "Thinking...",
-                            color = Color.White.copy(alpha = 0.7f),
-                            fontSize = 14.sp,
+                            color = Color.White.copy(alpha = 0.8f),
+                            fontSize = 15.sp,
                             fontWeight = FontWeight.Medium
                         )
-                        if (showHint) {
-                            Text(
-                                text = "Tap to cancel",
-                                color = Color.White.copy(alpha = 0.4f),
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Normal
+                    } else if (isListening) {
+                        Text(
+                            text = "Listening...",
+                            color = Color.White.copy(alpha = 0.8f),
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    } else if (message.isNotEmpty()) {
+                        Text(
+                            text = message,
+                            color = Color.White,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1
+                        )
+                    }
+                }
+
+                if (isListening || isProcessing || isFormatting) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        if (isListening) {
+                            // Stop Button
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(CircleShape)
+                                    .background(Color.White.copy(alpha = 0.1f))
+                                    .clickable { onStop() },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Stop,
+                                    contentDescription = "Stop",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+
+                        // Cancel/Discard Button
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(Color.Red.copy(alpha = 0.15f))
+                                .clickable { onCancel() },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Close,
+                                contentDescription = "Discard",
+                                tint = Color.Red.copy(alpha = 0.8f),
+                                modifier = Modifier.size(20.dp)
                             )
                         }
                     }
-                } else if (isListening && message.isEmpty()) {
-                    Text(
-                        text = "Listening...",
-                        color = Color.White.copy(alpha = 0.7f),
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-                } else if (message.isNotEmpty()) {
-                    Text(
-                        text = message,
-                        color = Color.White,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        textAlign = TextAlign.Center,
-                        maxLines = 1
-                    )
                 }
             }
         }
@@ -241,23 +304,22 @@ private fun PillContent(
 
 @Composable
 private fun ThreeDotLoader() {
-    val infiniteTransition = rememberInfiniteTransition(label = "DotLoader")
-    val accentColor = WhispryTheme.colors.accent
-
+    val infiniteTransition = rememberInfiniteTransition(label = "Dots")
+    val dotCount = 3
+    
     Row(
         horizontalArrangement = Arrangement.spacedBy(4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        repeat(3) { i ->
-            val delay = i * 150
+        repeat(dotCount) { i ->
             val translationY by infiniteTransition.animateFloat(
                 initialValue = 0f,
-                targetValue = -6.dp.value,
+                targetValue = -6f,
                 animationSpec = infiniteRepeatable(
-                    animation = tween(600, delayMillis = delay, easing = FastOutSlowInEasing),
+                    animation = tween(400, delayMillis = i * 150, easing = FastOutSlowInEasing),
                     repeatMode = RepeatMode.Reverse
                 ),
-                label = "DotTranslation"
+                label = "Dot$i"
             )
             
             Box(
@@ -266,7 +328,7 @@ private fun ThreeDotLoader() {
                     .graphicsLayer {
                         this.translationY = translationY
                     }
-                    .background(accentColor.copy(alpha = 0.8f), CircleShape)
+                    .background(WhispryTheme.colors.accent.copy(alpha = 0.8f), CircleShape)
             )
         }
     }

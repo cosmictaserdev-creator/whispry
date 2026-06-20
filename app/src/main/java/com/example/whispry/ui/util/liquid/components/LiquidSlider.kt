@@ -59,8 +59,6 @@ fun LiquidSlider(
     val accentColor = WhispryTheme.colors.accent
     val trackColor = Color(0xFF787880).copy(0.36f)
 
-    val trackBackdrop = rememberLayerBackdrop()
-
     BoxWithConstraints(
         modifier.fillMaxWidth(),
         contentAlignment = Alignment.CenterStart
@@ -126,7 +124,7 @@ fun LiquidSlider(
             }
         }
 
-        Box(Modifier.layerBackdrop(trackBackdrop)) {
+        Box {
             Box(
                 Modifier
                     .clip(ContinuousRoundedRectangle(100.dp))
@@ -165,65 +163,19 @@ fun LiquidSlider(
                     translationX =
                         (-size.width / 2f + trackWidth * dampedDragAnimation.progress)
                             .fastCoerceIn(-size.width / 4f, trackWidth - size.width * 3f / 4f) * if (isLtr) 1f else -1f
+                    
+                    scaleX = dampedDragAnimation.scaleX
+                    scaleY = dampedDragAnimation.scaleY
+                    val velocity = dampedDragAnimation.velocity / 10f
+                    scaleX /= 1f - (velocity * 0.75f).fastCoerceIn(-0.2f, 0.2f)
+                    scaleY *= 1f - (velocity * 0.25f).fastCoerceIn(-0.2f, 0.2f)
                 }
                 .then(dampedDragAnimation.modifier)
-                .drawBackdrop(
-                    backdrop = rememberCombinedBackdrop(
-                        backdrop,
-                        rememberBackdrop(trackBackdrop) { drawBackdrop ->
-                            val progress = dampedDragAnimation.pressProgress
-                            val scaleX = lerp(2f / 3f, 1f, progress)
-                            val scaleY = lerp(0f, 1f, progress)
-                            scale(scaleX, scaleY) {
-                                drawBackdrop()
-                            }
-                        }
-                    ),
-                    shape = { ContinuousRoundedRectangle(100.dp) },
-                    effects = {
-                        val progress = dampedDragAnimation.pressProgress
-                        blur(8.dp.toPx() * (1f - progress))
-                        lens(
-                            10.dp.toPx() * progress,
-                            14.dp.toPx() * progress,
-                            chromaticAberration = true
-                        )
-                    },
-                    highlight = {
-                        val progress = dampedDragAnimation.pressProgress
-                        Highlight.Ambient.copy(
-                            width = Highlight.Ambient.width / 1.5f,
-                            blurRadius = Highlight.Ambient.blurRadius / 1.5f,
-                            alpha = progress
-                        )
-                    },
-                    shadow = {
-                        Shadow(
-                            radius = 4.dp,
-                            color = Color.Black.copy(alpha = 0.05f)
-                        )
-                    },
-                    innerShadow = {
-                        val progress = dampedDragAnimation.pressProgress
-                        InnerShadow(
-                            radius = 4.dp * progress,
-                            alpha = progress
-                        )
-                    },
-                    layerBlock = {
-                        scaleX = dampedDragAnimation.scaleX
-                        scaleY = dampedDragAnimation.scaleY
-                        val velocity = dampedDragAnimation.velocity / 10f
-                        scaleX /= 1f - (velocity * 0.75f).fastCoerceIn(-0.2f, 0.2f)
-                        scaleY *= 1f - (velocity * 0.25f).fastCoerceIn(-0.2f, 0.2f)
-                    },
-                    onDrawSurface = {
-                        val progress = dampedDragAnimation.pressProgress
-                        drawRect(Color.White.copy(alpha = 0.1f)) // More visible surface
-                        drawRect(accentColor.copy(alpha = 0.2f * progress)) // Accent hint
-                    }
+                .background(
+                    Color.White.copy(alpha = 0.85f),
+                    ContinuousRoundedRectangle(100.dp)
                 )
-                .size(48.dp, 32.dp) // Slightly larger handle
+                .size(48.dp, 32.dp)
         )
     }
 }

@@ -15,4 +15,7 @@ object ServiceLocator {
         set(value) {
             _triggerService = if (value != null) WeakReference(value) else null
         }
+
+    @Volatile
+    var lastForegroundPackage: String? = null
 }

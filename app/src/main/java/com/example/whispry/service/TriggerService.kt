@@ -15,7 +15,11 @@ import android.view.accessibility.AccessibilityEvent
 import com.example.whispry.domain.model.TriggerMode
 import com.example.whispry.domain.repository.TriggerRepository
 import com.example.whispry.util.HapticHelper
+import com.example.whispry.data.local.datasource.DataStoreKeys
+import com.example.whispry.data.local.datasource.SettingsProvider
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -31,7 +35,7 @@ class TriggerService : AccessibilityService() {
     lateinit var hapticHelper: HapticHelper
 
     @Inject
-    lateinit var settingsProvider: com.example.whispry.data.local.datasource.SettingsProvider
+    lateinit var settingsProvider: SettingsProvider
 
     @Inject
     lateinit var audioManager: AudioManager
@@ -46,7 +50,10 @@ class TriggerService : AccessibilityService() {
     private var doublePressWindowMs = 400L
     private var useHaptics = true
     private var useSmartSuppression = true
+    private var consumeVolumeKeys = true
+    private var isSinglePressEnabled = false
     private var currentTriggerMode: TriggerMode = TriggerMode.VolumeButton
+    private var activeKeyCode: Int = KeyEvent.KEYCODE_VOLUME_DOWN
 
     // ------------------------------------------------------------------
     // State machine
@@ -55,6 +62,7 @@ class TriggerService : AccessibilityService() {
     private enum class TriggerState {
         IDLE,
         FIRST_PRESS_DETECTED,
+        SINGLE_PRESS_DELAY,
         RECORDING
     }
 
@@ -95,6 +103,22 @@ class TriggerService : AccessibilityService() {
                 updateServiceInfoForMode(mode)
             }
         }
+        serviceScope.launch {
+            settingsProvider.dataStore.data.map { prefs ->
+                prefs[DataStoreKeys.TRIGGER_VOLUME_KEY] ?: "VOLUME_DOWN"
+            }.distinctUntilChanged().collect { keyPref ->
+                activeKeyCode = when (keyPref) {
+                    "VOLUME_UP" -> KeyEvent.KEYCODE_VOLUME_UP
+                    else -> KeyEvent.KEYCODE_VOLUME_DOWN
+                }
+            }
+        }
+        serviceScope.launch {
+            settingsProvider.dataStore.data.collect { prefs ->
+                consumeVolumeKeys = prefs[DataStoreKeys.CONSUME_VOLUME_KEYS] ?: true
+                isSinglePressEnabled = prefs[DataStoreKeys.SINGLE_PRESS_TRIGGER] ?: false
+            }
+        }
     }
 
     private fun updateServiceInfoForMode(mode: TriggerMode) {
@@ -117,7 +141,16 @@ class TriggerService : AccessibilityService() {
         resetToIdle()
     }
 
-    override fun onAccessibilityEvent(event: AccessibilityEvent?) {}
+    override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+        if (event == null) return
+        if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+            val packageName = event.packageName?.toString()
+            if (!packageName.isNullOrBlank() && packageName != this.packageName) {
+                Log.d(TAG, "Foreground package changed to: $packageName")
+                ServiceLocator.lastForegroundPackage = packageName
+            }
+        }
+    }
 
     override fun onInterrupt() {
         Log.d(TAG, "onInterrupt")
@@ -133,16 +166,69 @@ class TriggerService : AccessibilityService() {
     }
 
     private fun handleVolumeKeyEvent(event: KeyEvent): Boolean {
-        if (event.keyCode != KeyEvent.KEYCODE_VOLUME_DOWN) return false
+        if (event.keyCode != activeKeyCode) return false
 
-        if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount != 0) {
-            return triggerState == TriggerState.RECORDING
+        val consumed = if (consumeVolumeKeys && isSinglePressEnabled) {
+            handleSinglePressLogic(event)
+        } else {
+            when (triggerState) {
+                TriggerState.IDLE -> handleIdleState(event)
+                TriggerState.FIRST_PRESS_DETECTED -> handleFirstPressState(event)
+                TriggerState.RECORDING -> handleRecordingState(event)
+                else -> false
+            }
         }
 
+        return if (consumeVolumeKeys) true else consumed
+    }
+
+    private fun handleSinglePressLogic(event: KeyEvent): Boolean {
         return when (triggerState) {
-            TriggerState.IDLE -> handleIdleState(event)
-            TriggerState.FIRST_PRESS_DETECTED -> handleFirstPressState(event)
+            TriggerState.IDLE -> {
+                if (event.action == KeyEvent.ACTION_DOWN) {
+                    triggerState = TriggerState.SINGLE_PRESS_DELAY
+                    handler.postDelayed({
+                        if (triggerState == TriggerState.SINGLE_PRESS_DELAY) {
+                            startRecordingProcess()
+                        }
+                    }, 450) // Pre-delay to prevent accidental short press
+                    true
+                } else false
+            }
+            TriggerState.SINGLE_PRESS_DELAY -> {
+                if (event.action == KeyEvent.ACTION_UP) {
+                    resetToIdle()
+                    handler.removeCallbacksAndMessages(null)
+                }
+                true
+            }
             TriggerState.RECORDING -> handleRecordingState(event)
+            else -> false
+        }
+    }
+
+    private fun startRecordingProcess() {
+        if (useSmartSuppression && shouldSuppressTrigger()) {
+            resetToIdle()
+            return
+        }
+        triggerState = TriggerState.RECORDING
+        if (useHaptics) hapticHelper.vibrateShort()
+        soundManager.play(SoundEvent.TRIGGER_START)
+        
+        try {
+            val intent = android.content.Intent(this, BubbleService::class.java).apply {
+                action = BubbleService.ACTION_START_RECORDING
+            }
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                startForegroundService(intent)
+            } else {
+                startService(intent)
+            }
+            serviceBridge.emit(ServiceBridge.TriggerEvent.RecordingStarted)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to start BubbleService", e)
+            resetToIdle()
         }
     }
 
@@ -160,6 +246,16 @@ class TriggerService : AccessibilityService() {
                     triggerState = TriggerState.RECORDING
                     if (useHaptics) hapticHelper.vibrateShort()
                     soundManager.play(SoundEvent.TRIGGER_START)
+                    
+                    val intent = android.content.Intent(this, BubbleService::class.java).apply {
+                        action = BubbleService.ACTION_START_RECORDING
+                    }
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                        startForegroundService(intent)
+                    } else {
+                        startService(intent)
+                    }
+
                     serviceBridge.emit(ServiceBridge.TriggerEvent.RecordingStarted)
                     true
                 } else false
@@ -168,6 +264,12 @@ class TriggerService : AccessibilityService() {
                 if (triggerState == TriggerState.RECORDING) {
                     triggerState = TriggerState.IDLE
                     soundManager.play(SoundEvent.TRIGGER_STOP)
+                    
+                    val intent = android.content.Intent(this, BubbleService::class.java).apply {
+                        action = BubbleService.ACTION_STOP_RECORDING
+                    }
+                    startService(intent)
+
                     serviceBridge.emit(ServiceBridge.TriggerEvent.RecordingStopped)
                     true
                 } else false
@@ -199,7 +301,9 @@ class TriggerService : AccessibilityService() {
             if (useHaptics) hapticHelper.vibrateShort()
             soundManager.play(SoundEvent.TRIGGER_START)
             
-            val intent = android.content.Intent(this, BubbleService::class.java)
+            val intent = android.content.Intent(this, BubbleService::class.java).apply {
+                action = BubbleService.ACTION_START_RECORDING
+            }
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
                 startForegroundService(intent)
             } else {
@@ -242,6 +346,10 @@ class TriggerService : AccessibilityService() {
     private fun handleRecordingState(event: KeyEvent): Boolean {
         if (event.action == KeyEvent.ACTION_UP) {
             triggerState = TriggerState.IDLE
+            val intent = android.content.Intent(this, BubbleService::class.java).apply {
+                action = BubbleService.ACTION_STOP_RECORDING
+            }
+            startService(intent)
             serviceBridge.emit(ServiceBridge.TriggerEvent.RecordingStopped)
         }
         return true

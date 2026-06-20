@@ -52,7 +52,7 @@ object SoundGenerator {
         return applyEnvelope(samples, 50, 50, sampleRate)
     }
 
-    private fun generateTwoTone(freq1: f, freq2: f, toneDurationMs: Int, gapMs: Int, sampleRate: Int): ShortArray {
+    private fun generateTwoTone(freq1: Float, freq2: Float, toneDurationMs: Int, gapMs: Int, sampleRate: Int): ShortArray {
         val toneSamples = (sampleRate * toneDurationMs / 1000f).toInt()
         val gapSamples = (sampleRate * gapMs / 1000f).toInt()
         val totalSamples = toneSamples * 2 + gapSamples
@@ -112,5 +112,3 @@ object SoundGenerator {
         }.toShortArray()
     }
 }
-
-typealias f = Float

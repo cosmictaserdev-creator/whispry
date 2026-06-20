@@ -2,6 +2,7 @@ package com.example.whispry.presentation.onboarding
 
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
@@ -10,11 +11,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.whispry.presentation.onboarding.components.MicIconCanvas
+import com.example.whispry.R
 import com.example.whispry.presentation.onboarding.components.StaggeredTextReveal
 import com.example.whispry.ui.theme.WhispryTokens
 import com.kyant.backdrop.Backdrop
@@ -90,7 +92,7 @@ fun IntroScreen(
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
-                    .size(140.dp)
+                    .size(180.dp)
                     .graphicsLayer {
                         val s = logoScale * if (phase == IntroPhase.BREATHING) breathScale else 1f
                         scaleX = s
@@ -98,11 +100,9 @@ fun IntroScreen(
                         alpha = logoAlpha
                     }
             ) {
-                MicIconCanvas(
-                    bodyAlpha = 1f,
-                    standAlpha = 0.7f,
-                    baseAlpha = 0.5f,
-                    color = WhispryTokens.TextPrimary,
+                Image(
+                    painter = painterResource(id = R.drawable.whisperlogo),
+                    contentDescription = "Whispry Logo",
                     modifier = Modifier.fillMaxSize()
                 )
             }

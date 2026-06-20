@@ -2,9 +2,8 @@ package com.example.whispry.presentation.settings
 
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.*
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
@@ -14,15 +13,21 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.*
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLifecycleOwner
@@ -35,10 +40,10 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.whispry.domain.model.RetentionPolicy
 import com.example.whispry.domain.model.TriggerMode
-import com.example.whispry.domain.model.WakeWordMode
-import com.example.whispry.presentation.common.GlassCard
 import com.example.whispry.service.TriggerSound
 import com.example.whispry.ui.theme.AccentPreset
 import com.example.whispry.ui.theme.WhispryTheme
@@ -46,38 +51,29 @@ import com.example.whispry.ui.util.liquid.components.LiquidButton
 import com.example.whispry.ui.util.liquid.components.LiquidSlider
 import com.example.whispry.ui.util.liquid.components.LiquidToggle
 import com.kyant.backdrop.Backdrop
+import com.kyant.backdrop.backdrops.LayerBackdrop
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.vibrancy
-import com.example.whispry.presentation.settings.components.VoiceTrainingBottomSheet
-import com.example.whispry.service.TrainedModelMatcher
+import com.kyant.capsule.ContinuousRoundedRectangle
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
     viewModel: SettingsViewModel,
-    backdrop: Backdrop,
+    backdrop: LayerBackdrop,
     onShowLanguagePicker: () -> Unit,
     onRevisitTutorial: () -> Unit,
-    trainedModelMatcher: TrainedModelMatcher, // Pass this in
+    onNavigateToTextExpander: () -> Unit = {},
+    onNavigateToAppTones: () -> Unit = {},
+    onNavigateToMemory: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    val lifecycleOwner = LocalLifecycleOwner.current
-
-    var showTrainingSheet by remember { mutableStateOf(false) }
-
-    if (showTrainingSheet) {
-        VoiceTrainingBottomSheet(
-            onDismiss = { showTrainingSheet = false },
-            onComplete = { fp ->
-                viewModel.onIntent(SettingsIntent.SaveVoiceFingerprint(fp))
-                viewModel.onIntent(SettingsIntent.SetWakeWordMode(WakeWordMode.TRAINED))
-            },
-            trainedModelMatcher = trainedModelMatcher,
-            backdrop = backdrop
-        )
-    }
-
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    var showRetentionPicker by remember { mutableStateOf(false) }
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -91,28 +87,28 @@ fun SettingsScreen(
         }
     }
 
-    LazyColumn(
-        modifier = modifier.fillMaxSize(),
-        contentPadding = PaddingValues(
-            top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 24.dp,
-            start = 24.dp, 
-            end = 24.dp
-        ),
-        verticalArrangement = Arrangement.spacedBy(24.dp)
-    ) {
-        item {
-            Box(modifier = Modifier.animateItem()) {
+    Box(modifier = modifier.fillMaxSize()) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(
+                top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 24.dp,
+                bottom = 140.dp,
+                start = 24.dp, 
+                end = 24.dp
+            ),
+            verticalArrangement = Arrangement.spacedBy(24.dp)
+        ) {
+            item {
                 Text(
                     text = "Settings",
                     style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
                 )
             }
-        }
 
-        item {
-            Box(modifier = Modifier.animateItem()) {
-                SettingsSection(title = "Voice Recognition", backdrop = backdrop) {
+            item {
+                SettingsSectionOptimized(title = "Voice Recognition", backdrop = backdrop) {
                     ApiKeyField(
                         apiKey = state.apiKey,
                         onValueChange = { viewModel.onIntent(SettingsIntent.UpdateApiKey(it)) }
@@ -140,24 +136,38 @@ fun SettingsScreen(
                     )
                 }
             }
-        }
 
-        item {
-            Box(modifier = Modifier.animateItem()) {
-                SettingsSection(title = "Trigger Method", backdrop = backdrop) {
+            item {
+                SettingsSectionOptimized(title = "Trigger Method", backdrop = backdrop) {
                     TriggerPickerSection(
                         state = state,
                         onIntent = { viewModel.onIntent(it) },
-                        onShowTrainingSheet = { showTrainingSheet = true },
+                        backdrop = backdrop
+                    )
+                    
+                    if (state.triggerMode is TriggerMode.VolumeButton) {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        VolumeKeyToggle(
+                            selectedKey = state.triggerVolumeKey,
+                            onKeySelected = { viewModel.onIntent(SettingsIntent.SetTriggerVolumeKey(it)) },
+                            backdrop = backdrop
+                        )
+                    }
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    DuckingSection(
+                        enabled = state.duckingEnabled,
+                        duckPercent = state.duckPercent,
+                        onEnabledChanged = { viewModel.onIntent(SettingsIntent.SetDuckingEnabled(it)) },
+                        onPercentChanged = { viewModel.onIntent(SettingsIntent.SetDuckingPercent(it)) },
                         backdrop = backdrop
                     )
                 }
             }
-        }
 
-        item {
-            Box(modifier = Modifier.animateItem()) {
-                SettingsSection(title = "Interface", backdrop = backdrop) {
+            item {
+                SettingsSectionOptimized(title = "Interface & Sounds", backdrop = backdrop) {
                     LiquidSettingsToggle(
                         icon = Icons.Rounded.OpenInNew,
                         title = "Floating Widget",
@@ -165,22 +175,38 @@ fun SettingsScreen(
                         onCheckedChange = { viewModel.onIntent(SettingsIntent.SetFloatingWidgetEnabled(it)) },
                         backdrop = backdrop
                     )
-                    
+
                     Spacer(modifier = Modifier.height(16.dp))
+
+                    LiquidSettingsToggle(
+                        icon = Icons.Rounded.BlurOn,
+                        title = "Glass Navbar",
+                        checked = state.glassNavbar,
+                        onCheckedChange = { viewModel.onIntent(SettingsIntent.SetGlassNavbar(it)) },
+                        backdrop = backdrop
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+//                    LiquidSettingsToggle(
+//                        icon = Icons.Rounded.Waves,
+//                        title = "Liquid Backdrop",
+//                        checked = state.glassLiquidBackdrop,
+//                        onCheckedChange = { viewModel.onIntent(SettingsIntent.SetGlassLiquidBackdrop(it)) },
+//                        backdrop = backdrop
+//                    )
+//
+//                    Spacer(modifier = Modifier.height(16.dp))
 
                     AccentColorSelector(
                         selectedPreset = AccentPreset.entries.find { it.name == state.accentColor } ?: AccentPreset.Purple,
                         onPresetSelected = { viewModel.onIntent(SettingsIntent.SetAccentColor(it.name)) }
                     )
-                }
-            }
-        }
 
-        item {
-            Box(modifier = Modifier.animateItem()) {
-                SettingsSection(title = "Sounds", backdrop = backdrop) {
+                    Spacer(modifier = Modifier.height(16.dp))
+
                     LiquidSettingsToggle(
-                        icon = Icons.Rounded.VolumeUp,
+                        icon = Icons.AutoMirrored.Rounded.VolumeUp,
                         title = "Trigger Sounds",
                         checked = state.soundEnabled,
                         onCheckedChange = { viewModel.onIntent(SettingsIntent.SetSoundEnabled(it)) },
@@ -192,60 +218,97 @@ fun SettingsScreen(
                         enter = expandVertically() + fadeIn(),
                         exit = shrinkVertically() + fadeOut()
                     ) {
-                        Column(verticalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.padding(top = 16.dp)) {
+                        Column(modifier = Modifier.padding(top = 12.dp)) {
                             SoundSelectorRow(
-                                title = "On trigger",
-                                selectedSound = state.soundStart,
-                                onSoundSelected = { viewModel.onIntent(SettingsIntent.SetSoundStart(it)) }
-                            )
-                            SoundSelectorRow(
-                                title = "On success",
-                                selectedSound = state.soundSuccess,
-                                onSoundSelected = { viewModel.onIntent(SettingsIntent.SetSoundSuccess(it)) }
-                            )
-                            SoundSelectorRow(
-                                title = "On error",
-                                selectedSound = state.soundError,
-                                onSoundSelected = { viewModel.onIntent(SettingsIntent.SetSoundError(it)) }
+                                title = "Sound Pack",
+                                selectedSound = state.selectedSound,
+                                onSoundSelected = { viewModel.onIntent(SettingsIntent.SetSoundPack(it)) }
                             )
                         }
                     }
                 }
             }
-        }
 
-        item {
-            Box(modifier = Modifier.animateItem()) {
-                SettingsSection(title = "Controls", backdrop = backdrop) {
-                    LiquidSettingsSlider(
-                        title = "Double Press Interval",
-                        value = state.doublePressInterval.toFloat(),
-                        onValueChange = { viewModel.onIntent(SettingsIntent.SetDoublePressInterval(it.toLong())) },
-                        valueRange = 200f..600f,
-                        steps = 7, // 50ms increments
-                        backdrop = backdrop,
-                        valueLabel = "${state.doublePressInterval}ms"
+            item {
+                SettingsSectionOptimized(title = "Productivity", backdrop = backdrop) {
+                    SettingsRow(
+                        icon = Icons.Rounded.TextFields,
+                        title = "Text Expander",
+                        value = "Shortcuts → full text",
+                        onClick = onNavigateToTextExpander
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    LiquidSettingsToggle(
+                       icon = Icons.Rounded.AutoAwesome,
+                       title = "App-Aware Tones",
+                       checked = state.appAwareToneEnabled,
+                       onCheckedChange = { viewModel.onIntent(SettingsIntent.SetAppAwareToneEnabled(it)) },
+                       backdrop = backdrop
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    SettingsRow(
+                       icon = Icons.Rounded.Memory,
+                       title = "Memory Bank",
+                       value = "Personalize your context",
+                       onClick = onNavigateToMemory
+                    )
+
+                    AnimatedVisibility(
+                        visible = state.appAwareToneEnabled,
+                        enter = expandVertically() + fadeIn(),
+                        exit = shrinkVertically() + fadeOut()
+                    ) {
+                        Column(modifier = Modifier.padding(top = 16.dp)) {
+                            SettingsRow(
+                                icon = Icons.Rounded.SettingsApplications,
+                                title = "Configure App Tones",
+                                value = "Map apps to presets",
+                                onClick = onNavigateToAppTones
+                            )
+                        }
+                    }
+                }
+            }
+
+            item {
+                SettingsSectionOptimized(title = "Data & Privacy", backdrop = backdrop) {
+                    SettingsRow(
+                        icon = Icons.Rounded.History,
+                        title = "Retention Policy",
+                        value = state.retentionPolicy.displayName,
+                        onClick = { showRetentionPicker = true }
                     )
                     
                     Spacer(modifier = Modifier.height(16.dp))
                     
-                    LiquidSettingsToggle(
-                        icon = Icons.Rounded.Vibration,
-                        title = "Haptic Feedback",
-                        checked = state.hapticFeedback,
-                        onCheckedChange = { viewModel.onIntent(SettingsIntent.SetHapticFeedback(it)) },
-                        backdrop = backdrop
+                    LiquidButton(
+                        onClick = { viewModel.onIntent(SettingsIntent.ClearAudioCache) },
+                        backdrop = backdrop,
+                        modifier = Modifier.fillMaxWidth().height(48.dp),
+                        tint = Color.White.copy(alpha = 0.05f)
+                    ) {
+                        Text("Clear audio cache", color = Color.White.copy(alpha = 0.8f))
+                    }
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    HoldToConfirmButton(
+                        text = "Clear all transcripts",
+                        onConfirmed = { viewModel.onIntent(SettingsIntent.ClearAllTranscripts) },
+                        modifier = Modifier.fillMaxWidth()
                     )
                 }
             }
-        }
 
-        item {
-            Box(modifier = Modifier.animateItem()) {
-                SettingsSection(title = "Service", backdrop = backdrop) {
+            item {
+                SettingsSectionOptimized(title = "Service & Maintenance", backdrop = backdrop) {
                     StatusRow(
                         title = "Accessibility Service",
-                        status = if (state.isAccessibilityEnabled) "Running" else "Disabled - Action Required",
+                        status = if (state.isAccessibilityEnabled) "Running" else "Disabled",
                         isRunning = state.isAccessibilityEnabled,
                         onClick = { viewModel.onIntent(SettingsIntent.OpenAccessibilitySettings) },
                         backdrop = backdrop
@@ -260,73 +323,371 @@ fun SettingsScreen(
                         onCheckedChange = { viewModel.onIntent(SettingsIntent.SetAutoStartBoot(it)) },
                         backdrop = backdrop
                     )
-                }
-            }
-        }
 
-        item {
-            Box(modifier = Modifier.animateItem()) {
-                SettingsSection(title = "Tutorial", backdrop = backdrop) {
+                    Spacer(modifier = Modifier.height(16.dp))
+
                     SettingsRow(
                         icon = Icons.Rounded.HelpOutline,
                         title = "Revisit Tutorial",
-                        value = "Show guide again",
+                        value = "Show guide",
                         onClick = onRevisitTutorial
                     )
                 }
             }
+
+            item {
+                var showResetDialog by remember { mutableStateOf(false) }
+                
+                if (showResetDialog) {
+                    AlertDialog(
+                        onDismissRequest = { showResetDialog = false },
+                        confirmButton = {
+                            TextButton(onClick = {
+                                viewModel.onIntent(SettingsIntent.ResetToDefaults)
+                                showResetDialog = false
+                            }) {
+                                Text("Reset", color = Color.Red)
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showResetDialog = false }) {
+                                Text("Cancel")
+                            }
+                        },
+                        title = { Text("Reset to Defaults?") },
+                        text = { Text("This will clear all settings and your API key.") },
+                        shape = RoundedCornerShape(24.dp),
+                        containerColor = Color(0xFF1A1A1A),
+                        textContentColor = Color.White,
+                        titleContentColor = Color.White
+                    )
+                }
+
+                LiquidButton(
+                    onClick = { showResetDialog = true },
+                    backdrop = backdrop,
+                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                    tint = Color.White.copy(alpha = 0.05f)
+                ) {
+                    Text("Reset to defaults", color = Color.Red.copy(alpha = 0.8f), fontWeight = FontWeight.SemiBold)
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                Text(
+                    text = "Version 1.2.0",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.White.copy(alpha = 0.2f),
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Center
+                )
+                
+                Spacer(modifier = Modifier.height(40.dp))
+            }
         }
 
-        item {
-            Box(modifier = Modifier.animateItem()) {
-                SettingsSection(title = "About", backdrop = backdrop) {
-                    SettingsRow(
-                        icon = Icons.Rounded.Info,
-                        title = "Version",
-                        value = "1.1.0",
-                        showChevron = false
+        if (showRetentionPicker) {
+            RetentionPolicyBottomSheet(
+                currentPolicy = state.retentionPolicy,
+                onPolicySelected = {
+                    viewModel.onIntent(SettingsIntent.SetRetentionPolicy(it))
+                    showRetentionPicker = false
+                },
+                onDismiss = { showRetentionPicker = false },
+                backdrop = backdrop
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun RetentionPolicyBottomSheet(
+    currentPolicy: RetentionPolicy,
+    onPolicySelected: (RetentionPolicy) -> Unit,
+    onDismiss: () -> Unit,
+    backdrop: LayerBackdrop
+) {
+    val sheetState = rememberModalBottomSheetState()
+    
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = Color(0xFF0D0D14),
+        scrimColor = Color.Black.copy(alpha = 0.6f),
+        dragHandle = { BottomSheetDefaults.DragHandle(color = Color.White.copy(alpha = 0.2f)) }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 16.dp)
+        ) {
+            Text(
+                "Data Retention",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
+            Text(
+                "Pinned transcripts are never deleted automatically.",
+                style = MaterialTheme.typography.bodySmall,
+                color = Color.White.copy(alpha = 0.5f),
+                modifier = Modifier.padding(top = 4.dp, bottom = 24.dp)
+            )
+            
+            RetentionPolicy.entries.forEach { policy ->
+                val isSelected = policy == currentPolicy
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(if (isSelected) androidx.compose.ui.graphics.Color.White.copy(alpha = 0.05f) else Color.Transparent)
+                        .clickable { onPolicySelected(policy) }
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            policy.displayName,
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                            color = if (isSelected) androidx.compose.ui.graphics.Color.White else Color.White
+                        )
+                        Text(
+                            policy.description,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.White.copy(alpha = 0.4f)
+                        )
+                    }
+                    if (isSelected) {
+                        Icon(
+                            Icons.Rounded.Check,
+                            null,
+                            tint = androidx.compose.ui.graphics.Color.White,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+            Spacer(modifier = Modifier.height(32.dp))
+        }
+    }
+}
+
+@Composable
+fun VolumeKeyToggle(
+    selectedKey: String,
+    onKeySelected: (String) -> Unit,
+    backdrop: Backdrop
+) {
+    val themeAccent = androidx.compose.ui.graphics.Color.White
+    
+    Column {
+        Text(
+            text = "Trigger Key",
+            style = MaterialTheme.typography.labelSmall,
+            color = Color.White.copy(alpha = 0.4f),
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+        
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(Color.White.copy(alpha = 0.05f))
+                .border(0.5.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(12.dp))
+        ) {
+            val options = listOf("VOLUME_DOWN" to "Volume Down ↓", "VOLUME_UP" to "Volume Up ↑")
+            options.forEach { (key, label) ->
+                val isSelected = selectedKey == key
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(if (isSelected) themeAccent.copy(alpha = 0.15f) else Color.Transparent)
+                        .clickable { onKeySelected(key) },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = label,
+                        style = MaterialTheme.typography.labelLarge,
+                        color = if (isSelected) themeAccent else Color.White.copy(alpha = 0.6f),
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                     )
                 }
             }
         }
+        
+        Spacer(modifier = Modifier.height(8.dp))
+        
+        Crossfade(targetState = selectedKey, label = "TriggerDesc") { key ->
+            Text(
+                text = if (key == "VOLUME_UP") "Double press and hold ↑ to record" else "Double press and hold ↓ to record",
+                style = MaterialTheme.typography.labelSmall,
+                color = themeAccent.copy(alpha = 0.7f),
+                modifier = Modifier.fillMaxWidth(),
+                textAlign = TextAlign.Center
+            )
+        }
+    }
+}
 
-        item {
-            var showResetDialog by remember { mutableStateOf(false) }
-            
-            if (showResetDialog) {
-                AlertDialog(
-                    onDismissRequest = { showResetDialog = false },
-                    confirmButton = {
-                        TextButton(onClick = {
-                            viewModel.onIntent(SettingsIntent.ResetToDefaults)
-                            showResetDialog = false
-                        }) {
-                            Text("Reset", color = Color.Red)
+@Composable
+fun DuckingSection(
+    enabled: Boolean,
+    duckPercent: Int,
+    onEnabledChanged: (Boolean) -> Unit,
+    onPercentChanged: (Int) -> Unit,
+    backdrop: Backdrop
+) {
+    Column {
+        LiquidSettingsToggle(
+            icon = Icons.Rounded.MusicNote,
+            title = "Lower music while recording",
+            checked = enabled,
+            onCheckedChange = onEnabledChanged,
+            backdrop = backdrop
+        )
+        
+        AnimatedVisibility(
+            visible = enabled,
+            enter = expandVertically() + fadeIn(),
+            exit = shrinkVertically() + fadeOut()
+        ) {
+            Column(modifier = Modifier.padding(top = 16.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Volume reduction",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color.White
+                    )
+                    Text(
+                        text = "$duckPercent%",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = androidx.compose.ui.graphics.Color.White,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                
+                Spacer(modifier = Modifier.height(12.dp))
+                
+                LiquidSlider(
+                    value = { duckPercent / 100f },
+                    onValueChange = { onPercentChanged((it * 100).toInt()) },
+                    valueRange = 0f..1f,
+                    steps = 9,
+                    visibilityThreshold = 0.01f,
+                    backdrop = backdrop
+                )
+                
+                Spacer(modifier = Modifier.height(4.dp))
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text("No change", style = MaterialTheme.typography.labelSmall, fontSize = 10.sp, color = Color.White.copy(alpha = 0.3f))
+                    Text("Mute fully", style = MaterialTheme.typography.labelSmall, fontSize = 10.sp, color = Color.White.copy(alpha = 0.3f))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun HoldToConfirmButton(
+    text: String,
+    holdDurationMs: Long = 1500L,
+    onConfirmed: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var holdProgress by remember { mutableFloatStateOf(0f) }
+    var isHolding by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    Box(
+        modifier = modifier
+            .height(56.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onPress = {
+                        isHolding = true
+                        val startTime = System.currentTimeMillis()
+                        val job = scope.launch {
+                            while (isHolding) {
+                                val elapsed = System.currentTimeMillis() - startTime
+                                holdProgress = (elapsed / holdDurationMs.toFloat()).coerceIn(0f, 1f)
+                                if (holdProgress >= 1f) {
+                                    onConfirmed()
+                                    isHolding = false
+                                    holdProgress = 0f
+                                    break
+                                }
+                                delay(16)
+                            }
                         }
-                    },
-                    dismissButton = {
-                        TextButton(onClick = { showResetDialog = false }) {
-                            Text("Cancel")
-                        }
-                    },
-                    title = { Text("Reset to Defaults?") },
-                    text = { Text("This will clear all settings and your API key. This action cannot be undone.") },
-                    shape = RoundedCornerShape(24.dp),
-                    containerColor = Color(0xFF1A1A1A),
-                    textContentColor = Color.White,
-                    titleContentColor = Color.White
+                        tryAwaitRelease()
+                        isHolding = false
+                        holdProgress = 0f
+                        job.cancel()
+                    }
                 )
             }
-
-            LiquidButton(
-                onClick = { showResetDialog = true },
-                backdrop = backdrop,
-                modifier = Modifier.fillMaxWidth().height(56.dp),
-                tint = Color.White.copy(alpha = 0.05f)
-            ) {
-                Text("Reset to defaults", color = Color.Red.copy(alpha = 0.8f), fontWeight = FontWeight.SemiBold)
+            .drawBehind {
+                drawRoundRect(
+                    color = Color(0xFFFF5252).copy(alpha = 0.1f),
+                    cornerRadius = CornerRadius(16.dp.toPx())
+                )
+                if (holdProgress > 0f) {
+                    drawRect(
+                        color = Color(0xFFFF5252).copy(alpha = 0.2f),
+                        size = size.copy(width = size.width * holdProgress)
+                    )
+                }
             }
-            Spacer(modifier = Modifier.height(140.dp))
+            .border(1.dp, Color(0xFFFF5252).copy(alpha = 0.2f), RoundedCornerShape(16.dp)),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = if (isHolding) "Hold to confirm..." else text,
+            color = Color(0xFFFF5252),
+            fontWeight = FontWeight.Bold,
+            style = MaterialTheme.typography.bodyMedium
+        )
+    }
+}
+
+@Composable
+fun SettingsSectionOptimized(
+    title: String,
+    backdrop: Backdrop,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Column {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.labelMedium,
+            color = androidx.compose.ui.graphics.Color.White,
+            modifier = Modifier.padding(start = 8.dp, bottom = 12.dp)
+        )
+        
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .shadow(4.dp, com.kyant.capsule.ContinuousRoundedRectangle(24.dp), spotColor = androidx.compose.ui.graphics.Color.Black)
+                    .background(androidx.compose.ui.graphics.Color(0xFF1C1C1E), com.kyant.capsule.ContinuousRoundedRectangle(24.dp))
+                    .border(1.dp, com.example.whispry.ui.theme.WhispryTokens.GlassBorder, com.kyant.capsule.ContinuousRoundedRectangle(24.dp))
+                .padding(16.dp)
+        ) {
+            Column(content = content)
         }
     }
 }
@@ -338,7 +699,7 @@ fun SoundSelectorRow(
     onSoundSelected: (TriggerSound) -> Unit
 ) {
     Column {
-        Text(title, style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.5f))
+        Text(title, style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.4f))
         Spacer(modifier = Modifier.height(8.dp))
         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             items(TriggerSound.entries) { sound ->
@@ -358,12 +719,17 @@ fun SoundChip(
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(if (isPressed) 0.94f else 1f)
+
     Box(
         modifier = Modifier
             .height(36.dp)
+            .graphicsLayer { scaleX = scale; scaleY = scale }
             .clip(CircleShape)
             .background(
-                if (isSelected) WhispryTheme.colors.accent
+                if (isSelected) Color.White.copy(alpha = 0.15f)
                 else Color.White.copy(alpha = 0.05f)
             )
             .border(
@@ -371,7 +737,7 @@ fun SoundChip(
                 if (isSelected) Color.Transparent else Color.White.copy(alpha = 0.1f),
                 CircleShape
             )
-            .clickable { onClick() }
+            .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
             .padding(horizontal = 12.dp),
         contentAlignment = Alignment.Center
     ) {
@@ -388,30 +754,88 @@ fun SoundChip(
 fun TriggerPickerSection(
     state: SettingsState,
     onIntent: (SettingsIntent) -> Unit,
-    onShowTrainingSheet: () -> Unit,
     backdrop: Backdrop
 ) {
     val selectedMode = state.triggerMode
     val availableModes = state.availableTriggerModes
     val smartSuppression = state.smartTriggerSuppression
-    val wakeWordEnabled = state.wakeWordEnabled
-    val wakeWordPhrase = state.wakeWordPhrase
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         availableModes.forEach { mode ->
-            TriggerCard(
-                mode = mode,
-                isSelected = selectedMode::class == mode::class,
-                onClick = { onIntent(SettingsIntent.SetTriggerMode(mode)) },
-                backdrop = backdrop
-            )
+            val isSupported = if (mode is TriggerMode.ActionButton) state.isActionButtonSupported else true
+            
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .border(
+                        width = if (isSelected(selectedMode, mode)) 1.5.dp else 1.dp,
+                        color = when {
+                            isSelected(selectedMode, mode) -> androidx.compose.ui.graphics.Color.White
+                            else -> Color.White.copy(alpha = 0.05f)
+                        },
+                        shape = RoundedCornerShape(16.dp)
+                    )
+                    .background(
+                        if (isSelected(selectedMode, mode)) androidx.compose.ui.graphics.Color.White.copy(alpha = 0.08f)
+                        else Color.White.copy(alpha = 0.02f)
+                    )
+                    .clickable(enabled = isSupported) { if (isSupported) onIntent(SettingsIntent.SetTriggerMode(mode)) }
+                    .padding(12.dp)
+                    .graphicsLayer { alpha = if (isSupported) 1f else 0.4f }
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(
+                                if (isSelected(selectedMode, mode)) androidx.compose.ui.graphics.Color.White.copy(alpha = 0.05f)
+                                else Color.White.copy(alpha = 0.05f)
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = getTriggerIcon(mode),
+                            contentDescription = null,
+                            tint = if (isSelected(selectedMode, mode)) androidx.compose.ui.graphics.Color.White else Color.White.copy(alpha = 0.5f),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    
+                    Spacer(modifier = Modifier.width(16.dp))
+                    
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = getTriggerTitle(mode),
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = if (isSelected(selectedMode, mode)) Color.White else Color.White.copy(alpha = 0.9f)
+                        )
+                        Text(
+                            text = getTriggerDescription(mode, isSupported, state.triggerVolumeKey),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color.White.copy(alpha = 0.5f)
+                        )
+                    }
+                    
+                    if (isSelected(selectedMode, mode)) {
+                        Icon(
+                            Icons.Rounded.CheckCircle,
+                            null,
+                            tint = androidx.compose.ui.graphics.Color.White,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+            }
             
             AnimatedVisibility(
-                visible = selectedMode::class == mode::class && mode is TriggerMode.VolumeButton,
+                visible = isSelected(selectedMode, mode) && mode is TriggerMode.VolumeButton,
                 enter = expandVertically() + fadeIn(),
                 exit = shrinkVertically() + fadeOut()
             ) {
-                Column(modifier = Modifier.padding(start = 16.dp, top = 4.dp)) {
+                Column(modifier = Modifier.padding(start = 12.dp, top = 4.dp)) {
                     LiquidSettingsToggle(
                         icon = Icons.Rounded.AutoAwesome,
                         title = "Smart Suppression",
@@ -423,64 +847,42 @@ fun TriggerPickerSection(
                         "Prevents activation while music or calls are active",
                         style = MaterialTheme.typography.labelSmall,
                         color = Color.White.copy(alpha = 0.4f),
-                        modifier = Modifier.padding(start = 36.dp)
+                        modifier = Modifier.padding(start = 36.dp, bottom = 8.dp)
                     )
-                }
-            }
 
-            AnimatedVisibility(
-                visible = selectedMode::class == mode::class && mode is TriggerMode.WakeWord,
-                enter = expandVertically() + fadeIn(),
-                exit = shrinkVertically() + fadeOut()
-            ) {
-                Column(modifier = Modifier.padding(start = 16.dp, top = 4.dp)) {
                     LiquidSettingsToggle(
-                        icon = Icons.Rounded.GraphicEq,
-                        title = "Enable Detection",
-                        checked = wakeWordEnabled,
-                        onCheckedChange = { onIntent(SettingsIntent.SetWakeWordEnabled(it)) },
+                        icon = Icons.Rounded.Block,
+                        title = "Consume Volume Keys",
+                        checked = state.consumeVolumeKeys,
+                        onCheckedChange = { onIntent(SettingsIntent.SetConsumeVolumeKeys(it)) },
                         backdrop = backdrop
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        WakeWordModeChip("Default", state.wakeWordMode == WakeWordMode.DEFAULT) {
-                            onIntent(SettingsIntent.SetWakeWordMode(WakeWordMode.DEFAULT))
-                        }
-                        WakeWordModeChip("Custom", state.wakeWordMode == WakeWordMode.CUSTOM) {
-                            onIntent(SettingsIntent.SetWakeWordMode(WakeWordMode.CUSTOM))
-                        }
-                        WakeWordModeChip("Trained", state.wakeWordMode == WakeWordMode.TRAINED) {
-                            if (state.wakeWordMode != WakeWordMode.TRAINED) {
-                                onShowTrainingSheet()
-                            }
-                            onIntent(SettingsIntent.SetWakeWordMode(WakeWordMode.TRAINED))
-                        }
-                    }
+                    Text(
+                        "Suppresses system volume dialog while active",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.White.copy(alpha = 0.4f),
+                        modifier = Modifier.padding(start = 36.dp, bottom = 8.dp)
+                    )
 
-                    AnimatedVisibility(visible = state.wakeWordMode == WakeWordMode.CUSTOM) {
-                        OutlinedTextField(
-                            value = wakeWordPhrase,
-                            onValueChange = { onIntent(SettingsIntent.SetWakeWordPhrase(it)) },
-                            label = { Text("Wake Phrase", fontSize = 10.sp) },
-                            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                            textStyle = MaterialTheme.typography.bodySmall,
-                            shape = RoundedCornerShape(12.dp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = WhispryTheme.colors.accent,
-                                unfocusedBorderColor = Color.White.copy(alpha = 0.1f)
+                    AnimatedVisibility(
+                        visible = state.consumeVolumeKeys,
+                        enter = expandVertically() + fadeIn(),
+                        exit = shrinkVertically() + fadeOut()
+                    ) {
+                        Column {
+                            LiquidSettingsToggle(
+                                icon = Icons.Rounded.TouchApp,
+                                title = "Single Press Trigger",
+                                checked = state.singlePressTrigger,
+                                onCheckedChange = { onIntent(SettingsIntent.SetSinglePressTrigger(it)) },
+                                backdrop = backdrop
                             )
-                        )
-                    }
-
-                    AnimatedVisibility(visible = state.wakeWordMode == WakeWordMode.TRAINED) {
-                        LiquidButton(
-                            onClick = { onShowTrainingSheet() },
-                            backdrop = backdrop,
-                            modifier = Modifier.fillMaxWidth().padding(top = 8.dp).height(36.dp),
-                            tint = WhispryTheme.colors.accent.copy(alpha = 0.1f)
-                        ) {
-                            Text("Retrain voice model", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                            Text(
+                                "Use single long-press instead of double-press",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Color.White.copy(alpha = 0.4f),
+                                modifier = Modifier.padding(start = 36.dp)
+                            )
                         }
                     }
                 }
@@ -489,113 +891,35 @@ fun TriggerPickerSection(
     }
 }
 
-@Composable
-fun WakeWordModeChip(label: String, isSelected: Boolean, onClick: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .height(32.dp)
-            .clip(CircleShape)
-            .background(if (isSelected) WhispryTheme.colors.accent else Color.White.copy(alpha = 0.05f))
-            .clickable { onClick() }
-            .padding(horizontal = 12.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(label, color = if (isSelected) Color.White else Color.White.copy(alpha = 0.6f), fontSize = 11.sp, fontWeight = FontWeight.Bold)
-    }
+private fun isSelected(current: TriggerMode, target: TriggerMode): Boolean {
+    return current::class == target::class
 }
 
-@Composable
-fun TriggerCard(
-    mode: TriggerMode,
-    isSelected: Boolean,
-    onClick: () -> Unit,
-    backdrop: Backdrop
-) {
-    val title = when (mode) {
-        is TriggerMode.VolumeButton -> "Volume Button"
-        is TriggerMode.ActionButton -> "Action Button"
-        is TriggerMode.WakeWord -> "Wake Word"
-        is TriggerMode.FloatingWidget -> "Floating Widget"
-        is TriggerMode.Manual -> "Manual Only"
-    }
-    
-    val description = when (mode) {
-        is TriggerMode.VolumeButton -> "Double press and hold volume down"
-        is TriggerMode.ActionButton -> "Press and hold your device's action button"
-        is TriggerMode.WakeWord -> "Say 'Hey Whispry' to start recording"
-        is TriggerMode.FloatingWidget -> "Tap the floating bubble to record"
-        is TriggerMode.Manual -> "Use the record button inside the app only"
-    }
+private fun getTriggerTitle(mode: TriggerMode) = when (mode) {
+    is TriggerMode.VolumeButton -> "Volume Button"
+    is TriggerMode.ActionButton -> "Action Button"
+    is TriggerMode.FloatingWidget -> "Floating Widget"
+    is TriggerMode.Manual -> "Manual Only"
+    else -> "Unknown"
+}
 
-    val icon = when (mode) {
-        is TriggerMode.VolumeButton -> Icons.Rounded.VolumeDown
-        is TriggerMode.ActionButton -> Icons.Rounded.SmartButton
-        is TriggerMode.WakeWord -> Icons.Rounded.GraphicEq
-        is TriggerMode.FloatingWidget -> Icons.Rounded.OpenInNew
-        is TriggerMode.Manual -> Icons.Rounded.Mic
+private fun getTriggerDescription(mode: TriggerMode, isSupported: Boolean, triggerVolumeKey: String) = when (mode) {
+    is TriggerMode.VolumeButton -> {
+        val keyName = if (triggerVolumeKey == "VOLUME_UP") "volume up" else "volume down"
+        "Double press and hold $keyName"
     }
+    is TriggerMode.ActionButton -> if (isSupported) "Press and hold your device's action button" else "Hardware not detected on this device"
+    is TriggerMode.FloatingWidget -> "Tap the floating bubble to record"
+    is TriggerMode.Manual -> "Use the record button inside the app only"
+    else -> ""
+}
 
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .border(
-                width = if (isSelected) 1.5.dp else 1.dp,
-                color = if (isSelected) WhispryTheme.colors.accent else Color.White.copy(alpha = 0.1f),
-                shape = RoundedCornerShape(16.dp)
-            )
-            .background(
-                if (isSelected) WhispryTheme.colors.accent.copy(alpha = 0.08f)
-                else Color.White.copy(alpha = 0.02f)
-            )
-            .clickable { onClick() }
-            .padding(12.dp)
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .background(
-                        if (isSelected) WhispryTheme.colors.accent.copy(alpha = 0.15f)
-                        else Color.White.copy(alpha = 0.05f)
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = if (isSelected) WhispryTheme.colors.accent else Color.White.copy(alpha = 0.5f),
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-            
-            Spacer(modifier = Modifier.width(16.dp))
-            
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = if (isSelected) Color.White else Color.White.copy(alpha = 0.9f)
-                )
-                Text(
-                    text = description,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Color.White.copy(alpha = 0.5f)
-                )
-            }
-            
-            if (isSelected) {
-                Icon(
-                    Icons.Rounded.CheckCircle,
-                    null,
-                    tint = WhispryTheme.colors.accent,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-        }
-    }
+private fun getTriggerIcon(mode: TriggerMode) = when (mode) {
+    is TriggerMode.VolumeButton -> Icons.Rounded.VolumeDown
+    is TriggerMode.ActionButton -> Icons.Rounded.SmartButton
+    is TriggerMode.FloatingWidget -> Icons.Rounded.OpenInNew
+    is TriggerMode.Manual -> Icons.Rounded.Mic
+    else -> Icons.Rounded.QuestionMark
 }
 
 @Composable
@@ -626,34 +950,12 @@ fun SliderMeter(
                         .width(1.5.dp)
                         .height(if (i % (if (steps > 0) 1 else 5) == 0) 6.dp else 3.dp)
                         .background(
-                            if (isSelected) WhispryTheme.colors.accent 
+                            if (isSelected) androidx.compose.ui.graphics.Color.White 
                             else Color.White.copy(alpha = if (i % (if (steps > 0) 1 else 5) == 0) 0.15f else 0.08f),
                             CircleShape
                         )
                 )
             }
-        }
-    }
-}
-
-@Composable
-fun SettingsSection(
-    title: String,
-    backdrop: Backdrop,
-    content: @Composable ColumnScope.() -> Unit
-) {
-    Column {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.labelMedium,
-            color = WhispryTheme.colors.accent,
-            modifier = Modifier.padding(start = 8.dp, bottom = 12.dp)
-        )
-        GlassCard(
-            backdrop = backdrop,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(content = content)
         }
     }
 }
@@ -675,7 +977,7 @@ fun SettingsRow(
     ) {
         Icon(icon, null, tint = Color.White.copy(alpha = 0.6f), modifier = Modifier.size(20.dp))
         Spacer(modifier = Modifier.width(16.dp))
-        Text(title, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+        Text(title, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f), color = Color.White)
         if (value != null) {
             Text(value, style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.4f))
         }
@@ -699,7 +1001,7 @@ fun LiquidSettingsToggle(
     ) {
         Icon(icon, null, tint = Color.White.copy(alpha = 0.6f), modifier = Modifier.size(20.dp))
         Spacer(modifier = Modifier.width(16.dp))
-        Text(title, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+        Text(title, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f), color = Color.White)
         LiquidToggle(
             selected = { checked },
             onSelect = onCheckedChange,
@@ -722,9 +1024,9 @@ fun LiquidSettingsSlider(
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(title, style = MaterialTheme.typography.bodyMedium)
+            Text(title, style = MaterialTheme.typography.bodyMedium, color = Color.White)
             if (valueLabel != null) {
-                Text(valueLabel, style = MaterialTheme.typography.labelSmall, color = WhispryTheme.colors.accent)
+                Text(valueLabel, style = MaterialTheme.typography.labelSmall, color = androidx.compose.ui.graphics.Color.White)
             }
         }
         Spacer(modifier = Modifier.height(12.dp))
@@ -779,8 +1081,10 @@ fun ApiKeyField(
                 }
             },
             colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = WhispryTheme.colors.accent,
-                unfocusedBorderColor = Color.White.copy(alpha = 0.1f)
+                focusedBorderColor = androidx.compose.ui.graphics.Color.White,
+                unfocusedBorderColor = Color.White.copy(alpha = 0.1f),
+                focusedTextColor = Color.White,
+                unfocusedTextColor = Color.White
             )
         )
     }
@@ -795,7 +1099,8 @@ fun AccentColorSelector(
         Text(
             text = "Accent Color",
             style = MaterialTheme.typography.bodyMedium,
-            modifier = Modifier.padding(bottom = 12.dp)
+            modifier = Modifier.padding(bottom = 12.dp),
+            color = Color.White
         )
         
         val configuration = LocalConfiguration.current
@@ -917,19 +1222,9 @@ fun StatusRow(
         Box(
             modifier = Modifier
                 .size(40.dp)
-                .drawBackdrop(
-                    backdrop = backdrop,
-                    shape = { CircleShape },
-                    effects = {
-                        vibrancy()
-                        blur(with(density) { 8.dp.toPx() })
-                    },
-                    onDrawSurface = {
-                        val color = if (isRunning) Color.White.copy(alpha = 0.1f)
-                        else Color(0xFFFF5252).copy(alpha = 0.2f)
-                        drawRect(color)
-                    }
-                )
+                .shadow(4.dp, com.kyant.capsule.ContinuousRoundedRectangle(20.dp), spotColor = androidx.compose.ui.graphics.Color.Black)
+                    .background(androidx.compose.ui.graphics.Color(0xFF1C1C1E), com.kyant.capsule.ContinuousRoundedRectangle(20.dp))
+                    .border(1.dp, com.example.whispry.ui.theme.WhispryTokens.GlassBorder, com.kyant.capsule.ContinuousRoundedRectangle(20.dp))
                 .border(
                     width = 1.dp,
                     color = if (isRunning) Color.White.copy(alpha = 0.1f) 
@@ -949,7 +1244,7 @@ fun StatusRow(
         Spacer(modifier = Modifier.width(16.dp))
         
         Column(modifier = Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+            Text(title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, color = Color.White)
             Text(
                 status,
                 style = MaterialTheme.typography.labelSmall,

@@ -1,5 +1,6 @@
 package com.example.whispry.ui.util.liquid.components
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
@@ -107,15 +108,12 @@ fun LiquidToggle(
             }
     }
 
-    val trackBackdrop = rememberLayerBackdrop()
-
     Box(
         modifier,
         contentAlignment = Alignment.CenterStart
     ) {
         Box(
             Modifier
-                .layerBackdrop(trackBackdrop)
                 .clip(ContinuousRoundedRectangle(100.dp))
                 .drawBehind {
                     val frac = dampedDragAnimation.value
@@ -132,65 +130,20 @@ fun LiquidToggle(
                     translationX =
                         if (isLtr) lerp(padding, padding + dragWidth, frac)
                         else lerp(-padding, -(padding + dragWidth), frac)
+                    
+                    scaleX = dampedDragAnimation.scaleX
+                    scaleY = dampedDragAnimation.scaleY
+                    val velocity = dampedDragAnimation.velocity / 50f
+                    scaleX /= 1f - (velocity * 0.75f).fastCoerceIn(-0.2f, 0.2f)
+                    scaleY *= 1f - (velocity * 0.25f).fastCoerceIn(-0.2f, 0.2f)
                 }
                 .semantics {
                     role = Role.Switch
                 }
                 .then(dampedDragAnimation.modifier)
-                .drawBackdrop(
-                    backdrop = rememberCombinedBackdrop(
-                        backdrop,
-                        rememberBackdrop(trackBackdrop) { drawBackdrop ->
-                            val progress = dampedDragAnimation.pressProgress
-                            val scaleX = lerp(2f / 3f, 0.75f, progress)
-                            val scaleY = lerp(0f, 0.75f, progress)
-                            scale(scaleX, scaleY) {
-                                drawBackdrop()
-                            }
-                        }
-                    ),
-                    shape = { ContinuousRoundedRectangle(100.dp) },
-                    effects = {
-                        val progress = dampedDragAnimation.pressProgress
-                        blur(8.dp.toPx() * (1f - progress))
-                        lens(
-                            5.dp.toPx() * progress,
-                            10.dp.toPx() * progress,
-                            chromaticAberration = true
-                        )
-                    },
-                    highlight = {
-                        val progress = dampedDragAnimation.pressProgress
-                        Highlight.Ambient.copy(
-                            width = Highlight.Ambient.width / 1.5f,
-                            blurRadius = Highlight.Ambient.blurRadius / 1.5f,
-                            alpha = progress
-                        )
-                    },
-                    shadow = {
-                        Shadow(
-                            radius = 4.dp,
-                            color = Color.Black.copy(alpha = 0.05f)
-                        )
-                    },
-                    innerShadow = {
-                        val progress = dampedDragAnimation.pressProgress
-                        InnerShadow(
-                            radius = 4.dp * progress,
-                            alpha = progress
-                        )
-                    },
-                    layerBlock = {
-                        scaleX = dampedDragAnimation.scaleX
-                        scaleY = dampedDragAnimation.scaleY
-                        val velocity = dampedDragAnimation.velocity / 50f
-                        scaleX /= 1f - (velocity * 0.75f).fastCoerceIn(-0.2f, 0.2f)
-                        scaleY *= 1f - (velocity * 0.25f).fastCoerceIn(-0.2f, 0.2f)
-                    },
-                    onDrawSurface = {
-                        val progress = dampedDragAnimation.pressProgress
-                        drawRect(Color.White.copy(alpha = 1f - progress))
-                    }
+                .background(
+                    Color.White.copy(alpha = 0.9f),
+                    ContinuousRoundedRectangle(100.dp)
                 )
                 .size(40.dp, 24.dp)
         )

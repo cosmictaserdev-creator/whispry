@@ -6,6 +6,7 @@ import androidx.security.crypto.MasterKey
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
+import androidx.core.content.edit
 
 @Singleton
 class ApiKeyProvider @Inject constructor(
@@ -30,14 +31,14 @@ class ApiKeyProvider @Inject constructor(
         prefs.getString(KEY_API_KEY, "") ?: ""
 
     fun saveApiKey(apiKey: String) =
-        prefs.edit().putString(KEY_API_KEY, apiKey).apply()
+        prefs.edit { putString(KEY_API_KEY, apiKey) }
 
     fun clearApiKey() =
-        prefs.edit().remove(KEY_API_KEY).apply()
+        prefs.edit { remove(KEY_API_KEY) }
 
     fun getFingerprint(): String? = prefs.getString(KEY_FINGERPRINT, null)
-    fun saveFingerprint(fp: String) = prefs.edit().putString(KEY_FINGERPRINT, fp).apply()
-    fun clearFingerprint() = prefs.edit().remove(KEY_FINGERPRINT).apply()
+    fun saveFingerprint(fp: String) = prefs.edit { putString(KEY_FINGERPRINT, fp) }
+    fun clearFingerprint() = prefs.edit { remove(KEY_FINGERPRINT) }
 
     companion object {
         private const val KEY_API_KEY = "groq_api_key"

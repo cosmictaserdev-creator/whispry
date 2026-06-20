@@ -6,7 +6,9 @@ import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
@@ -23,8 +25,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
@@ -42,6 +44,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp
 import androidx.compose.ui.unit.sp
 import com.example.whispry.ui.theme.WhispryTheme
+import com.example.whispry.ui.util.liquid.rememberCachedBackdrop
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberCombinedBackdrop
@@ -59,6 +62,7 @@ import kotlin.math.roundToInt
 import android.graphics.RenderEffect
 import android.graphics.Shader
 import androidx.compose.ui.graphics.asComposeRenderEffect
+import com.kyant.backdrop.backdrops.LayerBackdrop
 
 @Composable
 fun LanguagePickerBottomSheet(
@@ -66,7 +70,7 @@ fun LanguagePickerBottomSheet(
     onLanguageSelected: (String) -> Unit,
     onDismiss: () -> Unit,
     onDragProgress: (Float) -> Unit,
-    backdrop: Backdrop
+    backdrop: LayerBackdrop
 ) {
     val languages = remember {
         listOf(
@@ -85,46 +89,26 @@ fun LanguagePickerBottomSheet(
         }
     }
 
-    val listBackdrop = rememberLayerBackdrop { drawContent() }
-    val glassBackdrop = rememberCombinedBackdrop(backdrop, listBackdrop)
-    
     val scope = rememberCoroutineScope()
     val configuration = LocalConfiguration.current
     val focusManager = LocalFocusManager.current
     val density = LocalDensity.current
     val screenHeightPx = with(density) { configuration.screenHeightDp.dp.toPx() }
+    val sheetHeightPx = screenHeightPx * 0.85f
     
+    // Use Animatable for the sheet offset
     val offsetY = remember { Animatable(screenHeightPx) }
     var isSearchActive by remember { mutableStateOf(false) }
 
-    // Unified animation progress with bouncy overshoot effect
-    val searchProgress by animateFloatAsState(
-        targetValue = if (isSearchActive) 1f else 0f,
-        animationSpec = tween(
-            durationMillis = 450,
-            easing = if (isSearchActive) 
-                CubicBezierEasing(0.34f, 1.56f, 0.64f, 1f) // Bouncy Overshoot
-            else 
-                FastOutSlowInEasing
-        ),
-        label = "SearchProgress"
-    )
-
+    // Optimization: Notify progress in a side effect to avoid blocking the main thread
     LaunchedEffect(offsetY.value) {
         val progress = (1f - (offsetY.value / screenHeightPx)).coerceIn(0f, 1f)
         onDragProgress(progress)
     }
     
+    // Initial entrance animation
     LaunchedEffect(Unit) {
-        offsetY.animateTo(0f, spring(dampingRatio = 0.65f, stiffness = Spring.StiffnessLow))
-    }
-
-    // Reset query when search is fully closed to avoid list jump during animation
-    LaunchedEffect(isSearchActive) {
-        if (!isSearchActive) {
-            kotlinx.coroutines.delay(350)
-            searchQuery = ""
-        }
+        offsetY.animateTo(0f, spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessLow))
     }
 
     val dismiss = {
@@ -136,156 +120,120 @@ fun LanguagePickerBottomSheet(
         Unit
     }
 
-    BackHandler { 
-        if (isSearchActive) {
-            isSearchActive = false
-            focusManager.clearFocus()
-        } else {
-            dismiss()
+    // Drag handling logic - more efficient than detectVerticalDragGestures for sheets
+    val draggableState = rememberDraggableState { delta ->
+        if (!isSearchActive) {
+            scope.launch {
+                val newOffset = (offsetY.value + delta).coerceAtLeast(0f)
+                offsetY.snapTo(newOffset)
+            }
         }
+    }
+
+    val searchProgress by animateFloatAsState(
+        targetValue = if (isSearchActive) 1f else 0f,
+        animationSpec = spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessLow),
+        label = "SearchProgress"
+    )
+
+    BackHandler { 
+        if (isSearchActive) isSearchActive = false
+        else dismiss()
     }
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = { dismiss() }),
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() }, 
+                indication = null, 
+                onClick = { dismiss() }
+            ),
         contentAlignment = Alignment.BottomCenter
     ) {
-        // Scrim - Moved alpha to graphicsLayer
+        // Scrim
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.45f))
+                .background(Color.Black.copy(alpha = 0.4f))
                 .graphicsLayer { 
                     alpha = (1f - (offsetY.value / screenHeightPx)).coerceIn(0f, 1f)
                 }
         )
 
-        // The Glass Sheet - Moved offset and layout calculations to graphicsLayer
+        // The Glass Sheet
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .fillMaxHeight(0.85f)
-                .graphicsLayer {
-                    translationY = offsetY.value
-                }
-                .pointerInput(Unit) {
-                    detectVerticalDragGestures(
-                        onDragEnd = {
-                            if (offsetY.value > screenHeightPx * 0.25f) dismiss()
-                            else scope.launch { offsetY.animateTo(0f, spring(dampingRatio = 0.7f, stiffness = Spring.StiffnessLow)) }
-                        },
-                        onVerticalDrag = { _, drag ->
-                            if (!isSearchActive) {
-                                scope.launch { offsetY.snapTo((offsetY.value + drag).coerceAtLeast(0f)) }
+                .offset { IntOffset(0, offsetY.value.roundToInt()) }
+                .draggable(
+                    state = draggableState,
+                    orientation = Orientation.Vertical,
+                    onDragStopped = { velocity ->
+                        if (offsetY.value > screenHeightPx * 0.25f || velocity > 1000f) {
+                            dismiss()
+                        } else {
+                            scope.launch {
+                                offsetY.animateTo(0f, spring(dampingRatio = 0.8f))
                             }
                         }
-                    )
-                }
-                .clickable(enabled = false) {}
-                .drawBackdrop(
-                    backdrop = backdrop,
-                    shape = { ContinuousRoundedRectangle(topStart = 44.dp, topEnd = 44.dp) },
-                    effects = { vibrancy(); blur(32.dp.toPx()) },
-                    onDrawSurface = { drawRect(Color.Black.copy(0.75f)) }
+                    }
                 )
+                .clickable(enabled = false) {} // Consume clicks to avoid dismissing when tapping sheet content
+                .background(Color(0xFF1C1C1E), ContinuousRoundedRectangle(topStart = 44.dp, topEnd = 44.dp))
+                .border(1.dp, com.example.whispry.ui.theme.WhispryTokens.GlassBorder, ContinuousRoundedRectangle(topStart = 44.dp, topEnd = 44.dp))
         ) {
             // Content List
-            Box(modifier = Modifier.fillMaxSize().layerBackdrop(listBackdrop)) {
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .graphicsLayer {
-                            val s = 1f - (0.02f * searchProgress)
-                            scaleX = s; scaleY = s
-                            alpha = 1f - (0.3f * searchProgress)
-
-                            // Render Effect blur (skip Recomposition)
-                            // Use a stable check to prevent blur "jumps" when query clears
-                            if (searchProgress > 0.01f && searchQuery.isEmpty()) {
-                                val blurPx = (lerp(0.dp, 12.dp, searchProgress)).toPx()
-                                if (blurPx > 0.1f) {
-                                    renderEffect = RenderEffect.createBlurEffect(
-                                        blurPx, blurPx, Shader.TileMode.CLAMP
-                                    ).asComposeRenderEffect()
-                                }
-                            }
-                        },
-                    contentPadding = PaddingValues(top = 180.dp, bottom = 40.dp, start = 24.dp, end = 24.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
-                    userScrollEnabled = !isSearchActive
-                ) {
-                    items(filteredLanguages, key = { it.first }) { (code, name) ->
-                        val isSelected = selectedLanguage == code
-                        LanguageItem(name, code, isSelected) { onLanguageSelected(code) }
-                    }
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        val s = 1f - (0.01f * searchProgress)
+                        scaleX = s; scaleY = s
+                        alpha = 1f - (0.2f * searchProgress)
+                    },
+                contentPadding = PaddingValues(top = 180.dp, bottom = 40.dp, start = 24.dp, end = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+                userScrollEnabled = !isSearchActive
+            ) {
+                items(filteredLanguages, key = { it.first }) { (code, name) ->
+                    val isSelected = selectedLanguage == code
+                    LanguageItem(name, code, isSelected) { onLanguageSelected(code) }
                 }
             }
 
-            // Gradual Blur Header "Big Box"
+            // Fixed Header Box
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .align(Alignment.TopCenter)
-                    .offset(y = (-16).dp)
-                    .requiredWidth(LocalConfiguration.current.screenWidthDp.dp + 100.dp)
-                    .pointerInput(Unit) { // Physical drag handle for the entire sheet
-                        detectVerticalDragGestures(
-                            onDragEnd = {
-                                if (offsetY.value > screenHeightPx * 0.25f) dismiss()
-                                else scope.launch { offsetY.animateTo(0f, spring(dampingRatio = 0.7f, stiffness = Spring.StiffnessLow)) }
-                            },
-                            onVerticalDrag = { _, drag ->
-                                if (!isSearchActive) {
-                                    scope.launch { offsetY.snapTo((offsetY.value + drag).coerceAtLeast(0f)) }
-                                }
-                            }
-                        )
-                    }
+                    .offset(y = (-8).dp)
+                    .requiredWidth(LocalConfiguration.current.screenWidthDp.dp + 40.dp)
             ) {
-                // 1. Gradual Blur Layer
+                // Header Mask
                 Box(
                     modifier = Modifier
                         .matchParentSize()
-                        .graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)
-                        .drawWithContent {
-                            drawContent()
-                            drawRect(
-                                brush = Brush.verticalGradient(0.75f to Color.Black, 1.0f to Color.Transparent),
-                                blendMode = BlendMode.DstIn
-                            )
-                        }
-                        .drawBackdrop(
-                            backdrop = glassBackdrop,
-                            shape = { 
-                                ContinuousRoundedRectangle(
-                                    bottomStart = lerp(32.dp, 0.dp, searchProgress).coerceAtLeast(0.dp),
-                                    bottomEnd = lerp(32.dp, 0.dp, searchProgress).coerceAtLeast(0.dp)
-                                )
-                            },
-                            effects = { vibrancy(); blur(lerp(12.dp, 24.dp, searchProgress).toPx()); lens(40f, 40f, true, true) },
-                            onDrawSurface = { drawRect(Color.Black.copy(0.15f + (0.05f * searchProgress))) }
-                        )
+                        .background(Color(0xFF1C1C1E), ContinuousRoundedRectangle(bottomStart = 24.dp, bottomEnd = 24.dp))
+                        .border(1.dp, com.example.whispry.ui.theme.WhispryTokens.GlassBorder, ContinuousRoundedRectangle(bottomStart = 24.dp, bottomEnd = 24.dp))
                 )
 
-
-
-                // 3. Header Content
+                // Header Content
                 Column(
                     modifier = Modifier
                         .padding(top = 24.dp)
-                        .padding(horizontal = 50.dp + 24.dp, vertical = 16.dp)
+                        .padding(horizontal = 20.dp + 24.dp, vertical = 16.dp)
                 ) {
-                    // Drag Handle
                     Box(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp), contentAlignment = Alignment.Center) {
-                        Box(modifier = Modifier.size(40.dp, 4.dp).background(Color.White.copy(0.2f), CircleShape))
+                        Box(modifier = Modifier.size(36.dp, 4.dp).background(Color.White.copy(0.2f), CircleShape))
                     }
 
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
                             .graphicsLayer {
-                                translationY = -40f * searchProgress
+                                translationY = -30f * searchProgress
                                 alpha = 1f - searchProgress
                             }
                             .height(lerp(44.dp, 0.dp, searchProgress).coerceAtLeast(0.dp))
@@ -297,7 +245,7 @@ fun LanguagePickerBottomSheet(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text("Select Language", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Color.White)
-                                IconButton(onClick = dismiss) { Icon(Icons.Rounded.Close, null, tint = Color.White.copy(0.5f)) }
+                                IconButton(onClick = { dismiss() }) { Icon(Icons.Rounded.Close, null, tint = Color.White.copy(0.5f)) }
                             }
                         }
                     }
@@ -307,7 +255,7 @@ fun LanguagePickerBottomSheet(
                         progress = searchProgress,
                         onQueryChange = { searchQuery = it },
                         onSearchActiveChange = { isSearchActive = it },
-                        backdrop = glassBackdrop
+                        backdrop = backdrop
                     )
                 }
             }
@@ -336,15 +284,8 @@ fun RubberySheetSearchBar(
             modifier = Modifier
                 .weight(1f).fillMaxHeight()
                 .graphicsLayer { scaleX = pressScale; scaleY = 1f / pressScale }
-                .drawBackdrop(
-                    backdrop = backdrop,
-                    shape = { ContinuousRoundedRectangle(100.dp) },
-                    effects = { vibrancy(); blur(4.dp.toPx()); lens(20f, 20f, true, true) },
-                    onDrawSurface = {
-                        drawRect(Color.Black.copy(0.1f * (1f - progress)))
-                        drawRect(Color.Black.copy(0.05f + (0.6f * progress)))
-                    }
-                )
+                .background(Color(0xFF1C1C1E), ContinuousRoundedRectangle(100.dp))
+                .border(1.dp, com.example.whispry.ui.theme.WhispryTokens.GlassBorder, ContinuousRoundedRectangle(100.dp))
                 .clickable(enabled = progress < 0.5f, interactionSource = interactionSource, indication = null) {
                     onSearchActiveChange(true)
                     focusRequester.requestFocus()
@@ -360,7 +301,7 @@ fun RubberySheetSearchBar(
                     onValueChange = { localQuery = it; onQueryChange(it) },
                     modifier = Modifier.weight(1f).focusRequester(focusRequester).onFocusChanged { if (it.isFocused) onSearchActiveChange(true) },
                     textStyle = MaterialTheme.typography.bodyMedium.copy(color = Color.White),
-                    cursorBrush = SolidColor(WhispryTheme.colors.accent),
+                    cursorBrush = SolidColor(androidx.compose.ui.graphics.Color.White),
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                     keyboardActions = KeyboardActions(onSearch = { focusManager.clearFocus() }),
                     decorationBox = { inner ->
@@ -374,7 +315,7 @@ fun RubberySheetSearchBar(
             Text("Cancel", modifier = Modifier.padding(start = 16.dp).alpha(progress).clickable {
                 onSearchActiveChange(false)
                 focusManager.clearFocus()
-            }, color = WhispryTheme.colors.accent, fontWeight = FontWeight.SemiBold)
+            }, color = androidx.compose.ui.graphics.Color.White, fontWeight = FontWeight.SemiBold)
         }
     }
 }
@@ -387,10 +328,10 @@ fun LanguageItem(name: String, code: String, isSelected: Boolean, onClick: () ->
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(text = name, color = if (isSelected) WhispryTheme.colors.accent else Color.White, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
+                Text(text = name, color = if (isSelected) androidx.compose.ui.graphics.Color.White else Color.White, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
                 Text(code.uppercase(), style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.4f))
             }
-            if (isSelected) Icon(Icons.Rounded.Check, null, tint = WhispryTheme.colors.accent)
+            if (isSelected) Icon(Icons.Rounded.Check, null, tint = androidx.compose.ui.graphics.Color.White)
         }
         HorizontalDivider(modifier = Modifier.padding(horizontal = 8.dp), color = Color.White.copy(alpha = 0.05f), thickness = 0.5.dp)
     }

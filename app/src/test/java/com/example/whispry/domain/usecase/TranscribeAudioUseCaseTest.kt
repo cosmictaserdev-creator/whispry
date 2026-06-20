@@ -8,6 +8,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import com.example.whispry.domain.model.OutputPreset
 import com.example.whispry.domain.repository.AudioRepository
 import com.example.whispry.domain.repository.TranscriptRepository
 import com.example.whispry.domain.util.Result
@@ -16,11 +17,12 @@ class TranscribeAudioUseCaseTest {
 
     private val audioRepository: AudioRepository = mockk()
     private val transcriptRepository: TranscriptRepository = mockk(relaxed = true)
+    private val formatTranscriptUseCase: FormatTranscriptUseCase = mockk(relaxed = true)
     private lateinit var useCase: TranscribeAudioUseCase
 
     @Before
     fun setUp() {
-        useCase = TranscribeAudioUseCase(audioRepository, transcriptRepository)
+        useCase = TranscribeAudioUseCase(audioRepository, transcriptRepository, formatTranscriptUseCase)
     }
 
     @Test
@@ -41,8 +43,10 @@ class TranscribeAudioUseCaseTest {
         coVerify {
             transcriptRepository.saveTranscript(
                 text = "Hello world",
+                rawText = "Hello world",
                 durationMs = 3000L,
-                languageCode = "en"
+                languageCode = "en",
+                preset = OutputPreset.NONE.name
             )
         }
     }
@@ -63,7 +67,13 @@ class TranscribeAudioUseCaseTest {
 
         // verify nothing was saved
         coVerify(exactly = 0) {
-            transcriptRepository.saveTranscript(any(), any(), any())
+            transcriptRepository.saveTranscript(
+                text = any(),
+                rawText = any(),
+                durationMs = any(),
+                languageCode = any(),
+                preset = any()
+            )
         }
     }
 
@@ -73,14 +83,16 @@ class TranscribeAudioUseCaseTest {
             audioRepository.transcribeAudio(any(), "hi")
         } returns Result.Success("नमस्ते")
 
-        val result = useCase("/path/audio.m4a", 1000L, languageCode = "hi")
+        val result = useCase("/path/audio.m4a", 1000L, language = "hi")
 
         assertTrue(result is Result.Success)
         coVerify {
             transcriptRepository.saveTranscript(
                 text = "नमस्ते",
+                rawText = "नमस्ते",
                 durationMs = 1000L,
-                languageCode = "hi"
+                languageCode = "hi",
+                preset = OutputPreset.NONE.name
             )
         }
     }

@@ -17,6 +17,10 @@ object MFCCExtractor {
         val frames = frameSignal(emphasized, FRAME_SIZE, HOP_SIZE)
         
         // Step 3: Mel processing per frame
+        if (frames.isEmpty()) {
+            return FloatArray(NUM_COEFFICIENTS)
+        }
+        
         val melFilters = createMelFilterbank(NUM_MEL_FILTERS, FRAME_SIZE, SAMPLE_RATE)
         val allMfccs = mutableListOf<FloatArray>()
         

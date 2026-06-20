@@ -9,7 +9,6 @@ import androidx.datastore.preferences.core.edit
 import com.example.whispry.data.local.datasource.ApiKeyProvider
 import com.example.whispry.data.local.datasource.DataStoreKeys
 import com.example.whispry.data.local.datasource.SettingsProvider
-import com.example.whispry.domain.model.WakeWordMode
 import com.example.whispry.domain.repository.TriggerRepository
 import com.example.whispry.service.BubbleService
 import com.example.whispry.service.ServiceLocator
@@ -27,6 +26,8 @@ class SettingsViewModel @Inject constructor(
     private val apiKeyProvider: ApiKeyProvider,
     private val settingsProvider: SettingsProvider,
     private val triggerRepository: TriggerRepository,
+    private val transcriptRepository: com.example.whispry.domain.repository.TranscriptRepository,
+    private val soundManager: com.example.whispry.service.SoundManager,
     val trainedModelMatcher: TrainedModelMatcher // Make it val
 ) : ViewModel() {
 
@@ -36,10 +37,29 @@ class SettingsViewModel @Inject constructor(
     init {
         _state.update { it.copy(
             apiKey = apiKeyProvider.getApiKey(),
-            availableTriggerModes = triggerRepository.getAvailableTriggerModes()
+            availableTriggerModes = triggerRepository.getAvailableTriggerModes(),
+            isActionButtonSupported = checkActionButtonSupport()
         ) }
         observeSettings()
         refreshStatus()
+    }
+
+    private fun checkActionButtonSupport(): Boolean {
+        // Common keycodes for action/assist buttons
+        val actionKeycodes = intArrayOf(
+            android.view.KeyEvent.KEYCODE_VOICE_ASSIST,
+            android.view.KeyEvent.KEYCODE_ASSIST,
+            219, 231 // Device-specific assist keys
+        )
+        return try {
+            val deviceIds = android.view.InputDevice.getDeviceIds()
+            deviceIds.any { id ->
+                val device = android.view.InputDevice.getDevice(id)
+                device?.hasKeys(*actionKeycodes)?.any { it } == true
+            }
+        } catch (e: Exception) {
+            false
+        }
     }
 
     private fun observeSettings() {
@@ -54,16 +74,26 @@ class SettingsViewModel @Inject constructor(
         
         triggerRepository.getActiveTriggerMode().onEach { v -> _state.update { it.copy(triggerMode = v) } }.launchIn(viewModelScope)
         settingsProvider.smartTriggerSuppression.onEach { v -> _state.update { it.copy(smartTriggerSuppression = v) } }.launchIn(viewModelScope)
+        settingsProvider.dataStore.data.map { it[DataStoreKeys.CONSUME_VOLUME_KEYS] ?: true }.onEach { v -> _state.update { it.copy(consumeVolumeKeys = v) } }.launchIn(viewModelScope)
+        settingsProvider.dataStore.data.map { it[DataStoreKeys.SINGLE_PRESS_TRIGGER] ?: false }.onEach { v -> _state.update { it.copy(singlePressTrigger = v) } }.launchIn(viewModelScope)
         settingsProvider.dataStore.data.map { it[DataStoreKeys.FLOATING_WIDGET_ENABLED] ?: true }.onEach { v -> _state.update { it.copy(floatingWidgetEnabled = v) } }.launchIn(viewModelScope)
-        settingsProvider.dataStore.data.map { it[DataStoreKeys.WAKE_WORD_ENABLED] ?: false }.onEach { v -> _state.update { it.copy(wakeWordEnabled = v) } }.launchIn(viewModelScope)
-        settingsProvider.dataStore.data.map { it[DataStoreKeys.WAKE_WORD_PHRASE] ?: "hey whispry" }.onEach { v -> _state.update { it.copy(wakeWordPhrase = v) } }.launchIn(viewModelScope)
-        settingsProvider.dataStore.data.map { WakeWordMode.valueOf(it[DataStoreKeys.WAKE_WORD_MODE] ?: "DEFAULT") }.onEach { v -> _state.update { it.copy(wakeWordMode = v) } }.launchIn(viewModelScope)
+        settingsProvider.dataStore.data.map { it[DataStoreKeys.GLASS_NAVBAR] ?: true }.onEach { v -> _state.update { it.copy(glassNavbar = v) } }.launchIn(viewModelScope)
+        settingsProvider.dataStore.data.map { it[DataStoreKeys.GLASS_LIQUID_BACKDROP] ?: true }.onEach { v -> _state.update { it.copy(glassLiquidBackdrop = v) } }.launchIn(viewModelScope)
         
+        // New Features
+        settingsProvider.dataStore.data.map { it[DataStoreKeys.TRIGGER_VOLUME_KEY] ?: "VOLUME_DOWN" }.onEach { v -> _state.update { it.copy(triggerVolumeKey = v) } }.launchIn(viewModelScope)
+        settingsProvider.dataStore.data.map { it[DataStoreKeys.DUCKING_ENABLED] ?: true }.onEach { v -> _state.update { it.copy(duckingEnabled = v) } }.launchIn(viewModelScope)
+        settingsProvider.dataStore.data.map { it[DataStoreKeys.DUCKING_PERCENT] ?: 70 }.onEach { v -> _state.update { it.copy(duckPercent = v) } }.launchIn(viewModelScope)
+        settingsProvider.dataStore.data.map { 
+            val name = it[DataStoreKeys.RETENTION_POLICY] ?: com.example.whispry.domain.model.RetentionPolicy.FOREVER.name
+            try { com.example.whispry.domain.model.RetentionPolicy.valueOf(name) } catch (e: Exception) { com.example.whispry.domain.model.RetentionPolicy.FOREVER }
+        }.onEach { v -> _state.update { it.copy(retentionPolicy = v) } }.launchIn(viewModelScope)
+
         // Feature 5
         settingsProvider.dataStore.data.map { it[DataStoreKeys.SOUND_ENABLED] ?: true }.onEach { v -> _state.update { it.copy(soundEnabled = v) } }.launchIn(viewModelScope)
-        settingsProvider.dataStore.data.map { TriggerSound.fromName(it[DataStoreKeys.SOUND_START]) }.onEach { v -> _state.update { it.copy(soundStart = v) } }.launchIn(viewModelScope)
-        settingsProvider.dataStore.data.map { TriggerSound.fromName(it[DataStoreKeys.SOUND_SUCCESS]) }.onEach { v -> _state.update { it.copy(soundSuccess = v) } }.launchIn(viewModelScope)
-        settingsProvider.dataStore.data.map { TriggerSound.fromName(it[DataStoreKeys.SOUND_ERROR]) }.onEach { v -> _state.update { it.copy(soundError = v) } }.launchIn(viewModelScope)
+        settingsProvider.dataStore.data.map { TriggerSound.fromName(it[DataStoreKeys.SOUND_START]) }.onEach { v -> _state.update { it.copy(selectedSound = v) } }.launchIn(viewModelScope)
+        
+        settingsProvider.appAwareToneEnabled.onEach { v -> _state.update { it.copy(appAwareToneEnabled = v) } }.launchIn(viewModelScope)
     }
 
     fun onIntent(intent: SettingsIntent) {
@@ -109,17 +139,39 @@ class SettingsViewModel @Inject constructor(
                 }
                 is SettingsIntent.SetTriggerMode -> triggerRepository.setTriggerMode(intent.mode)
                 is SettingsIntent.SetSmartTriggerSuppression -> settingsProvider.setSmartTriggerSuppression(intent.enabled)
+                is SettingsIntent.SetConsumeVolumeKeys -> settingsProvider.dataStore.edit { it[DataStoreKeys.CONSUME_VOLUME_KEYS] = intent.enabled }
+                is SettingsIntent.SetSinglePressTrigger -> settingsProvider.dataStore.edit { it[DataStoreKeys.SINGLE_PRESS_TRIGGER] = intent.enabled }
                 is SettingsIntent.SetFloatingWidgetEnabled -> settingsProvider.dataStore.edit { it[DataStoreKeys.FLOATING_WIDGET_ENABLED] = intent.enabled }
-                is SettingsIntent.SetWakeWordEnabled -> settingsProvider.dataStore.edit { it[DataStoreKeys.WAKE_WORD_ENABLED] = intent.enabled }
-                is SettingsIntent.SetWakeWordPhrase -> settingsProvider.dataStore.edit { it[DataStoreKeys.WAKE_WORD_PHRASE] = intent.phrase }
-                is SettingsIntent.SetWakeWordMode -> settingsProvider.dataStore.edit { it[DataStoreKeys.WAKE_WORD_MODE] = intent.mode.name }
-                is SettingsIntent.SaveVoiceFingerprint -> apiKeyProvider.saveFingerprint(intent.fp)
+                is SettingsIntent.SetGlassNavbar -> settingsProvider.dataStore.edit { it[DataStoreKeys.GLASS_NAVBAR] = intent.enabled }
+                is SettingsIntent.SetGlassLiquidBackdrop -> settingsProvider.dataStore.edit { it[DataStoreKeys.GLASS_LIQUID_BACKDROP] = intent.enabled }
                 
                 // Feature 5
                 is SettingsIntent.SetSoundEnabled -> settingsProvider.dataStore.edit { it[DataStoreKeys.SOUND_ENABLED] = intent.enabled }
-                is SettingsIntent.SetSoundStart -> settingsProvider.dataStore.edit { it[DataStoreKeys.SOUND_START] = intent.sound.name }
-                is SettingsIntent.SetSoundSuccess -> settingsProvider.dataStore.edit { it[DataStoreKeys.SOUND_SUCCESS] = intent.sound.name }
-                is SettingsIntent.SetSoundError -> settingsProvider.dataStore.edit { it[DataStoreKeys.SOUND_ERROR] = intent.sound.name }
+                is SettingsIntent.SetSoundPack -> {
+                    settingsProvider.dataStore.edit { it[DataStoreKeys.SOUND_START] = intent.sound.name }
+                    // Play a preview of the pack (WAKEUP sound)
+                    soundManager.play(com.example.whispry.service.SoundEvent.TRIGGER_START, intent.sound)
+                }
+                is SettingsIntent.SetAppAwareToneEnabled -> settingsProvider.setAppAwareToneEnabled(intent.enabled)
+                is SettingsIntent.SetTriggerVolumeKey -> settingsProvider.dataStore.edit { it[DataStoreKeys.TRIGGER_VOLUME_KEY] = intent.key }
+                is SettingsIntent.SetDuckingEnabled -> settingsProvider.dataStore.edit { it[DataStoreKeys.DUCKING_ENABLED] = intent.enabled }
+                is SettingsIntent.SetDuckingPercent -> settingsProvider.dataStore.edit { it[DataStoreKeys.DUCKING_PERCENT] = intent.percent }
+                is SettingsIntent.SetRetentionPolicy -> settingsProvider.dataStore.edit { it[DataStoreKeys.RETENTION_POLICY] = intent.policy.name }
+                is SettingsIntent.ClearAllTranscripts -> {
+                    transcriptRepository.deleteAll()
+                }
+                is SettingsIntent.ClearAudioCache -> {
+                    val dir = java.io.File(context.cacheDir, "recordings")
+                    var count = 0
+                    if (dir.exists()) {
+                        dir.listFiles()?.forEach { 
+                            if (it.delete()) count++
+                        }
+                    }
+                    // Show confirmation (using Toast for simplicity in ViewModel context, 
+                    // or could emit a SideEffect)
+                    android.widget.Toast.makeText(context, "Successfully cleaned $count cached files", android.widget.Toast.LENGTH_SHORT).show()
+                }
             }
         }
     }

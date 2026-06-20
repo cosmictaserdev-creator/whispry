@@ -6,11 +6,22 @@ import com.example.whispry.data.local.datasource.ApiKeyProvider
 import com.example.whispry.data.local.datasource.TranscriptLocalDataSource
 import com.example.whispry.data.remote.datasource.GroqRemoteDataSource
 import com.example.whispry.data.repository.AudioRepositoryImpl
+import com.example.whispry.data.repository.GroqFormatterRepositoryImpl
 import com.example.whispry.data.repository.TranscriptRepositoryImpl
 import com.example.whispry.data.repository.TriggerRepositoryImpl
+import com.example.whispry.domain.repository.MemoryRepository
+import com.example.whispry.data.repository.MemoryRepositoryImpl
+import com.example.whispry.data.local.db.MemoryDao
 import com.example.whispry.domain.repository.AudioRepository
+import com.example.whispry.domain.repository.GroqFormatterRepository
 import com.example.whispry.domain.repository.TranscriptRepository
 import com.example.whispry.domain.repository.TriggerRepository
+import com.example.whispry.features.expander.data.local.db.TextExpanderDao
+import com.example.whispry.features.expander.data.repository.TextExpanderRepositoryImpl
+import com.example.whispry.features.expander.domain.repository.TextExpanderRepository
+import com.example.whispry.features.tone.data.local.db.AppToneDao
+import com.example.whispry.features.tone.data.repository.AppToneRepositoryImpl
+import com.example.whispry.features.tone.domain.repository.AppToneRepository
 import com.google.gson.Gson
 import dagger.Module
 import dagger.Provides
@@ -22,6 +33,14 @@ import javax.inject.Singleton
 @Module
 @InstallIn(SingletonComponent::class)
 object AppModule {
+
+    @Provides
+    @Singleton
+    fun provideMemoryRepository(
+        dao: MemoryDao
+    ): MemoryRepository {
+        return MemoryRepositoryImpl(dao)
+    }
 
     @Provides
     @Singleton
@@ -50,6 +69,15 @@ object AppModule {
 
     @Provides
     @Singleton
+    fun provideGroqFormatterRepository(
+        apiService: com.example.whispry.data.remote.api.GroqChatApiService,
+        apiKeyProvider: ApiKeyProvider
+    ): GroqFormatterRepository {
+        return GroqFormatterRepositoryImpl(apiService, apiKeyProvider)
+    }
+
+    @Provides
+    @Singleton
     fun provideGroqRemoteDataSource(
         apiService: com.example.whispry.data.remote.api.GroqApiService,
         gson: Gson,
@@ -72,5 +100,21 @@ object AppModule {
         @ApplicationContext context: Context
     ): AudioManager {
         return context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+    }
+
+    @Provides
+    @Singleton
+    fun provideTextExpanderRepository(
+        dao: TextExpanderDao
+    ): TextExpanderRepository {
+        return TextExpanderRepositoryImpl(dao)
+    }
+
+    @Provides
+    @Singleton
+    fun provideAppToneRepository(
+        dao: AppToneDao
+    ): AppToneRepository {
+        return AppToneRepositoryImpl(dao)
     }
 }

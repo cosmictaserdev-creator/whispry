@@ -19,8 +19,10 @@ class SaveTranscriptUseCaseTest {
         coVerify {
             repository.saveTranscript(
                 text = "Hello world",
+                rawText = "",
                 durationMs = 3000L,
-                languageCode = "en"
+                languageCode = "en",
+                preset = "NONE"
             )
         }
     }
@@ -32,8 +34,10 @@ class SaveTranscriptUseCaseTest {
         coVerify {
             repository.saveTranscript(
                 text = "Test",
+                rawText = "",
                 durationMs = 1000L,
-                languageCode = "en"
+                languageCode = "en",
+                preset = "NONE"
             )
         }
     }
@@ -45,8 +49,10 @@ class SaveTranscriptUseCaseTest {
         coVerify {
             repository.saveTranscript(
                 text = "",
+                rawText = "",
                 durationMs = 0L,
-                languageCode = "en"
+                languageCode = "en",
+                preset = "NONE"
             )
         }
     }

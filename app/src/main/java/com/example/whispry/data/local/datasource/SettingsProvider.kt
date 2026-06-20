@@ -31,6 +31,8 @@ class SettingsProvider @Inject constructor(
     val bubbleSize: Flow<String> = dataStore.data.map { it[DataStoreKeys.BUBBLE_SIZE] ?: "Medium" }
     val autoStartBoot: Flow<Boolean> = dataStore.data.map { it[DataStoreKeys.AUTO_START_BOOT] ?: true }
     val accentColor: Flow<String> = dataStore.data.map { it[DataStoreKeys.ACCENT_COLOR] ?: "Purple" }
+    val customAiInstructions: Flow<String> = dataStore.data.map { it[DataStoreKeys.CUSTOM_AI_INSTRUCTIONS] ?: "" }
+    val appAwareToneEnabled: Flow<Boolean> = dataStore.data.map { it[DataStoreKeys.APP_AWARE_TONE_ENABLED] ?: false }
 
     // Bug 1
     val smartTriggerSuppression: Flow<Boolean> = dataStore.data.map { it[DataStoreKeys.SMART_TRIGGER_SUPPRESSION] ?: true }
@@ -49,4 +51,10 @@ class SettingsProvider @Inject constructor(
     suspend fun setAutoStartBoot(value: Boolean) = dataStore.edit { it[DataStoreKeys.AUTO_START_BOOT] = value }
     suspend fun setAccentColor(value: String) = dataStore.edit { it[DataStoreKeys.ACCENT_COLOR] = value }
     suspend fun setSmartTriggerSuppression(value: Boolean) = dataStore.edit { it[DataStoreKeys.SMART_TRIGGER_SUPPRESSION] = value }
+    suspend fun setCustomAiInstructions(value: String) = dataStore.edit { it[DataStoreKeys.CUSTOM_AI_INSTRUCTIONS] = value }
+    suspend fun setAppAwareToneEnabled(value: Boolean) = dataStore.edit { it[DataStoreKeys.APP_AWARE_TONE_ENABLED] = value }
+
+    suspend fun <T> setPreference(key: Preferences.Key<T>, value: T) {
+        dataStore.edit { it[key] = value }
+    }
 }

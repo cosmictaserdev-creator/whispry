@@ -22,8 +22,9 @@
 
     <!-- Notifications -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     
-    <!-- Bug 1: Audio/Call state detection -->
+
     <uses-permission android:name="android.permission.READ_PHONE_STATE"/>
 
     <application
@@ -83,10 +84,6 @@
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
             </intent-filter>
         </receiver>
-        <service
-            android:name=".service.WakeWordService"
-            android:exported="false"
-            android:foregroundServiceType="microphone" />
 
     </application>
 

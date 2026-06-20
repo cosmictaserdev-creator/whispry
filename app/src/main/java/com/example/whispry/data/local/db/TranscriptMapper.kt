@@ -13,7 +13,9 @@ fun TranscriptEntity.toDomain(): Transcript {
         timestampMs = timestampMs,
         durationMs = durationMs,
         languageCode = languageCode,
-        isPinned = isPinned
+        isPinned = isPinned,
+        rawText = rawText,
+        preset = preset
     )
 }
 
@@ -23,6 +25,9 @@ fun Transcript.toEntity(): TranscriptEntity {
         text = text,
         timestampMs = timestampMs,
         durationMs = durationMs,
-        languageCode = languageCode
+        languageCode = languageCode,
+        isPinned = isPinned,
+        rawText = rawText,
+        preset = preset
     )
 }

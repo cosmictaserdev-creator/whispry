@@ -3,11 +3,14 @@ package com.example.whispry.presentation.onboarding
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -118,7 +121,7 @@ fun WelcomeScreen(
                 ) {
                     Text(
                         "Continue",
-                        color = WhispryTheme.colors.accent,
+                        color = androidx.compose.ui.graphics.Color.White,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold
                     )
@@ -141,7 +144,7 @@ private fun AmbientOrbField(backdrop: Backdrop) {
         label = "Breath"
     )
 
-    val glowColor = WhispryTheme.colors.accentGlow
+    val glowColor = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.4f)
 
     Box(
         modifier = Modifier
@@ -150,28 +153,15 @@ private fun AmbientOrbField(backdrop: Backdrop) {
                 scaleX = breath
                 scaleY = breath
             }
-            .drawBackdrop(
-                backdrop = backdrop,
-                shape = { androidx.compose.foundation.shape.CircleShape },
-                effects = {
-                    vibrancy()
-                    blur(36.dp.toPx())
-                },
-                onDrawSurface = {
-                    drawCircle(
-                        brush = Brush.radialGradient(
-                            colors = listOf(glowColor.copy(alpha = 0.4f), Color.Transparent)
-                        ),
-                        blendMode = BlendMode.Screen
-                    )
-                }
-            )
+            .shadow(4.dp, com.kyant.capsule.ContinuousRoundedRectangle(20.dp), spotColor = androidx.compose.ui.graphics.Color.Black)
+                    .background(androidx.compose.ui.graphics.Color(0xFF1C1C1E), com.kyant.capsule.ContinuousRoundedRectangle(20.dp))
+                    .border(1.dp, com.example.whispry.ui.theme.WhispryTokens.GlassBorder, com.kyant.capsule.ContinuousRoundedRectangle(20.dp))
     )
 }
 
 @Composable
 private fun CoreOrbGlow() {
-    val accent = WhispryTheme.colors.accent
+    val accent = androidx.compose.ui.graphics.Color.White
     Canvas(modifier = Modifier.size(40.dp)) {
         drawCircle(
             brush = Brush.radialGradient(

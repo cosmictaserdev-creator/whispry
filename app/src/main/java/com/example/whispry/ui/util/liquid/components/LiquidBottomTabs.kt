@@ -1,23 +1,30 @@
 package com.example.whispry.ui.util.liquid.components
 
-import androidx.compose.animation.*
-import androidx.compose.animation.core.*
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
@@ -25,7 +32,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.whispry.ui.theme.WhispryTheme
-import com.kyant.backdrop.Backdrop
+import com.kyant.backdrop.backdrops.LayerBackdrop
+import com.kyant.backdrop.backdrops.layerBackdrop
+import com.kyant.backdrop.backdrops.rememberCombinedBackdrop
+import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
@@ -40,11 +50,16 @@ import com.kyant.capsule.ContinuousRoundedRectangle
 fun LiquidBottomTabs(
     selectedTabIndex: () -> Int,
     tabsCount: Int,
-    backdrop: Backdrop,
+    backdrop: LayerBackdrop,
     accentColor: Color,
     modifier: Modifier = Modifier,
+    useGlass: Boolean = true,
     content: @Composable RowScope.() -> Unit
 ) {
+    val isLightTheme = !isSystemInDarkTheme()
+    val containerColor = if (isLightTheme) Color(0xFFFAFAFA).copy(0.4f) else Color(0xFF121212).copy(0.4f)
+    val tabsBackdrop = rememberLayerBackdrop()
+
     BoxWithConstraints(
         modifier = modifier,
         contentAlignment = Alignment.CenterStart
@@ -71,70 +86,119 @@ fun LiquidBottomTabs(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(58.dp)
-                .drawBackdrop(
-                    backdrop = backdrop,
-                    shape = { ContinuousRoundedRectangle(38.dp) },
-                    effects = {
-                        vibrancy()
-                        blur(3.dp.toPx())
-                        lens(40f, 40f , depthEffect = true , chromaticAberration = true)
-                    },
-                    shadow = { Shadow(alpha = 0.2f, radius = 20.dp) },
-                    innerShadow = { InnerShadow(radius = 8.dp, alpha = 0.1f) },
-                    onDrawSurface = {
-                        drawRect(Color.Black.copy(alpha = 0.6f))
+                .height(75.dp)
+                .let { m ->
+                    if (useGlass) {
+                        m.drawBackdrop(
+                            backdrop = backdrop,
+                            shape = { ContinuousRoundedRectangle(50.dp) },
+                            highlight = {
+                                Highlight(
+                                    width = 1.dp,
+                                    blurRadius = 1.dp,
+                                    alpha = .2f,
+                                    style = HighlightStyle.Plain
+                                )},
+                            effects = {
+                                vibrancy() 
+                                blur(6f)
+                                lens(24.dp.toPx(),
+                                    24.dp.toPx(),
+                                    true
+                                )
+                            },
+                            onDrawSurface = {
+                                drawRect(containerColor)
+                            },
+                            shadow = { Shadow(alpha = 0.1f, radius = 16.dp) },
+                        )
+                    } else {
+                        m.shadow(8.dp, ContinuousRoundedRectangle(34.dp), spotColor = Color.Black)
+                         .background(Color(0xFF1C1C1E), ContinuousRoundedRectangle(34.dp))
+                         .border(0.5.dp, Color.White.copy(alpha = 0.1f), ContinuousRoundedRectangle(34.dp))
                     }
-                )
+                }
         ) {
             // 2. Selection Indicator - Using graphicsLayer for GPU acceleration
             Box(
                 modifier = Modifier
                     .width(with(androidx.compose.ui.platform.LocalDensity.current) { baseIndicatorWidthPx.toDp() })
-                    .height(50.dp)
+                    .height(if (useGlass) 64.dp else 64.dp)
                     .align(Alignment.CenterStart)
                     .graphicsLayer {
                         // Position based on center minus half width
                         translationX = animatedCenterOffset - (baseIndicatorWidthPx / 2)
                         
-                        // Snappy liquid stretch effect: scaleX slightly larger than 1
-                        scaleX = 1.08f 
+                        // Snappy liquid stretch effect
+                        scaleX = 1f 
+                        scaleY = 1f
                         clip = true
-                        shape = ContinuousRoundedRectangle(32.dp)
+                        shape = ContinuousRoundedRectangle(if (useGlass) 100.dp else 100.dp)
                     }
-                    .padding(horizontal = 6.dp)
-                    .background(
-                        brush = Brush.verticalGradient(
-                            listOf(accentColor.copy(alpha = 0.18f), Color.Transparent)
-                        ),
-                        shape = ContinuousRoundedRectangle(32.dp)
-                    )
-                    .border(
-                        width = 1.dp,
-                        brush = Brush.verticalGradient(
-                            listOf(accentColor.copy(alpha = 0.55f), Color.Transparent)
-                        ),
-                        shape = ContinuousRoundedRectangle(32.dp)
-                    )
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(
-                            brush = Brush.radialGradient(
-                                0.0f to accentColor.copy(alpha = 0.25f),
-                                1.0f to Color.Transparent
+                    .let { m ->
+                        if (useGlass) {
+                            m.drawBackdrop(
+                                backdrop = rememberCombinedBackdrop(backdrop, tabsBackdrop),
+                                shape = { ContinuousRoundedRectangle(100.dp) },
+                                effects = {
+                                    blur(2f)
+                                    lens(
+                                        10.dp.toPx(),
+                                        14.dp.toPx(),
+                                        chromaticAberration = false
+                                    )
+                                },
+                                highlight = {
+                                    Highlight.Default.copy(alpha = 0.1f)
+                                },
+                                shadow = {
+                                    Shadow(alpha = 0.1f)
+                                },
+                                innerShadow = {
+                                    InnerShadow(
+                                        radius = 8.dp,
+                                        alpha = 0.1f
+                                    )
+                                },
+                                onDrawSurface = {
+                                    drawRect(
+                                       accentColor, blendMode = BlendMode.Hue
+                                    )
+                                    drawRect(accentColor.copy(alpha = 0.1f))
+                                }
                             )
-                        )
-                )
-            }
+                        } else {
+                            m.background(
+                                color = accentColor.copy(alpha = 0.15f),
+                                shape = ContinuousRoundedRectangle(100.dp)
+                            ).border(
+                                width = 1.dp,
+                                color = accentColor.copy(alpha = 0.3f),
+                                shape = ContinuousRoundedRectangle(100.dp)
+                            )
+                        }
+                    }
+            )
         }
 
-        // 3. Icons and Labels
+        // 3. Invisible Icons Row to capture backdrop
+        Row(
+            modifier = Modifier
+                .alpha(0f)
+                .layerBackdrop(tabsBackdrop)
+                .fillMaxWidth()
+                .height(56.dp)
+                .padding(horizontal = 4.dp)
+                .graphicsLayer(colorFilter = ColorFilter.tint(accentColor)),
+            verticalAlignment = Alignment.CenterVertically,
+            content = content
+        )
+
+        // 4. Actual Visible Icons and Labels
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(58.dp)
+                .height(64.dp)
                 .padding(horizontal = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
             content = content
@@ -180,8 +244,9 @@ fun RowScope.LiquidBottomTab(
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        val accentColor = WhispryTheme.colors.accent
         val iconColor by animateColorAsState(
-            targetValue = if (selected) accentColor else Color.White.copy(alpha = 0.35f),
+            targetValue = if (selected) accentColor else Color.White.copy(alpha = 0.45f),
             animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
             label = "IconColor"
         )
@@ -190,7 +255,7 @@ fun RowScope.LiquidBottomTab(
             imageVector = if (selected) filledIcon else icon,
             contentDescription = label,
             tint = iconColor,
-            modifier = Modifier.size(22.dp)
+            modifier = Modifier.size(26.dp)
         )
         
         Text(

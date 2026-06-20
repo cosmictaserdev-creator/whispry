@@ -12,12 +12,16 @@ class SaveTranscriptUseCase @Inject constructor(
     suspend operator fun invoke(
         text: String,
         durationMs: Long,
-        languageCode: String = "en"
+        languageCode: String = "en",
+        rawText: String = "",
+        preset: String = "NONE"
     ) {
         repository.saveTranscript(
             text = text,
+            rawText = rawText,
             durationMs = durationMs,
-            languageCode = languageCode
+            languageCode = languageCode,
+            preset = preset
         )
     }
 }

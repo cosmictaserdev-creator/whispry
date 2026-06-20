@@ -38,9 +38,9 @@ fun WhispryBackground(
         label = "Time"
     )
 
-    val accent = WhispryTheme.colors.accent
-    val accentSoft = WhispryTheme.colors.accentSoft
-    val accentGlow = WhispryTheme.colors.accentGlow
+    val accent = androidx.compose.ui.graphics.Color.White
+    val accentSoft = androidx.compose.ui.graphics.Color.White
+    val accentGlow = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.4f)
 
     // Seed particles once
     val particles = remember(accent, accentSoft) {

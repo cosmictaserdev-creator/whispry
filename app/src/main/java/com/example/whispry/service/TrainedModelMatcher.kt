@@ -31,6 +31,7 @@ class TrainedModelMatcher @Inject constructor() {
             normA += a[i] * a[i]
             normB += b[i] * b[i]
         }
+        if (normA == 0.0 || normB == 0.0) return 0f
         return (dot / (sqrt(normA) * sqrt(normB))).toFloat()
     }
     

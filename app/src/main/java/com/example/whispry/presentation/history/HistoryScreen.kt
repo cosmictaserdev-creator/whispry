@@ -1,8 +1,16 @@
 package com.example.whispry.presentation.history
 
+import android.content.Intent
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.platform.LocalContext
+import com.example.whispry.util.TranscriptExporter
+import com.example.whispry.util.ExportFormat
+import kotlinx.coroutines.Dispatchers
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -12,17 +20,21 @@ import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
@@ -38,23 +50,25 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import androidx.navigation.NavController
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import android.graphics.RenderEffect
 import android.graphics.Shader
+import android.os.Build
 import androidx.compose.ui.graphics.asComposeRenderEffect
 import com.example.whispry.domain.model.Transcript
 import com.example.whispry.presentation.common.GlassCard
-import com.example.whispry.presentation.common.Screen
 import com.example.whispry.ui.theme.WhispryTheme
 import com.kyant.backdrop.Backdrop
+import com.kyant.backdrop.backdrops.LayerBackdrop
 import com.kyant.backdrop.backdrops.layerBackdrop
-import com.kyant.backdrop.backdrops.rememberCombinedBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
@@ -66,10 +80,56 @@ import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 @Composable
+fun LocalStorageNotice(
+    transcriptCount: Int,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        color = Color.White.copy(alpha = 0.04f),
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.1f)),
+        modifier = modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(32.dp)
+                    .background(Color.White.copy(alpha = 0.05f), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Storage,
+                    contentDescription = null,
+                    tint = Color.White.copy(alpha = 0.4f),
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Column {
+                Text(
+                    "Your transcripts stay on this device",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White.copy(alpha = 0.7f)
+                )
+                Text(
+                    "Deleting the app permanently removes all $transcriptCount saved transcripts.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.White.copy(alpha = 0.4f)
+                )
+            }
+        }
+    }
+}
+
+@Composable
 fun HistoryScreen(
     viewModel: HistoryViewModel,
     navController: NavController,
-    backdrop: Backdrop,
+    backdrop: LayerBackdrop,
     onSearchActiveChange: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -77,6 +137,27 @@ fun HistoryScreen(
     val focusManager = LocalFocusManager.current
     var showFilterMenu by remember { mutableStateOf(false) }
     var isSearchActive by remember { mutableStateOf(false) }
+
+    var exportText by remember { mutableStateOf("") }
+    var exportingTranscript by remember { mutableStateOf<Transcript?>(null) }
+    val coroutineScope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val exportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("*/*")
+    ) { uri ->
+        if (uri != null) {
+            val textToWrite = exportText
+            coroutineScope.launch(Dispatchers.IO) {
+                try {
+                    context.contentResolver.openOutputStream(uri)?.use { output ->
+                        output.write(textToWrite.toByteArray())
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+        }
+    }
 
     // Unified animation progress with bouncy overshoot effect
     val searchProgress by animateFloatAsState(
@@ -90,10 +171,6 @@ fun HistoryScreen(
         ),
         label = "SearchProgress"
     )
-
-    // Liquid Glass: Capture list content for backdrops
-    val listBackdrop = rememberLayerBackdrop { drawContent() }
-    val glassBackdrop = rememberCombinedBackdrop(backdrop, listBackdrop)
 
     // Handle back gesture to close search
     BackHandler(enabled = isSearchActive) {
@@ -120,7 +197,7 @@ fun HistoryScreen(
 
     Box(modifier = modifier.fillMaxSize()) {
         // Content Layer - Blurs and recedes when search is active
-        Box(modifier = Modifier.fillMaxSize().layerBackdrop(listBackdrop)) {
+        Box(modifier = Modifier.fillMaxSize()) {
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
@@ -132,7 +209,7 @@ fun HistoryScreen(
                         
                         // Render Effect blur (skip Recomposition)
                         // Use a stable check to prevent blur "jumps" when query clears
-                        if (searchProgress > 0.01f && state.searchQuery.isEmpty()) {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && searchProgress > 0.01f && state.searchQuery.isEmpty()) {
                             val blurPx = (lerp(0.dp, 12.dp, searchProgress)).toPx()
                             if (blurPx > 0.1f) {
                                 renderEffect = RenderEffect.createBlurEffect(
@@ -150,25 +227,30 @@ fun HistoryScreen(
                 verticalArrangement = Arrangement.spacedBy(20.dp),
                 userScrollEnabled = !isSearchActive 
             ) {
+                item {
+                    LocalStorageNotice(transcriptCount = state.transcripts.size)
+                }
+
                 // Favorites Section
                 if (state.pinnedTranscripts.isNotEmpty()) {
                     item {
                         SectionHeader(
                             title = "Favorites", 
                             icon = Icons.Rounded.PushPin,
-                            onSeeMore = { navController.navigate(Screen.FavoriteDetails.route) }
+                            onSeeMore = { navController.navigate(com.example.whispry.navigation.Route.FavoriteDetails) }
                         )
                     }
                     items(state.pinnedTranscripts.take(3), key = { "pinned_preview_${it.id}" }) { transcript ->
-                        Box(modifier = Modifier.animateItem()) {
-                            LibraryTranscriptItem(
-                                transcript = transcript,
-                                backdrop = backdrop,
-                                onDelete = { viewModel.onIntent(HistoryIntent.DeleteTranscript(transcript.id)) },
-                                onCopy = { viewModel.onIntent(HistoryIntent.CopyToClipboard(transcript.text)) },
-                                onTogglePin = { viewModel.onIntent(HistoryIntent.TogglePin(transcript.id)) }
-                            )
-                        }
+                        LibraryTranscriptItemOptimized(
+                            transcript = transcript,
+                            onDelete = { viewModel.onIntent(HistoryIntent.DeleteTranscript(transcript.id)) },
+                            onCopy = { viewModel.onIntent(HistoryIntent.CopyToClipboard(transcript.text)) },
+                            onTogglePin = { viewModel.onIntent(HistoryIntent.TogglePin(transcript.id)) },
+                            onOpenDetail = { viewModel.onIntent(HistoryIntent.OpenDetail(transcript)) },
+                            isReformatting = state.reformattingIds.contains(transcript.id),
+                            onCopyOriginal = { viewModel.onIntent(HistoryIntent.CopyToClipboard(transcript.rawText)) },
+                            onChangePreset = { viewModel.onIntent(HistoryIntent.ChangePreset(transcript.id, it)) }
+                        )
                     }
                     item { Spacer(modifier = Modifier.height(8.dp)) }
                 }
@@ -179,18 +261,34 @@ fun HistoryScreen(
                         SectionHeader(
                             title = "Recents", 
                             icon = Icons.Rounded.History,
-                            onSeeMore = { navController.navigate(Screen.RecentDetails.route) }
+                            onSeeMore = { navController.navigate(com.example.whispry.navigation.Route.RecentDetails) }
                         )
                     }
                     items(state.recentTranscripts.take(5), key = { "recent_preview_${it.id}" }) { transcript ->
-                        Box(modifier = Modifier.animateItem()) {
-                            LibraryTranscriptItem(
-                                transcript = transcript,
-                                backdrop = backdrop,
-                                onDelete = { viewModel.onIntent(HistoryIntent.DeleteTranscript(transcript.id)) },
-                                onCopy = { viewModel.onIntent(HistoryIntent.CopyToClipboard(transcript.text)) },
-                                onTogglePin = { viewModel.onIntent(HistoryIntent.TogglePin(transcript.id)) }
-                            )
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .shadow(4.dp, ContinuousRoundedRectangle(20.dp), spotColor = Color.Black)
+                                .background(Color(0xFF1C1C1E), ContinuousRoundedRectangle(20.dp))
+                                .border(1.dp, com.example.whispry.ui.theme.WhispryTokens.GlassBorder, ContinuousRoundedRectangle(20.dp))
+                                .clickable { viewModel.onIntent(HistoryIntent.OpenDetail(transcript)) }
+                                .padding(16.dp)
+                        ) {
+                            Column {
+                                Text(
+                                    text = transcript.text,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    maxLines = 1,
+                                    fontWeight = FontWeight.Normal,
+                                    color = Color.White.copy(alpha = 0.9f)
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = transcript.createdAtFormatted,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Color.White.copy(alpha = 0.4f)
+                                )
+                            }
                         }
                     }
                 }
@@ -212,37 +310,15 @@ fun HistoryScreen(
                 .offset(y = (-16).dp)
                 .requiredWidth(LocalConfiguration.current.screenWidthDp.dp + 100.dp)
         ) {
-            // 1. Gradual Blur Layer (Samples glassBackdrop)
+            // 1. Gradual Fade Layer
             Box(
                 modifier = Modifier
                     .matchParentSize()
-                    .graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)
-                    .drawWithContent {
-                        drawContent()
-                        drawRect(
-                            brush = Brush.verticalGradient(
-                                0.7f to Color.Black,
-                                1.0f to Color.Transparent
-                            ),
-                            blendMode = BlendMode.DstIn
+                    .background(
+                        brush = Brush.verticalGradient(
+                            0.3f to Color(0xFF121212),
+                            1.0f to Color.Transparent
                         )
-                    }
-                    .drawBackdrop(
-                        backdrop = glassBackdrop,
-                        shape = {
-                            ContinuousRoundedRectangle(
-                                bottomStart = lerp(32.dp, 0.dp, searchProgress).coerceAtLeast(0.dp),
-                                bottomEnd = lerp(32.dp, 0.dp, searchProgress).coerceAtLeast(0.dp)
-                            )
-                        },
-                        effects = {
-                            vibrancy()
-                            blur(lerp(12.dp, 24.dp, searchProgress).coerceAtLeast(0.dp).toPx())
-                            lens(40f, 40f, depthEffect = true, chromaticAberration = true)
-                        },
-                        onDrawSurface = {
-                            drawRect(Color.Black.copy(alpha = 0.15f + (0.05f * searchProgress)))
-                        }
                     )
             )
 
@@ -277,18 +353,9 @@ fun HistoryScreen(
                                 onClick = { showFilterMenu = !showFilterMenu },
                                 modifier = Modifier
                                     .size(44.dp)
-                                    .drawBackdrop(
-                                        backdrop = glassBackdrop,
-                                        shape = { CircleShape },
-                                        effects = {
-                                            vibrancy()
-                                            blur(6.dp.toPx())
-                                            lens(15f, 15f, depthEffect = true, chromaticAberration = true)
-                                        },
-                                        onDrawSurface = {
-                                            drawRect(Color.White.copy(alpha = 0.08f))
-                                        }
-                                    )
+                                    .shadow(4.dp, com.kyant.capsule.ContinuousRoundedRectangle(20.dp), spotColor = androidx.compose.ui.graphics.Color.Black)
+                    .background(androidx.compose.ui.graphics.Color(0xFF1C1C1E), com.kyant.capsule.ContinuousRoundedRectangle(20.dp))
+                    .border(1.dp, com.example.whispry.ui.theme.WhispryTokens.GlassBorder, com.kyant.capsule.ContinuousRoundedRectangle(20.dp))
                             ) {
                                 Icon(Icons.Rounded.FilterList, null, tint = Color.White)
                             }
@@ -301,7 +368,7 @@ fun HistoryScreen(
                     progress = searchProgress,
                     onQueryChange = { viewModel.onIntent(HistoryIntent.Search(it)) },
                     onSearchActiveChange = { isSearchActive = it }, 
-                    backdrop = glassBackdrop
+                    backdrop = backdrop
                 )
             }
         }
@@ -314,7 +381,30 @@ fun HistoryScreen(
                     showFilterMenu = false
                 },
                 onDismiss = { showFilterMenu = false },
-                backdrop = glassBackdrop
+                backdrop = backdrop
+            )
+        }
+
+        // Detail View Overlay
+        if (state.selectedTranscript != null) {
+            TranscriptDetailView(
+                transcript = state.selectedTranscript!!,
+                onDismiss = { viewModel.onIntent(HistoryIntent.OpenDetail(null)) },
+                onCopy = { viewModel.onIntent(HistoryIntent.CopyToClipboard(it)) },
+                onExport = { exportingTranscript = state.selectedTranscript },
+                backdrop = backdrop
+            )
+        }
+
+        val transcriptToExport = exportingTranscript
+        if (transcriptToExport != null) {
+            ExportBottomSheet(
+                transcript = transcriptToExport,
+                onSaveToFile = { filename, content ->
+                    exportText = content
+                    exportLauncher.launch(filename)
+                },
+                onDismiss = { exportingTranscript = null }
             )
         }
     }
@@ -354,19 +444,9 @@ fun RubberySearchBar(
                     scaleX = pressScale
                     scaleY = 1f / pressScale
                 }
-                .drawBackdrop(
-                    backdrop = backdrop,
-                    shape = { ContinuousRoundedRectangle(100.dp) },
-                    effects = {
-                        vibrancy()
-                        blur(3.dp.toPx())
-                        lens(20f , 20f , depthEffect = true , chromaticAberration = true)
-                    },
-                    onDrawSurface = {
-                        drawRect(Color.Gray.copy(alpha = 0.1f * (1f - progress)))
-                        drawRect(Color.Black.copy(alpha = 0.05f + (0.6f * progress)))
-                    }
-                )
+                .shadow(4.dp, com.kyant.capsule.ContinuousRoundedRectangle(100.dp), spotColor = androidx.compose.ui.graphics.Color.Black)
+                    .background(androidx.compose.ui.graphics.Color(0xFF1C1C1E), com.kyant.capsule.ContinuousRoundedRectangle(100.dp))
+                    .border(1.dp, com.example.whispry.ui.theme.WhispryTokens.GlassBorder, com.kyant.capsule.ContinuousRoundedRectangle(100.dp))
                 .clickable(
                     enabled = progress < 0.5f, // Disable clickable area when expanded to allow text field focus
                     interactionSource = interactionSource, 
@@ -402,7 +482,7 @@ fun RubberySearchBar(
                             if (it.isFocused) onSearchActiveChange(true) 
                         },
                     textStyle = MaterialTheme.typography.bodyMedium.copy(color = Color.White),
-                    cursorBrush = SolidColor(WhispryTheme.colors.accent),
+                    cursorBrush = SolidColor(androidx.compose.ui.graphics.Color.White),
                     keyboardOptions = KeyboardOptions(
                         imeAction = ImeAction.Search
                     ),
@@ -436,7 +516,7 @@ fun RubberySearchBar(
                         onSearchActiveChange(false)
                         focusManager.clearFocus()
                     },
-                color = WhispryTheme.colors.accent,
+                color = androidx.compose.ui.graphics.Color.White,
                 fontWeight = FontWeight.SemiBold
             )
         }
@@ -451,7 +531,7 @@ fun SectionHeader(title: String, icon: ImageVector, onSeeMore: () -> Unit) {
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(icon, null, tint = WhispryTheme.colors.accent.copy(0.7f), modifier = Modifier.size(18.dp))
+            Icon(icon, null, tint = androidx.compose.ui.graphics.Color.White.copy(0.7f), modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(8.dp))
             Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Color.White.copy(0.8f))
         }
@@ -459,23 +539,49 @@ fun SectionHeader(title: String, icon: ImageVector, onSeeMore: () -> Unit) {
             "See All",
             modifier = Modifier.clickable { onSeeMore() },
             style = MaterialTheme.typography.labelLarge,
-            color = WhispryTheme.colors.accent,
+            color = androidx.compose.ui.graphics.Color.White,
             fontWeight = FontWeight.Medium
         )
     }
 }
 
 @Composable
-fun LibraryTranscriptItem(
+fun LibraryTranscriptItemOptimized(
     transcript: Transcript,
-    backdrop: Backdrop,
     onDelete: () -> Unit,
     onCopy: () -> Unit,
-    onTogglePin: () -> Unit
+    onTogglePin: () -> Unit,
+    onOpenDetail: () -> Unit,
+    isReformatting: Boolean = false,
+    onCopyOriginal: () -> Unit = {},
+    onChangePreset: (com.example.whispry.domain.model.OutputPreset) -> Unit = {}
 ) {
-    GlassCard(
-        backdrop = backdrop,
-        modifier = Modifier.fillMaxWidth()
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.96f else 1f,
+        animationSpec = spring(stiffness = 500f, dampingRatio = 0.8f),
+        label = "CardScale"
+    )
+    
+    var showPresetPicker by remember { mutableStateOf(false) }
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
+            .shadow(4.dp, ContinuousRoundedRectangle(20.dp), spotColor = Color.Black)
+            .background(Color(0xFF1C1C1E), ContinuousRoundedRectangle(20.dp))
+            .border(1.dp, com.example.whispry.ui.theme.WhispryTokens.GlassBorder, ContinuousRoundedRectangle(20.dp))
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onOpenDetail
+            )
+            .padding(16.dp)
     ) {
         Column {
             Row(
@@ -483,18 +589,63 @@ fun LibraryTranscriptItem(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.Top
             ) {
-                Text(
-                    text = transcript.text,
-                    style = MaterialTheme.typography.bodyLarge,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
-                    color = Color.White.copy(alpha = 0.9f)
-                )
+                Column(modifier = Modifier.weight(1f)) {
+                    if (isReformatting) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth(0.8f)
+                                .height(20.dp)
+                                .clip(RoundedCornerShape(4.dp))
+                                .shimmerEffect()
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth(0.5f)
+                                .height(20.dp)
+                                .clip(RoundedCornerShape(4.dp))
+                                .shimmerEffect()
+                        )
+                    } else {
+                        Text(
+                            text = transcript.text,
+                            style = MaterialTheme.typography.bodyLarge,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                            color = Color.White.copy(alpha = 0.9f)
+                        )
+                    }
+                    
+                    Spacer(Modifier.height(8.dp))
+                    
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        val currentPreset = try { com.example.whispry.domain.model.OutputPreset.valueOf(transcript.preset) } catch (e: Exception) { com.example.whispry.domain.model.OutputPreset.NONE }
+                        
+                        Surface(
+                            color = Color.White.copy(alpha = 0.05f),
+                            shape = RoundedCornerShape(8.dp),
+                            onClick = { showPresetPicker = true }
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "${currentPreset.emoji} ${currentPreset.displayName}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontSize = 10.sp,
+                                    color = Color.White.copy(alpha = 0.4f)
+                                )
+                                Spacer(Modifier.width(4.dp))
+                                Icon(Icons.Rounded.ExpandMore, null, tint = Color.White.copy(0.2f), modifier = Modifier.size(12.dp))
+                            }
+                        }
+                    }
+                }
                 
                 Row {
                     IconButton(onClick = onTogglePin, modifier = Modifier.size(32.dp)) {
-                        Icon(Icons.Rounded.PushPin, null, tint = if (transcript.isPinned) WhispryTheme.colors.accent else Color.White.copy(0.2f), modifier = Modifier.size(18.dp))
+                        Icon(Icons.Rounded.PushPin, null, tint = if (transcript.isPinned) androidx.compose.ui.graphics.Color.White else Color.White.copy(0.2f), modifier = Modifier.size(18.dp))
                     }
                     IconButton(onClick = onCopy, modifier = Modifier.size(32.dp)) {
                         Icon(Icons.Rounded.ContentCopy, null, tint = Color.White.copy(0.4f), modifier = Modifier.size(18.dp))
@@ -504,10 +655,315 @@ fun LibraryTranscriptItem(
                     }
                 }
             }
-            Spacer(Modifier.height(8.dp))
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(transcript.relativeTime, style = MaterialTheme.typography.labelSmall, color = Color.White.copy(0.4f))
-                Text(String.format("%.1fs", transcript.durationMs / 1000f), style = MaterialTheme.typography.labelSmall, color = WhispryTheme.colors.accent)
+            Spacer(Modifier.height(12.dp))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(transcript.relativeTime, style = MaterialTheme.typography.labelSmall, color = Color.White.copy(0.4f))
+                    if (transcript.isPinned) {
+                        Spacer(Modifier.width(8.dp))
+                        Box(Modifier.size(4.dp).background(androidx.compose.ui.graphics.Color.White, CircleShape))
+                    }
+                }
+                Text(String.format("%.1fs", transcript.durationMs / 1000f), style = MaterialTheme.typography.labelSmall, color = androidx.compose.ui.graphics.Color.White)
+            }
+        }
+    }
+
+    if (showPresetPicker) {
+        PresetPickerBottomSheet(
+            currentPreset = try { com.example.whispry.domain.model.OutputPreset.valueOf(transcript.preset) } catch (e: Exception) { com.example.whispry.domain.model.OutputPreset.NONE },
+            onPresetSelected = {
+                onChangePreset(it)
+                showPresetPicker = false
+            },
+            onDismiss = { showPresetPicker = false }
+        )
+    }
+}
+
+@Composable
+fun Modifier.shimmerEffect(): Modifier {
+    val transition = rememberInfiniteTransition(label = "shimmer")
+    val translateAnim by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1000f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "shimmerTranslate"
+    )
+
+    return this.background(
+        brush = Brush.linearGradient(
+            colors = listOf(
+                Color.White.copy(alpha = 0.05f),
+                Color.White.copy(alpha = 0.12f),
+                Color.White.copy(alpha = 0.05f),
+            ),
+            start = Offset(10f, 10f),
+            end = Offset(translateAnim, translateAnim)
+        )
+    )
+}
+
+@Composable
+fun TranscriptDetailView(
+    transcript: Transcript,
+    onDismiss: () -> Unit,
+    onCopy: (String) -> Unit,
+    onExport: () -> Unit,
+    backdrop: Backdrop
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .shadow(4.dp, com.kyant.capsule.ContinuousRoundedRectangle(20.dp), spotColor = androidx.compose.ui.graphics.Color.Black)
+                    .background(androidx.compose.ui.graphics.Color(0xFF1C1C1E), com.kyant.capsule.ContinuousRoundedRectangle(20.dp))
+                    .border(1.dp, com.example.whispry.ui.theme.WhispryTokens.GlassBorder, com.kyant.capsule.ContinuousRoundedRectangle(20.dp))
+                .border(0.5.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(32.dp))
+                .padding(24.dp)
+        ) {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(24.dp)
+            ) {
+                // Header
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .background(androidx.compose.ui.graphics.Color.White.copy(alpha = 0.1f), CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Rounded.Description, null, tint = androidx.compose.ui.graphics.Color.White, modifier = Modifier.size(20.dp))
+                        }
+                        Spacer(Modifier.width(16.dp))
+                        Text(
+                            "Detail",
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    }
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Rounded.Close, null, tint = Color.White.copy(alpha = 0.3f))
+                    }
+                }
+
+                // Remixed Section (The Pretty version)
+                Column {
+                    val currentPreset = try { com.example.whispry.domain.model.OutputPreset.valueOf(transcript.preset) } catch (e: Exception) { com.example.whispry.domain.model.OutputPreset.NONE }
+                    
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(currentPreset.emoji, fontSize = 16.sp)
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                if (transcript.preset == "NONE") "RAW TRANSCRIPTION" else "AI ENHANCED (${currentPreset.displayName})",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (transcript.preset == "NONE") Color.White.copy(alpha = 0.4f) else androidx.compose.ui.graphics.Color.White,
+                                fontWeight = FontWeight.ExtraBold,
+                                letterSpacing = 1.sp
+                            )
+                        }
+                        
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Surface(
+                                onClick = onExport,
+                                color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.1f),
+                                shape = CircleShape,
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(Icons.Rounded.Share, null, tint = androidx.compose.ui.graphics.Color.White, modifier = Modifier.size(14.dp))
+                                }
+                            }
+
+                            Surface(
+                                onClick = { onCopy(transcript.text) },
+                                color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.1f),
+                                shape = CircleShape,
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(Icons.Rounded.ContentCopy, null, tint = androidx.compose.ui.graphics.Color.White, modifier = Modifier.size(14.dp))
+                                }
+                            }
+                        }
+                    }
+                    
+                    Spacer(Modifier.height(12.dp))
+                    
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(Color.White.copy(alpha = 0.05f))
+                            .padding(20.dp)
+                    ) {
+                        Text(
+                            text = transcript.text,
+                            style = MaterialTheme.typography.bodyMedium,
+                            lineHeight = 24.sp,
+                            color = Color.White.copy(alpha = 0.95f)
+                        )
+                    }
+                }
+
+                // Raw Section (Only if enhanced)
+                if (transcript.preset != "NONE") {
+                    Column {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                "ORIGINAL AUDIO CAPTURE",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Color.White.copy(alpha = 0.3f),
+                                fontWeight = FontWeight.ExtraBold,
+                                letterSpacing = 1.sp
+                            )
+                            
+                            Surface(
+                                onClick = { onCopy(transcript.rawText) },
+                                color = Color.White.copy(alpha = 0.05f),
+                                shape = CircleShape,
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(Icons.Rounded.ContentCopy, null, tint = Color.White.copy(alpha = 0.4f), modifier = Modifier.size(14.dp))
+                                }
+                            }
+                        }
+                        
+                        Spacer(Modifier.height(12.dp))
+                        
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(Color.White.copy(alpha = 0.02f))
+                                .padding(20.dp)
+                        ) {
+                            Text(
+                                text = if (transcript.rawText.isBlank()) transcript.text else transcript.rawText,
+                                style = MaterialTheme.typography.bodySmall,
+                                lineHeight = 20.sp,
+                                color = Color.White.copy(alpha = 0.5f)
+                            )
+                        }
+                    }
+                }
+                
+                // Meta Stats
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    MetaItem(Icons.Rounded.Timer, String.format("%.1fs", transcript.durationMs / 1000f))
+                    MetaItem(Icons.Rounded.CalendarToday, transcript.relativeTime)
+                    MetaItem(Icons.Rounded.Language, transcript.languageCode.uppercase())
+                }
+                
+                Spacer(Modifier.height(8.dp))
+            }
+        }
+    }
+}
+
+@Composable
+fun MetaItem(icon: ImageVector, text: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Icon(icon, null, tint = Color.White.copy(alpha = 0.2f), modifier = Modifier.size(14.dp))
+        Spacer(Modifier.width(6.dp))
+        Text(text, style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.3f))
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun PresetPickerBottomSheet(
+    currentPreset: com.example.whispry.domain.model.OutputPreset,
+    onPresetSelected: (com.example.whispry.domain.model.OutputPreset) -> Unit,
+    onDismiss: () -> Unit
+) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = Color(0xFF0D0D14),
+        scrimColor = Color.Black.copy(alpha = 0.6f),
+        dragHandle = { BottomSheetDefaults.DragHandle(color = Color.White.copy(alpha = 0.2f)) }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 16.dp)
+        ) {
+            Text(
+                "Change Format",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
+            Text(
+                "AI will re-process the raw text with a new format.",
+                style = MaterialTheme.typography.bodySmall,
+                color = Color.White.copy(alpha = 0.5f),
+                modifier = Modifier.padding(top = 4.dp, bottom = 24.dp)
+            )
+            
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.padding(bottom = 32.dp)
+            ) {
+                items(com.example.whispry.domain.model.OutputPreset.entries) { preset ->
+                    val isSelected = preset == currentPreset
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(if (isSelected) androidx.compose.ui.graphics.Color.White.copy(alpha = 0.1f) else Color.Transparent)
+                            .clickable { onPresetSelected(preset) }
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(preset.emoji, fontSize = 24.sp)
+                        Spacer(Modifier.width(16.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                preset.displayName,
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                color = if (isSelected) androidx.compose.ui.graphics.Color.White else Color.White
+                            )
+                            Text(
+                                preset.description,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color.White.copy(alpha = 0.4f)
+                            )
+                        }
+                        if (isSelected) {
+                            Icon(Icons.Rounded.Check, null, tint = androidx.compose.ui.graphics.Color.White, modifier = Modifier.size(20.dp))
+                        }
+                    }
+                }
             }
         }
     }
@@ -550,16 +1006,9 @@ fun FilterMenu(
                         }
                     )
                 }
-                .drawBackdrop(
-                    backdrop = backdrop,
-                    shape = { ContinuousRoundedRectangle(24.dp) },
-                    effects = {
-                        vibrancy()
-                        blur(3.dp.toPx())
-                        lens(30f, 30f ,chromaticAberration = true , depthEffect = true)},
-                    shadow = { Shadow(alpha = 0.5f, radius = 40.dp) },
-                    onDrawSurface = { drawRect(Color.Black.copy(0.75f)) }
-                )
+                .shadow(4.dp, com.kyant.capsule.ContinuousRoundedRectangle(24.dp), spotColor = androidx.compose.ui.graphics.Color.Black)
+                    .background(androidx.compose.ui.graphics.Color(0xFF1C1C1E), com.kyant.capsule.ContinuousRoundedRectangle(24.dp))
+                    .border(1.dp, com.example.whispry.ui.theme.WhispryTokens.GlassBorder, com.kyant.capsule.ContinuousRoundedRectangle(24.dp))
                 .padding(8.dp)
         ) {
             FilterMenuItem("Newest First", currentOrder == HistorySortOrder.DATE_DESC) { onOrderSelect(HistorySortOrder.DATE_DESC) }
@@ -585,7 +1034,155 @@ fun FilterMenuItem(label: String, isSelected: Boolean, onClick: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Text(label, color = if (isSelected) WhispryTheme.colors.accent else Color.White, style = MaterialTheme.typography.bodyMedium, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
-        if (isSelected) Icon(Icons.Rounded.Check, null, tint = WhispryTheme.colors.accent, modifier = Modifier.size(16.dp))
+        Text(label, color = if (isSelected) androidx.compose.ui.graphics.Color.White else Color.White, style = MaterialTheme.typography.bodyMedium, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
+        if (isSelected) Icon(Icons.Rounded.Check, null, tint = androidx.compose.ui.graphics.Color.White, modifier = Modifier.size(16.dp))
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ExportBottomSheet(
+    transcript: Transcript,
+    onSaveToFile: (filename: String, content: String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val context = LocalContext.current
+    var selectedFormat by remember { mutableStateOf(ExportFormat.TXT) }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = Color(0xFF0D0D14),
+        scrimColor = Color.Black.copy(alpha = 0.6f),
+        dragHandle = { BottomSheetDefaults.DragHandle(color = Color.White.copy(alpha = 0.2f)) }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 16.dp)
+        ) {
+            Text(
+                "Export Transcript",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
+            Text(
+                "Select a format to save or share your transcript.",
+                style = MaterialTheme.typography.bodySmall,
+                color = Color.White.copy(alpha = 0.5f),
+                modifier = Modifier.padding(top = 4.dp, bottom = 24.dp)
+            )
+
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.weight(1f, fill = false)
+            ) {
+                items(ExportFormat.entries) { format ->
+                    val isSelected = format == selectedFormat
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(if (isSelected) androidx.compose.ui.graphics.Color.White.copy(alpha = 0.1f) else Color.Transparent)
+                            .clickable { selectedFormat = format }
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        val icon = when (format) {
+                            ExportFormat.TXT -> Icons.Rounded.Description
+                            ExportFormat.SRT -> Icons.Rounded.Subtitles
+                            ExportFormat.VTT -> Icons.Rounded.ClosedCaption
+                            ExportFormat.JSON -> Icons.Rounded.Code
+                            ExportFormat.CSV -> Icons.Rounded.GridOn
+                        }
+                        Icon(
+                            icon,
+                            null,
+                            tint = if (isSelected) androidx.compose.ui.graphics.Color.White else Color.White.copy(alpha = 0.6f),
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(Modifier.width(16.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                format.displayName,
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                color = if (isSelected) androidx.compose.ui.graphics.Color.White else Color.White
+                            )
+                            Text(
+                                format.description,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color.White.copy(alpha = 0.4f)
+                            )
+                        }
+                        if (isSelected) {
+                            Icon(Icons.Rounded.Check, null, tint = androidx.compose.ui.graphics.Color.White, modifier = Modifier.size(20.dp))
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 32.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Button(
+                    onClick = {
+                        val content = when (selectedFormat) {
+                            ExportFormat.TXT -> TranscriptExporter.toTxt(transcript)
+                            ExportFormat.SRT -> TranscriptExporter.toSrt(transcript)
+                            ExportFormat.VTT -> TranscriptExporter.toVtt(transcript)
+                            ExportFormat.JSON -> TranscriptExporter.toJson(transcript)
+                            ExportFormat.CSV -> TranscriptExporter.toCsv(transcript)
+                        }
+                        val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(Intent.EXTRA_TEXT, content)
+                            putExtra(Intent.EXTRA_TITLE, "Share Transcript")
+                        }
+                        context.startActivity(Intent.createChooser(shareIntent, "Share via"))
+                        onDismiss()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.White.copy(alpha = 0.05f)),
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(56.dp)
+                        .border(1.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(16.dp))
+                ) {
+                    Icon(Icons.Rounded.Share, null, tint = Color.White)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Share", color = Color.White)
+                }
+
+                Button(
+                    onClick = {
+                        val content = when (selectedFormat) {
+                            ExportFormat.TXT -> TranscriptExporter.toTxt(transcript)
+                            ExportFormat.SRT -> TranscriptExporter.toSrt(transcript)
+                            ExportFormat.VTT -> TranscriptExporter.toVtt(transcript)
+                            ExportFormat.JSON -> TranscriptExporter.toJson(transcript)
+                            ExportFormat.CSV -> TranscriptExporter.toCsv(transcript)
+                        }
+                        val filename = "transcript_${transcript.timestampMs}.${selectedFormat.extension}"
+                        onSaveToFile(filename, content)
+                        onDismiss()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = WhispryTheme.colors.accent),
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(56.dp)
+                ) {
+                    Icon(Icons.Rounded.Save, null, tint = Color.White)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Save to Files", color = Color.White)
+                }
+            }
+        }
     }
 }

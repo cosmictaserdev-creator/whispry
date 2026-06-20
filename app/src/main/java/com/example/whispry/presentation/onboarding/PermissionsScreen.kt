@@ -148,7 +148,7 @@ fun PermissionsScreen(
             ) {
                 Text(
                     if (state.allPermissionsGranted) "Continue" else "Permissions Required",
-                    color = if (state.allPermissionsGranted) WhispryTheme.colors.accent else Color.White.copy(0.4f),
+                    color = if (state.allPermissionsGranted) androidx.compose.ui.graphics.Color.White else Color.White.copy(0.4f),
                     fontWeight = FontWeight.Bold,
                     fontSize = 18.sp
                 )
@@ -207,13 +207,13 @@ private fun PermissionCard(
                 modifier = Modifier
                     .size(52.dp)
                     .clip(RoundedCornerShape(16.dp))
-                    .background(WhispryTheme.colors.accent.copy(alpha = 0.15f)),
+                    .background(androidx.compose.ui.graphics.Color.White.copy(alpha = 0.05f)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
-                    tint = WhispryTheme.colors.accent,
+                    tint = androidx.compose.ui.graphics.Color.White,
                     modifier = Modifier.size(26.dp)
                 )
             }
@@ -264,12 +264,12 @@ private fun PermissionCard(
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(12.dp))
-                        .background(WhispryTheme.colors.accent.copy(alpha = 0.2f))
+                        .background(androidx.compose.ui.graphics.Color.White.copy(alpha = 0.05f))
                         .padding(horizontal = 14.dp, vertical = 8.dp)
                 ) {
                     Text(
                         text = "Allow",
-                        color = WhispryTheme.colors.accentSoft,
+                        color = androidx.compose.ui.graphics.Color.White,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold
                     )

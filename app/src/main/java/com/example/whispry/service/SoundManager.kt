@@ -2,14 +2,14 @@ package com.example.whispry.service
 
 import android.content.Context
 import android.media.AudioAttributes
-import android.media.AudioFormat
 import android.media.AudioManager
-import android.media.AudioTrack
+import android.media.SoundPool
+import android.util.Log
 import com.example.whispry.data.local.datasource.DataStoreKeys
 import com.example.whispry.data.local.datasource.SettingsProvider
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.*
-import kotlinx.coroutines.flow.map
+import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -23,15 +23,13 @@ enum class SoundEvent {
 
 enum class TriggerSound(val displayName: String) {
     NONE("Silent"),
-    SIRI_CLICK("Siri Click"),
-    SOFT_CHIME("Soft Chime"),
-    SOFT_POP("Soft Pop"),
-    DOUBLE_BEEP("Double Beep"),
-    WHOOSH("Whoosh");
+    WHISPRY_D("Whispry Default"),
+    WHISPRY_C("Whispry Chime"),
+    SIRI("Siri Style");
 
     companion object {
         fun fromName(name: String?): TriggerSound {
-            return entries.find { it.name == name } ?: SIRI_CLICK
+            return entries.find { it.name == name } ?: WHISPRY_D
         }
     }
 }
@@ -41,79 +39,120 @@ class SoundManager @Inject constructor(
     @ApplicationContext private val context: Context,
     private val settingsProvider: SettingsProvider
 ) {
-    private val soundCache = mutableMapOf<TriggerSound, AudioTrack>()
+    private val TAG = "Whispry_SoundManager"
+    
+    private var soundPool: SoundPool? = null
+    private val soundMap = ConcurrentHashMap<String, Int>() // CacheKey to SoundId
+    private val loadedSounds = ConcurrentHashMap<Int, Boolean>()
+    private var activeStreamId: Int = 0
+    
     private var soundEnabled = true
-    private var selectedStartSound = TriggerSound.SIRI_CLICK
-    private var selectedSuccessSound = TriggerSound.SOFT_CHIME
-    private var selectedErrorSound = TriggerSound.SOFT_POP
+    private var selectedSoundPack = TriggerSound.WHISPRY_D
     
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     
     init {
+        initSoundPool()
         scope.launch {
-            preloadSounds()
-            observeSettings()
+            try {
+                observeSettings()
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to initialize SoundManager", e)
+            }
         }
     }
-    
-    private fun preloadSounds() {
-        TriggerSound.entries
-            .filter { it != TriggerSound.NONE }
-            .forEach { sound ->
-                val samples = when (sound) {
-                    TriggerSound.SIRI_CLICK  -> SoundGenerator.generateSiriClick()
-                    TriggerSound.SOFT_CHIME  -> SoundGenerator.generateSoftChime()
-                    TriggerSound.SOFT_POP    -> SoundGenerator.generateSoftPop()
-                    TriggerSound.DOUBLE_BEEP -> SoundGenerator.generateDoubleBeep()
-                    TriggerSound.WHOOSH      -> SoundGenerator.generateWhoosh()
-                    else -> return@forEach
+
+    private fun initSoundPool() {
+        val attributes = AudioAttributes.Builder()
+            .setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
+            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+            .build()
+        
+        soundPool = SoundPool.Builder()
+            .setMaxStreams(5)
+            .setAudioAttributes(attributes)
+            .build().apply {
+                setOnLoadCompleteListener { _, sampleId, status ->
+                    if (status == 0) {
+                        loadedSounds[sampleId] = true
+                    }
                 }
-                
-                val audioTrack = AudioTrack.Builder()
-                    .setAudioAttributes(
-                        AudioAttributes.Builder()
-                            .setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
-                            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                            .build()
-                    )
-                    .setAudioFormat(
-                        AudioFormat.Builder()
-                            .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
-                            .setSampleRate(44100)
-                            .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
-                            .build()
-                    )
-                    .setBufferSizeInBytes(samples.size * 2)
-                    .setTransferMode(AudioTrack.MODE_STATIC)
-                    .build()
-                    
-                audioTrack.write(samples, 0, samples.size)
-                soundCache[sound] = audioTrack
             }
+    }
+    
+    private fun getResourceName(event: SoundEvent, pack: TriggerSound): String? {
+        return when (pack) {
+            TriggerSound.WHISPRY_D -> when (event) {
+                SoundEvent.TRIGGER_START     -> "whispry_wakeup_d"
+                SoundEvent.TRIGGER_STOP      -> "whispry_listen_d"
+                SoundEvent.SUCCESS           -> "whispry_end_d"
+                SoundEvent.ERROR             -> "whispry_error_d"
+                SoundEvent.WAKE_WORD_DETECTED -> "whispry_wakeup_d"
+            }
+            TriggerSound.WHISPRY_C -> when (event) {
+                SoundEvent.TRIGGER_START     -> "whispry_wakeup_c"
+                SoundEvent.TRIGGER_STOP      -> "whispry_listen_c"
+                SoundEvent.SUCCESS           -> "whispry_end_c"
+                SoundEvent.ERROR             -> "whispry_error_c"
+                SoundEvent.WAKE_WORD_DETECTED -> "whispry_wakeup_c"
+            }
+            TriggerSound.SIRI -> when (event) {
+                SoundEvent.TRIGGER_START     -> "siri_wakeup"
+                SoundEvent.TRIGGER_STOP      -> "siri_listen"
+                SoundEvent.SUCCESS           -> "siri_end"
+                SoundEvent.ERROR             -> "siri_error"
+                SoundEvent.WAKE_WORD_DETECTED -> "siri_wakeup"
+            }
+            else -> null
+        }
+    }
+
+    private fun loadSound(event: SoundEvent, pack: TriggerSound): Int {
+        val cacheKey = "${event.name}_${pack.name}"
+        soundMap[cacheKey]?.let { return it }
+
+        val resName = getResourceName(event, pack) ?: return -1
+        val resId = context.resources.getIdentifier(resName, "raw", context.packageName)
+        if (resId == 0) return -1
+
+        val soundId = soundPool?.load(context, resId, 1) ?: -1
+        if (soundId != -1) {
+            soundMap[cacheKey] = soundId
+        }
+        return soundId
+    }
+
+    private fun preloadPack(pack: TriggerSound) {
+        if (pack == TriggerSound.NONE) return
+        SoundEvent.entries.forEach { event ->
+            loadSound(event, pack)
+        }
     }
     
     fun play(event: SoundEvent) {
         if (!soundEnabled) return
+        play(event, selectedSoundPack)
+    }
+
+    fun play(event: SoundEvent, pack: TriggerSound) {
+        if (pack == TriggerSound.NONE) return
         
-        val sound = when (event) {
-            SoundEvent.TRIGGER_START     -> selectedStartSound
-            SoundEvent.TRIGGER_STOP      -> TriggerSound.SOFT_POP
-            SoundEvent.SUCCESS           -> selectedSuccessSound
-            SoundEvent.ERROR             -> selectedErrorSound
-            SoundEvent.WAKE_WORD_DETECTED -> selectedStartSound
-        }
-        
-        if (sound == TriggerSound.NONE) return
-        
-        // Respect device's ringer mode
         val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
         if (audioManager.ringerMode == AudioManager.RINGER_MODE_SILENT) return
         
-        scope.launch {
-            soundCache[sound]?.let { track ->
-                track.stop()
-                track.reloadStaticData()
-                track.play()
+        val cacheKey = "${event.name}_${pack.name}"
+        val soundId = soundMap[cacheKey] ?: loadSound(event, pack)
+        
+        if (soundId != -1) {
+            // Stop previous sound to prevent overlap "mess"
+            if (activeStreamId != 0) {
+                soundPool?.stop(activeStreamId)
+            }
+
+            if (loadedSounds[soundId] == true) {
+                activeStreamId = soundPool?.play(soundId, 1f, 1f, 1, 0, 1f) ?: 0
+            } else {
+                // If not loaded yet, we don't update activeStreamId
             }
         }
     }
@@ -121,15 +160,18 @@ class SoundManager @Inject constructor(
     private suspend fun observeSettings() {
         settingsProvider.dataStore.data.collect { prefs ->
             soundEnabled = prefs[DataStoreKeys.SOUND_ENABLED] ?: true
-            selectedStartSound = TriggerSound.fromName(prefs[DataStoreKeys.SOUND_START])
-            selectedSuccessSound = TriggerSound.fromName(prefs[DataStoreKeys.SOUND_SUCCESS])
-            selectedErrorSound = TriggerSound.fromName(prefs[DataStoreKeys.SOUND_ERROR])
+            val newPack = TriggerSound.fromName(prefs[DataStoreKeys.SOUND_START])
+            
+            selectedSoundPack = newPack
+            preloadPack(selectedSoundPack)
         }
     }
     
     fun release() {
-        soundCache.values.forEach { it.release() }
-        soundCache.clear()
+        soundPool?.release()
+        soundPool = null
+        soundMap.clear()
+        loadedSounds.clear()
         scope.cancel()
     }
 }

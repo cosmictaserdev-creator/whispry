@@ -22,28 +22,27 @@ import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.vibrancy
 import com.kyant.capsule.ContinuousRoundedRectangle
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.draw.clip
+import com.example.whispry.ui.theme.WhispryTokens
+
 @Composable
 fun GlassBox(
-    backdrop: Backdrop,
+    backdrop: Backdrop, // Kept for compatibility but unused
     modifier: Modifier = Modifier,
     cornerRadius: Dp = 24.dp,
-    containerColor: Color = Color.White.copy(alpha = 0.05f),
-    blurRadius: Dp = 4.dp,
+    containerColor: Color = Color(0xFF1C1C1E), // Solid dark
+    blurRadius: Dp = 20.dp, 
     content: @Composable BoxScope.() -> Unit
 ) {
     Box(
         modifier = modifier
-            .drawBackdrop(
-                backdrop = backdrop,
-                shape = { ContinuousRoundedRectangle(cornerRadius) },
-                effects = {
-                    vibrancy()
-                    blur(blurRadius.toPx())
-                },
-                onDrawSurface = {
-                    drawRect(containerColor)
-                }
-            ),
+            .shadow(4.dp, ContinuousRoundedRectangle(cornerRadius), spotColor = Color.Black)
+            .background(containerColor, ContinuousRoundedRectangle(cornerRadius))
+            .border(1.dp, WhispryTokens.GlassBorder, ContinuousRoundedRectangle(cornerRadius))
+            .clip(ContinuousRoundedRectangle(cornerRadius)),
         content = content
     )
 }
@@ -57,7 +56,7 @@ fun GlassCard(
     backdrop: Backdrop,
     modifier: Modifier = Modifier,
     cornerRadius: Dp = 24.dp,
-    containerColor: Color = Color.White.copy(alpha = 0.05f),
+    containerColor: Color = Color(0xFF1C1C1E), // Matching Solid Matte Dark
     onClick: (() -> Unit)? = null,
     content: @Composable BoxScope.() -> Unit
 ) {

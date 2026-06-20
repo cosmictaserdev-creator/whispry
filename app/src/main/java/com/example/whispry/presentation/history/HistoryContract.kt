@@ -17,6 +17,8 @@ data class HistoryState(
     val searchQuery: String = "",
     val sortOrder: HistorySortOrder = HistorySortOrder.DATE_DESC,
     val isLoading: Boolean = false,
+    val reformattingIds: Set<Long> = emptySet(), // Track IDs being reformatted
+    val selectedTranscript: Transcript? = null, // For detail view
     val error: String? = null
 )
 
@@ -28,4 +30,6 @@ sealed interface HistoryIntent {
     data class CopyToClipboard(val text: String) : HistoryIntent
     data class Search(val query: String) : HistoryIntent
     data class ChangeSortOrder(val order: HistorySortOrder) : HistoryIntent
+    data class ChangePreset(val transcriptId: Long, val preset: com.example.whispry.domain.model.OutputPreset) : HistoryIntent
+    data class OpenDetail(val transcript: Transcript?) : HistoryIntent
 }

@@ -71,7 +71,7 @@ fun HowItWorksScreen(
             Spacer(modifier = Modifier.height(48.dp))
 
             StaggeredTextReveal(
-                text = "Double press and hold\nvolume down to talk.",
+                text = "Double press and hold volume down to talk.",
                 style = TextStyle(
                     color = WhispryTokens.TextPrimary,
                     fontSize = 26.sp,
@@ -113,7 +113,7 @@ fun HowItWorksScreen(
                     "Got it",
                     fontWeight = FontWeight.Bold,
                     fontSize = 18.sp,
-                    color = WhispryTheme.colors.accent
+                    color = androidx.compose.ui.graphics.Color.White
                 )
             }
             
@@ -135,7 +135,7 @@ private fun PhoneMockup(phase: DemoPhase, cycleProgress: Float) {
         label = "Float"
     )
 
-    val accent = WhispryTheme.colors.accent
+    val accent = androidx.compose.ui.graphics.Color.White
 
     Canvas(
         modifier = Modifier
@@ -193,8 +193,8 @@ private fun PhoneMockup(phase: DemoPhase, cycleProgress: Float) {
 
 @Composable
 private fun TimingDiagram(progress: Float) {
-    val accent = WhispryTheme.colors.accent
-    val accentSoft = WhispryTheme.colors.accentSoft
+    val accent = androidx.compose.ui.graphics.Color.White
+    val accentSoft = androidx.compose.ui.graphics.Color.White
 
     Canvas(modifier = Modifier.size(width = 220.dp, height = 50.dp)) {
         val lineY = size.height / 2

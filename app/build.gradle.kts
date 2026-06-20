@@ -3,6 +3,7 @@ plugins {
     alias(libs.plugins.hilt.android)
     alias(libs.plugins.ksp)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.kotlin.serialization)
 }
 
 
@@ -47,6 +48,7 @@ ksp {
 }
 
 dependencies {
+    implementation(libs.androidx.compose.foundation.layout)
     // Core
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
@@ -115,6 +117,8 @@ dependencies {
     kspAndroidTest(libs.hilt.compiler)
 
     implementation(libs.androidx.security.crypto)
+
+    implementation(libs.kotlinx.serialization.json)
 
     implementation(libs.capsule)
     implementation(libs.backdrop)

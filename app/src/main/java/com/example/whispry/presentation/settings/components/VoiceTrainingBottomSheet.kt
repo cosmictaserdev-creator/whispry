@@ -5,6 +5,7 @@ import android.content.pm.PackageManager
 import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
+import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
@@ -135,7 +136,7 @@ fun ChoosePhraseScreen(
             onClick = onNext,
             modifier = Modifier.fillMaxWidth().height(56.dp),
             shape = RoundedCornerShape(28.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = WhispryTheme.colors.accent)
+            colors = ButtonDefaults.buttonColors(containerColor = com.example.whispry.ui.theme.WhispryTheme.colors.accent)
         ) {
             Text("Continue", fontWeight = FontWeight.Bold)
         }
@@ -148,8 +149,8 @@ fun PhraseChip(phrase: String, isSelected: Boolean, onClick: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(if (isSelected) WhispryTheme.colors.accent.copy(alpha = 0.1f) else Color.White.copy(alpha = 0.05f))
-            .border(1.dp, if (isSelected) WhispryTheme.colors.accent else Color.White.copy(alpha = 0.1f), RoundedCornerShape(16.dp))
+            .background(if (isSelected) androidx.compose.ui.graphics.Color.White.copy(alpha = 0.05f) else Color.White.copy(alpha = 0.05f))
+            .border(1.dp, if (isSelected) androidx.compose.ui.graphics.Color.White else Color.White.copy(alpha = 0.1f), RoundedCornerShape(16.dp))
             .clickable { onClick() }
             .padding(16.dp)
     ) {
@@ -177,7 +178,7 @@ fun RecordSamplesScreen(
         modifier = Modifier.fillMaxSize().padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text("Sample ${currentSampleIdx + 1} of 3", style = MaterialTheme.typography.labelLarge, color = WhispryTheme.colors.accent)
+        Text("Sample ${currentSampleIdx + 1} of 3", style = MaterialTheme.typography.labelLarge, color = androidx.compose.ui.graphics.Color.White)
         Spacer(modifier = Modifier.height(16.dp))
         Text(phrase, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.ExtraBold, color = Color.White)
         
@@ -186,7 +187,7 @@ fun RecordSamplesScreen(
         Box(contentAlignment = Alignment.Center, modifier = Modifier.size(200.dp)) {
             // Visualizer would go here
             if (isRecording) {
-                CircularProgressIndicator(progress = { progress }, modifier = Modifier.size(160.dp), color = WhispryTheme.colors.accent, strokeWidth = 4.dp)
+                CircularProgressIndicator(progress = { progress }, modifier = Modifier.size(160.dp), color = androidx.compose.ui.graphics.Color.White, strokeWidth = 4.dp)
             }
             
             IconButton(
@@ -196,13 +197,21 @@ fun RecordSamplesScreen(
                     } else {
                         isRecording = true
                         scope.launch {
-                            val sample = recordSample()
-                            recordedSamples.add(sample)
-                            isRecording = false
-                            if (currentSampleIdx < 2) {
-                                currentSampleIdx++
-                            } else {
-                                onSamplesComplete(recordedSamples)
+                            try {
+                                isRecording = true
+                                val sample = recordSample { p -> progress = p }
+                                recordedSamples.add(sample)
+                                isRecording = false
+                                progress = 0f
+                                if (currentSampleIdx < 2) {
+                                    currentSampleIdx++
+                                } else {
+                                    onSamplesComplete(recordedSamples)
+                                }
+                            } catch (e: Exception) {
+                                Log.e("Training", "Error recording sample", e)
+                                isRecording = false
+                                progress = 0f
                             }
                         }
                     }
@@ -210,7 +219,7 @@ fun RecordSamplesScreen(
                 modifier = Modifier
                     .size(100.dp)
                     .clip(CircleShape)
-                    .background(Brush.linearGradient(listOf(WhispryTheme.colors.accent, WhispryTheme.colors.accent.copy(alpha = 0.7f)))),
+                    .background(Brush.linearGradient(listOf(androidx.compose.ui.graphics.Color.White, androidx.compose.ui.graphics.Color.White.copy(alpha = 0.7f)))),
                 enabled = !isRecording
             ) {
                 Icon(Icons.Rounded.Mic, null, tint = Color.White, modifier = Modifier.size(40.dp))
@@ -226,7 +235,9 @@ fun RecordSamplesScreen(
     }
 }
 
-private suspend fun recordSample(): FloatArray = withContext(Dispatchers.IO) {
+private suspend fun recordSample(onProgress: (Float) -> Unit): FloatArray = withContext(Dispatchers.IO) @androidx.annotation.RequiresPermission(
+    android.Manifest.permission.RECORD_AUDIO
+) {
     val sampleRate = 16000
     val minBufSize = AudioRecord.getMinBufferSize(sampleRate, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_FLOAT)
     val audioRecord = AudioRecord(MediaRecorder.AudioSource.MIC, sampleRate, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_FLOAT, minBufSize)
@@ -236,23 +247,28 @@ private suspend fun recordSample(): FloatArray = withContext(Dispatchers.IO) {
     var samplesRead = 0
     var silentFrames = 0
     
-    audioRecord.startRecording()
-    
-    while (samplesRead < maxSamples) {
-        val chunk = FloatArray(512)
-        val read = audioRecord.read(chunk, 0, chunk.size, AudioRecord.READ_BLOCKING)
-        if (read > 0) {
-            chunk.copyInto(buffer, samplesRead, 0, read)
-            samplesRead += read
-            
-            val rms = sqrt(chunk.sumOf { (it * it).toDouble() } / read).toFloat()
-            if (rms < 0.01f) silentFrames++ else silentFrames = 0
-            if (silentFrames > 12 && samplesRead > 8000) break
+    try {
+        audioRecord.startRecording()
+        
+        while (samplesRead < maxSamples) {
+            val chunk = FloatArray(512)
+            val read = audioRecord.read(chunk, 0, chunk.size, AudioRecord.READ_BLOCKING)
+            if (read > 0) {
+                chunk.copyInto(buffer, samplesRead, 0, read)
+                samplesRead += read
+                onProgress(samplesRead.toFloat() / maxSamples)
+                
+                val rms = sqrt(chunk.sumOf { (it * it).toDouble() } / read).toFloat()
+                if (rms < 0.01f) silentFrames++ else silentFrames = 0
+                if (silentFrames > 12 && samplesRead > 8000) break
+            }
         }
+    } finally {
+        try {
+            audioRecord.stop()
+        } catch (e: Exception) {}
+        audioRecord.release()
     }
-    
-    audioRecord.stop()
-    audioRecord.release()
     buffer.copyOf(samplesRead)
 }
 
@@ -282,7 +298,7 @@ fun TrainingCompleteScreen(onDone: () -> Unit) {
             onClick = onDone,
             modifier = Modifier.fillMaxWidth().height(56.dp),
             shape = RoundedCornerShape(28.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = WhispryTheme.colors.accent)
+            colors = ButtonDefaults.buttonColors(containerColor = com.example.whispry.ui.theme.WhispryTheme.colors.accent)
         ) {
             Text("Done", fontWeight = FontWeight.Bold)
         }

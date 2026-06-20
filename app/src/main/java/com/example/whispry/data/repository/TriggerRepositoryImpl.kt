@@ -39,7 +39,6 @@ class TriggerRepositoryImpl @Inject constructor(
             modes.add(TriggerMode.ActionButton)
         }
         
-        modes.add(TriggerMode.WakeWord)
         modes.add(TriggerMode.FloatingWidget)
         modes.add(TriggerMode.Manual)
         

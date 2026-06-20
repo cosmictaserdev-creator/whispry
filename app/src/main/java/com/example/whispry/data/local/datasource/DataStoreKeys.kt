@@ -28,6 +28,8 @@ object DataStoreKeys {
 
     // Feature 3: Multi-Trigger
     val TRIGGER_MODE = stringPreferencesKey("trigger_mode")
+    val CONSUME_VOLUME_KEYS = booleanPreferencesKey("consume_volume_keys")
+    val SINGLE_PRESS_TRIGGER = booleanPreferencesKey("single_press_trigger")
 
     // Feature 5: Sound System
     val SOUND_ENABLED = booleanPreferencesKey("sound_enabled")
@@ -37,4 +39,25 @@ object DataStoreKeys {
 
     // Feature 4: Mini Bubble
     val PROCESSING_MINI_MODE = booleanPreferencesKey("processing_mini_mode")
+    val GLASS_NAVBAR = booleanPreferencesKey("glass_navbar")
+    val GLASS_LIQUID_BACKDROP = booleanPreferencesKey("glass_liquid_backdrop")
+
+    // Bubble Position
+    val BUBBLE_POSITION_X = intPreferencesKey("bubble_position_x")
+    val BUBBLE_POSITION_Y = intPreferencesKey("bubble_position_y")
+
+    // Trigger Key
+    val TRIGGER_VOLUME_KEY = stringPreferencesKey("trigger_volume_key")
+
+    // Retention Policy
+    val RETENTION_POLICY = stringPreferencesKey("retention_policy")
+
+    // Audio Ducking
+    val DUCKING_ENABLED = booleanPreferencesKey("ducking_enabled")
+    val DUCKING_PERCENT = intPreferencesKey("ducking_percent")
+
+    // Output Preset
+    val DEFAULT_OUTPUT_PRESET = stringPreferencesKey("default_output_preset")
+    val CUSTOM_AI_INSTRUCTIONS = stringPreferencesKey("custom_ai_instructions")
+    val APP_AWARE_TONE_ENABLED = booleanPreferencesKey("app_aware_tone_enabled")
 }

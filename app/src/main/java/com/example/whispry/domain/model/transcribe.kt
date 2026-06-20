@@ -10,7 +10,9 @@ data class Transcript(
     val timestampMs: Long,
     val durationMs: Long,
     val languageCode: String = "en",
-    val isPinned: Boolean = false
+    val isPinned: Boolean = false,
+    val rawText: String = "",
+    val preset: String = "NONE"
 ) {
     val createdAtFormatted: String
         get() {
@@ -33,5 +35,11 @@ data class Transcript(
                     format.format(Date(timestampMs))
                 }
             }
-        }
-}
+            }
+            }
+
+            data class TranscriptStats(
+            val totalCount: Int,
+            val totalWords: Int,
+            val averageDurationMs: Long
+            )

@@ -5,6 +5,7 @@ kotlin = "2.3.21"
 ksp = "2.3.8"
 agp = "9.2.1"
 compose-bom = "2026.05.01"
+kotlinxSerializationJson = "1.8.0"
 
 # AndroidX
 coreKtx = "1.16.0"
@@ -45,6 +46,7 @@ splashscreen = "1.0.1"
 googleFonts = "1.7.0"
 
 backdrop = "2.0.0-rc01"
+foundationLayout = "1.11.2"
 
 [libraries]
 # Core
@@ -112,6 +114,8 @@ room-testing = { group = "androidx.room", name = "room-testing", version.ref = "
 androidx-security-crypto = { group = "androidx.security", name = "security-crypto", version.ref = "security" }
 
 backdrop = { module = "io.github.kyant0:backdrop", version.ref = "backdrop" }
+androidx-compose-foundation-layout = { group = "androidx.compose.foundation", name = "foundation-layout", version.ref = "foundationLayout" }
+kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinxSerializationJson" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
@@ -119,3 +123,4 @@ kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 hilt-android = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }

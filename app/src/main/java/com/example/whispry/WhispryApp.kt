@@ -5,15 +5,38 @@ import dagger.hilt.android.HiltAndroidApp
 
 import androidx.work.*
 import com.example.whispry.service.ServiceWatchdogWorker
+import com.example.whispry.service.TranscriptCleanupWorker
+import com.example.whispry.ui.util.liquid.GlassBackdropCache
 import com.example.whispry.util.CleanupWorker
 import java.util.concurrent.TimeUnit
+import javax.inject.Inject
 
 @HiltAndroidApp
 class WhispryApp : Application() {
+    @Inject lateinit var glassBackdropCache: GlassBackdropCache
+
     override fun onCreate() {
         super.onCreate()
+        glassBackdropCache.init()
         scheduleCleanup()
         scheduleWatchdog()
+        scheduleTranscriptCleanup()
+    }
+
+    private fun scheduleTranscriptCleanup() {
+        val cleanupRequest = PeriodicWorkRequestBuilder<TranscriptCleanupWorker>(1, TimeUnit.DAYS)
+            .setConstraints(
+                Constraints.Builder()
+                    .setRequiresBatteryNotLow(true)
+                    .build()
+            )
+            .build()
+
+        WorkManager.getInstance(this).enqueueUniquePeriodicWork(
+            "transcript_cleanup",
+            ExistingPeriodicWorkPolicy.KEEP,
+            cleanupRequest
+        )
     }
 
     private fun scheduleCleanup() {

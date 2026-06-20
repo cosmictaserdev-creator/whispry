@@ -98,14 +98,14 @@ fun ApiKeyScreen(
                 contentAlignment = Alignment.CenterStart
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Rounded.Key, null, tint = WhispryTheme.colors.accent, modifier = Modifier.size(24.dp))
+                    Icon(Icons.Rounded.Key, null, tint = androidx.compose.ui.graphics.Color.White, modifier = Modifier.size(24.dp))
                     Spacer(Modifier.width(16.dp))
                     BasicTextField(
                         value = state.apiKey,
                         onValueChange = onApiKeyChange,
                         modifier = Modifier.weight(1f),
                         textStyle = TextStyle(color = Color.White, fontSize = 17.sp),
-                        cursorBrush = SolidColor(WhispryTheme.colors.accent),
+                        cursorBrush = SolidColor(androidx.compose.ui.graphics.Color.White),
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                         keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
@@ -138,18 +138,18 @@ fun ApiKeyScreen(
                 Text(
                     "Don't have a key? Get one free",
                     style = MaterialTheme.typography.labelMedium,
-                    color = WhispryTheme.colors.accent,
+                    color = androidx.compose.ui.graphics.Color.White,
                     fontSize = 15.sp
                 )
                 Spacer(Modifier.width(6.dp))
-                Icon(Icons.AutoMirrored.Rounded.OpenInNew, null, tint = WhispryTheme.colors.accent, modifier = Modifier.size(16.dp))
+                Icon(Icons.AutoMirrored.Rounded.OpenInNew, null, tint = androidx.compose.ui.graphics.Color.White, modifier = Modifier.size(16.dp))
             }
 
             Spacer(modifier = Modifier.height(48.dp))
 
             GlassCard(backdrop = backdrop, modifier = Modifier.fillMaxWidth()) {
                 Row(modifier = Modifier.padding(20.dp), verticalAlignment = Alignment.Top) {
-                    Icon(Icons.Rounded.PrivacyTip, null, tint = WhispryTheme.colors.accent.copy(0.7f), modifier = Modifier.size(24.dp))
+                    Icon(Icons.Rounded.PrivacyTip, null, tint = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.7f), modifier = Modifier.size(24.dp))
                     Spacer(Modifier.width(16.dp))
                     Column {
                         Text("Privacy Commitment", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = WhispryTokens.TextPrimary)
@@ -173,13 +173,13 @@ fun ApiKeyScreen(
                 enabled = !state.isValidatingKey && state.apiKey.isNotBlank()
             ) {
                 if (state.isValidatingKey) {
-                    CircularProgressIndicator(modifier = Modifier.size(24.dp), color = WhispryTheme.colors.accent, strokeWidth = 2.dp)
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp), color = androidx.compose.ui.graphics.Color.White, strokeWidth = 2.dp)
                 } else {
                     Text(
                         text = if (state.isApiKeyValid) "Continue" else "Test & Save Key",
                         fontWeight = FontWeight.Bold,
                         fontSize = 18.sp,
-                        color = WhispryTheme.colors.accent
+                        color = androidx.compose.ui.graphics.Color.White
                     )
                 }
             }

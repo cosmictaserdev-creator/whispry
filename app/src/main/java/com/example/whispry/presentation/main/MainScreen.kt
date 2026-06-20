@@ -2,35 +2,33 @@ package com.example.whispry.presentation.main
 
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.compose.animation.AnimatedContentTransitionScope
-import androidx.navigation.compose.NavHost
-import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import com.example.whispry.presentation.about.AboutScreen
-import com.example.whispry.presentation.common.Screen
-import com.example.whispry.presentation.history.HistoryDetailScreen
-import com.example.whispry.presentation.history.HistoryScreen
-import com.example.whispry.presentation.history.HistoryViewModel
 import com.example.whispry.presentation.settings.LanguagePickerBottomSheet
 import com.example.whispry.presentation.settings.SettingsIntent
-import com.example.whispry.presentation.settings.SettingsScreen
 import com.example.whispry.presentation.settings.SettingsViewModel
 import com.example.whispry.ui.theme.WhispryTheme
 import com.example.whispry.ui.util.liquid.components.LiquidBottomTab
 import com.example.whispry.ui.util.liquid.components.LiquidBottomTabs
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.geometry.Offset
+import androidx.navigation.NavDestination.Companion.hasRoute
+import com.example.whispry.navigation.Route
+import com.example.whispry.navigation.WhispryNavHost
+import com.example.whispry.navigation.mainNavigationItems
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 
@@ -41,29 +39,22 @@ import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 fun MainScreen(onRevisitTutorial: () -> Unit) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
-    val currentRoute = navBackStackEntry?.destination?.route
+    val currentDestination = navBackStackEntry?.destination
     
-    val bgBackdrop = rememberLayerBackdrop {
-        drawContent()
+    val settingsViewModel: SettingsViewModel = hiltViewModel()
+    val settingsState by settingsViewModel.state.collectAsStateWithLifecycle()
+
+    // 1. Initialize the Backdrop State
+    val backdrop = rememberLayerBackdrop { 
+        // Draw a solid background color first to avoid transparent pixels
+        drawRect(Color(0xFF121212)) 
+        drawContent() 
     }
 
-    // Cache the background backdrop when navigating to Settings or Detail pages
-    // where the background content is essentially static.
-    val cachedBgBackdrop = remember(bgBackdrop) { bgBackdrop }
-
-    val sceneBackdrop = rememberLayerBackdrop {
-        drawContent()
-    }
-
-    val screens = listOf(
-        Screen.Home,
-        Screen.Library,
-        Screen.Settings,
-        Screen.About
-    )
-    
-    val currentTabIndex = remember(currentRoute) {
-        screens.indexOfFirst { it.route == currentRoute }.coerceAtLeast(0)
+    val currentTabIndex = remember(currentDestination) {
+        mainNavigationItems.indexOfFirst { item ->
+            currentDestination?.hasRoute(item.route::class) == true
+        }.let { if (it == -1) 0 else it }
     }
 
     var targetTabIndex by remember(currentTabIndex) { mutableIntStateOf(currentTabIndex) }
@@ -71,187 +62,132 @@ fun MainScreen(onRevisitTutorial: () -> Unit) {
     var sheetProgress by remember { mutableFloatStateOf(0f) }
     var isSearchActiveGlobal by remember { mutableStateOf(false) }
 
-    val bottomBarOffset by animateDpAsState(
-        targetValue = if (isSearchActiveGlobal) 100.dp else 0.dp,
+    // --- Hide on Scroll Logic ---
+    var isNavbarVisible by remember { mutableStateOf(true) }
+    val navbarScrollOffset by animateDpAsState(
+        targetValue = if (isNavbarVisible && !isSearchActiveGlobal) 0.dp else 130.dp,
         animationSpec = spring(stiffness = Spring.StiffnessMediumLow, dampingRatio = 0.8f),
-        label = "BottomBarOffset"
+        label = "NavbarScrollOffset"
     )
 
-    Scaffold(
-        content = { innerPadding ->
-            val themeAccent = WhispryTheme.colors.accent
-            Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
-                
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .graphicsLayer {
-                            val s = if (showLanguagePicker) 0.94f + (0.06f * (1f - sheetProgress)) else 1f
-                            scaleX = s
-                            scaleY = s
-                        }
-                        .layerBackdrop(sceneBackdrop)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .layerBackdrop(bgBackdrop)
-                            .background(Color.Black)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(
-                                    brush = Brush.verticalGradient(
-                                        0.7f to Color.Transparent,
-                                        1.0f to themeAccent.copy(alpha = 0.12f)
-                                    )
-                                )
-                        )
-                    }
-
-                    Box(
-                        modifier = Modifier.fillMaxSize()
-                    ) {
-                        NavHost(
-                            navController = navController,
-                            startDestination = Screen.Home.route,
-                            modifier = Modifier.fillMaxSize(),
-                            enterTransition = {
-                                fadeIn(tween(200)) + 
-                                slideIntoContainer(
-                                    towards = AnimatedContentTransitionScope.SlideDirection.Start,
-                                    animationSpec = tween(300, easing = LinearOutSlowInEasing)
-                                )
-                            },
-                            exitTransition = {
-                                fadeOut(tween(200)) +
-                                slideOutOfContainer(
-                                    towards = AnimatedContentTransitionScope.SlideDirection.Start,
-                                    animationSpec = tween(300, easing = FastOutLinearInEasing)
-                                )
-                            },
-                            popEnterTransition = {
-                                fadeIn(tween(200)) + 
-                                slideIntoContainer(
-                                    towards = AnimatedContentTransitionScope.SlideDirection.End,
-                                    animationSpec = tween(300, easing = LinearOutSlowInEasing)
-                                )
-                            },
-                            popExitTransition = {
-                                fadeOut(tween(200)) +
-                                slideOutOfContainer(
-                                    towards = AnimatedContentTransitionScope.SlideDirection.End,
-                                    animationSpec = tween(300, easing = FastOutLinearInEasing)
-                                )
-                            }
-                        ) {
-                            composable(Screen.Home.route) {
-                                HomeScreen(backdrop = bgBackdrop)
-                            }
-                            composable(Screen.Library.route) {
-                                val viewModel: HistoryViewModel = hiltViewModel()
-                                HistoryScreen(
-                                    viewModel = viewModel, 
-                                    navController = navController,
-                                    backdrop = bgBackdrop,
-                                    onSearchActiveChange = { isSearchActiveGlobal = it }
-                                )
-                            }
-                            composable(Screen.FavoriteDetails.route) {
-                                val viewModel: HistoryViewModel = hiltViewModel()
-                                HistoryDetailScreen(
-                                    title = "Favorites",
-                                    isPinnedOnly = true,
-                                    viewModel = viewModel,
-                                    navController = navController,
-                                    backdrop = bgBackdrop,
-                                    onSearchActiveChange = { isSearchActiveGlobal = it }
-                                )
-                            }
-                            composable(Screen.RecentDetails.route) {
-                                val viewModel: HistoryViewModel = hiltViewModel()
-                                HistoryDetailScreen(
-                                    title = "Recents",
-                                    isPinnedOnly = false,
-                                    viewModel = viewModel,
-                                    navController = navController,
-                                    backdrop = bgBackdrop,
-                                    onSearchActiveChange = { isSearchActiveGlobal = it }
-                                )
-                            }
-                            composable(Screen.Settings.route) {
-                                val viewModel: SettingsViewModel = hiltViewModel()
-                                SettingsScreen(
-                                    viewModel = viewModel, 
-                                    backdrop = bgBackdrop,
-                                    onShowLanguagePicker = { showLanguagePicker = true },
-                                    onRevisitTutorial = onRevisitTutorial,
-                                    trainedModelMatcher = viewModel.trainedModelMatcher
-                                )
-                            }
-                            composable(Screen.About.route) {
-                                AboutScreen(backdrop = bgBackdrop)
-                            }
-                        }
-                    }
+    val nestedScrollConnection = remember {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                if (available.y < -15f && isNavbarVisible) {
+                    isNavbarVisible = false
+                } else if (available.y > 25f && !isNavbarVisible) {
+                    isNavbarVisible = true
                 }
-
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .graphicsLayer { translationY = bottomBarOffset.toPx() }
-                        .padding(bottom = innerPadding.calculateBottomPadding())
-                        .padding(horizontal = 24.dp, vertical = 20.dp)
-                        .fillMaxWidth()
-                ) {
-                    LiquidBottomTabs(
-                        selectedTabIndex = { targetTabIndex },
-                        tabsCount = screens.size,
-                        backdrop = sceneBackdrop,
-                        accentColor = themeAccent
-                    ) {
-                        screens.forEachIndexed { index, screen ->
-                            LiquidBottomTab(
-                                selected = currentRoute == screen.route,
-                                onClick = {
-                                    if (currentRoute != screen.route) {
-                                        targetTabIndex = index
-                                        navController.navigate(screen.route) {
-                                            popUpTo(navController.graph.startDestinationId) {
-                                                saveState = true
-                                            }
-                                            launchSingleTop = true
-                                            restoreState = true
-                                        }
-                                    }
-                                },
-                                icon = screen.icon ?: Screen.Home.icon!!,
-                                filledIcon = screen.filledIcon ?: screen.icon ?: Screen.Home.icon!!,
-                                label = screen.label
-                            )
-                        }
-                    }
-                }
-
-                if (showLanguagePicker) {
-                    val settingsViewModel: SettingsViewModel = hiltViewModel()
-                    val settingsState by settingsViewModel.state.collectAsStateWithLifecycle()
-                    
-                    LanguagePickerBottomSheet(
-                        selectedLanguage = settingsState.language,
-                        onLanguageSelected = { 
-                            settingsViewModel.onIntent(SettingsIntent.SetLanguage(it))
-                            showLanguagePicker = false
-                        },
-                        onDismiss = { showLanguagePicker = false },
-                        onDragProgress = { progress ->
-                            sheetProgress = progress
-                        },
-                        backdrop = sceneBackdrop
-                    )
-                }
+                return Offset.Zero
             }
         }
-    )
+    }
+
+    Scaffold(
+        modifier = Modifier
+            .fillMaxSize()
+            .nestedScroll(nestedScrollConnection),
+        containerColor = Color(0xFF121212),
+        contentColor = Color.White
+    ) { innerPadding ->
+        val themeAccent = WhispryTheme.colors.accent
+        val padding = innerPadding
+        
+        Box(modifier = Modifier.fillMaxSize()) {
+            
+            // Decorative background
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .drawBehind {
+                        val radius = size.width * 0.7f
+                        drawCircle(
+                            brush = androidx.compose.ui.graphics.Brush.radialGradient(
+                                colors = listOf(themeAccent.copy(alpha = 0.15f), Color.Transparent),
+                                center = androidx.compose.ui.geometry.Offset(size.width, 0f),
+                                radius = radius
+                            ),
+                            radius = radius,
+                            center = androidx.compose.ui.geometry.Offset(size.width, 0f)
+                        )
+                    }
+            )
+            
+            // 2. The content to be captured (the background)
+            Box(
+                modifier = Modifier
+                    .fillMaxSize() 
+                    .layerBackdrop(backdrop) // Capture ONLY this layer
+                    .graphicsLayer {
+                        val s = if (showLanguagePicker) 0.94f + (0.06f * (1f - sheetProgress)) else 1f
+                        scaleX = s
+                        scaleY = s
+                    }
+            ) {
+                WhispryNavHost(
+                    navController = navController,
+                    globalGlassBackdrop = backdrop,
+                    settingsViewModel = settingsViewModel,
+                    onShowLanguagePicker = { showLanguagePicker = true },
+                    onRevisitTutorial = onRevisitTutorial,
+                    onSearchActiveChange = { isSearchActiveGlobal = it }
+                )
+            }
+
+            // 3. The Glass Bottom Bar (Consume blur)
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .graphicsLayer { 
+                        translationY = navbarScrollOffset.toPx() 
+                    }
+                    .windowInsetsPadding(WindowInsets.navigationBars)
+                    .padding(start = 24.dp, end = 24.dp, bottom = 12.dp)
+                    .fillMaxWidth()
+            ) {
+                LiquidBottomTabs(
+                    selectedTabIndex = { targetTabIndex },
+                    tabsCount = mainNavigationItems.size,
+                    backdrop = backdrop, 
+                    accentColor = themeAccent,
+                    useGlass = settingsState.glassNavbar
+                ) {
+                    mainNavigationItems.forEachIndexed { index, item ->
+                        LiquidBottomTab(
+                            selected = currentTabIndex == index,
+                            onClick = {
+                                if (currentTabIndex != index) {
+                                    targetTabIndex = index
+                                    navController.navigate(item.route) {
+                                        popUpTo<Route.Home> { saveState = true }
+                                        launchSingleTop = true
+                                        restoreState = true
+                                    }
+                                }
+                            },
+                            icon = item.icon,
+                            filledIcon = item.filledIcon,
+                            label = item.label
+                        )
+                    }
+                }
+            }
+
+            // 4. Overlays (Modals)
+            if (showLanguagePicker) {
+                val settingsStateData by settingsViewModel.state.collectAsStateWithLifecycle()
+                
+                LanguagePickerBottomSheet(
+                    selectedLanguage = settingsStateData.language,
+                    onLanguageSelected = { 
+                        settingsViewModel.onIntent(SettingsIntent.SetLanguage(it))
+                        showLanguagePicker = false
+                    },
+                    onDismiss = { showLanguagePicker = false },
+                    onDragProgress = { progress -> sheetProgress = progress },
+                    backdrop = backdrop
+                )
+            }
+        }
+    }
 }

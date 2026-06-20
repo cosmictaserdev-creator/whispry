@@ -1,5 +1,6 @@
 package com.example.whispry.domain.usecase
 
+import com.example.whispry.domain.model.OutputPreset
 import com.example.whispry.domain.repository.AudioRepository
 import com.example.whispry.domain.repository.TranscriptRepository
 import com.example.whispry.domain.util.Result
@@ -8,12 +9,14 @@ import javax.inject.Inject
 
 class TranscribeAudioUseCase @Inject constructor(
     private val audioRepository: AudioRepository,
-    private val transcriptRepository: TranscriptRepository
+    private val transcriptRepository: TranscriptRepository,
+    private val formatTranscriptUseCase: FormatTranscriptUseCase
 ) {
     suspend operator fun invoke(
         audioFilePath: String,
         durationMs: Long,
-        language: String? = null
+        language: String? = null,
+        outputPreset: OutputPreset = OutputPreset.NONE
     ): Result<String> {
 
         val finalLanguageCode = language ?: "en"
@@ -24,17 +27,27 @@ class TranscribeAudioUseCase @Inject constructor(
             languageCode = finalLanguageCode
         )
 
-        // Step 2 — if transcription succeeded, save it to local DB
-        if (transcribeResult is Result.Success) {
-            transcriptRepository.saveTranscript(
-                text = transcribeResult.data,
-                durationMs = durationMs,
-                languageCode = finalLanguageCode,
-            )
+        if (transcribeResult !is Result.Success) return transcribeResult
+
+        val rawText = transcribeResult.data
+
+        // Step 2 — format if preset is not NONE
+        val finalText = if (outputPreset != OutputPreset.NONE) {
+            val formatResult = formatTranscriptUseCase(rawText, outputPreset)
+            if (formatResult is Result.Success) formatResult.data else rawText
+        } else {
+            rawText
         }
 
-        // Step 3 — return the result either way
-        // UI gets the text immediately if success, error message if not
-        return transcribeResult
+        // Step 3 — save to Room (save the FORMATTED text, not raw)
+        transcriptRepository.saveTranscript(
+            text = finalText,
+            rawText = rawText,
+            durationMs = durationMs,
+            languageCode = finalLanguageCode,
+            preset = outputPreset.name
+        )
+
+        return Result.Success(finalText)
     }
 }

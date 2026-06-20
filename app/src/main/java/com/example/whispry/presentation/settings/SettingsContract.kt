@@ -1,7 +1,7 @@
 package com.example.whispry.presentation.settings
 
+import com.example.whispry.domain.model.RetentionPolicy
 import com.example.whispry.domain.model.TriggerMode
-import com.example.whispry.domain.model.WakeWordMode
 import com.example.whispry.service.TriggerSound
 
 data class SettingsState(
@@ -18,25 +18,34 @@ data class SettingsState(
     val isSaved: Boolean = false,
     val error: String? = null,
     val accentColor: String = "Purple",
-    
-    // Feature 3
+
+    // Trigger
     val triggerMode: TriggerMode = TriggerMode.VolumeButton,
     val availableTriggerModes: List<TriggerMode> = emptyList(),
+    val isActionButtonSupported: Boolean = true,
     val smartTriggerSuppression: Boolean = true,
-    
-    // Feature 1
+    val consumeVolumeKeys: Boolean = true,
+    val singlePressTrigger: Boolean = false,
+    val triggerVolumeKey: String = "VOLUME_DOWN",
+
+    // Interface
     val floatingWidgetEnabled: Boolean = true,
-    
-    // Feature 2 & 6
-    val wakeWordEnabled: Boolean = false,
-    val wakeWordPhrase: String = "hey whispry",
-    val wakeWordMode: WakeWordMode = WakeWordMode.DEFAULT,
-    
-    // Feature 5
+    val glassNavbar: Boolean = true,
+    val glassLiquidBackdrop: Boolean = true,
+
+    // Sounds
     val soundEnabled: Boolean = true,
-    val soundStart: TriggerSound = TriggerSound.SIRI_CLICK,
-    val soundSuccess: TriggerSound = TriggerSound.SOFT_CHIME,
-    val soundError: TriggerSound = TriggerSound.SOFT_POP
+    val selectedSound: TriggerSound = TriggerSound.WHISPRY_D,
+
+    // Audio Ducking
+    val duckingEnabled: Boolean = true,
+    val duckPercent: Int = 70,
+
+    // Retention
+    val retentionPolicy: RetentionPolicy = RetentionPolicy.FOREVER,
+
+    // App-Aware Tone
+    val appAwareToneEnabled: Boolean = false
 )
 
 sealed class SettingsIntent {
@@ -56,23 +65,30 @@ sealed class SettingsIntent {
     object RestartService : SettingsIntent()
     object ResetOnboarding : SettingsIntent()
     object ResetToDefaults : SettingsIntent()
-    
+
+    // New intents
+    data class SetTriggerVolumeKey(val key: String) : SettingsIntent()
+    data class SetDuckingEnabled(val enabled: Boolean) : SettingsIntent()
+    data class SetDuckingPercent(val percent: Int) : SettingsIntent()
+    data class SetRetentionPolicy(val policy: RetentionPolicy) : SettingsIntent()
+    object ClearAllTranscripts : SettingsIntent()
+    object ClearAudioCache : SettingsIntent()
+
     // Feature 3
     data class SetTriggerMode(val mode: TriggerMode) : SettingsIntent()
     data class SetSmartTriggerSuppression(val enabled: Boolean) : SettingsIntent()
+    data class SetConsumeVolumeKeys(val enabled: Boolean) : SettingsIntent()
+    data class SetSinglePressTrigger(val enabled: Boolean) : SettingsIntent()
     
     // Feature 1
     data class SetFloatingWidgetEnabled(val enabled: Boolean) : SettingsIntent()
-    
-    // Feature 2 & 6
-    data class SetWakeWordEnabled(val enabled: Boolean) : SettingsIntent()
-    data class SetWakeWordPhrase(val phrase: String) : SettingsIntent()
-    data class SetWakeWordMode(val mode: WakeWordMode) : SettingsIntent()
-    data class SaveVoiceFingerprint(val fp: String) : SettingsIntent()
+    data class SetGlassNavbar(val enabled: Boolean) : SettingsIntent()
+    data class SetGlassLiquidBackdrop(val enabled: Boolean) : SettingsIntent()
     
     // Feature 5
     data class SetSoundEnabled(val enabled: Boolean) : SettingsIntent()
-    data class SetSoundStart(val sound: TriggerSound) : SettingsIntent()
-    data class SetSoundSuccess(val sound: TriggerSound) : SettingsIntent()
-    data class SetSoundError(val sound: TriggerSound) : SettingsIntent()
+    data class SetSoundPack(val sound: TriggerSound) : SettingsIntent()
+
+    // App-Aware Tone
+    data class SetAppAwareToneEnabled(val enabled: Boolean) : SettingsIntent()
 }

@@ -122,8 +122,14 @@ class FloatingWidgetManager @Inject constructor(
                     state = state,
                     onToggleExpand = { widgetState.update { it.copy(isExpanded = !it.isExpanded) } },
                     onRecord = { serviceBridge.emit(ServiceBridge.TriggerEvent.RecordingStarted) },
-                    onCopy = { /* Copy logic */ },
-                    onStop = { /* Stop logic */ }
+                    onCopy = { 
+                        state.lastTranscript?.let { text ->
+                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                            val clip = android.content.ClipData.newPlainText("Whispry", text)
+                            clipboard.setPrimaryClip(clip)
+                        }
+                    },
+                    onStop = { serviceBridge.emit(ServiceBridge.TriggerEvent.RecordingStopped) }
                 )
             }
             setViewTreeLifecycleOwner(this@FloatingWidgetManager)
@@ -174,13 +180,26 @@ class FloatingWidgetManager @Inject constructor(
         val width by animateDpAsState(
             targetValue = if (state.isExpanded) 220.dp else 48.dp,
             animationSpec = spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow),
-            label = "WidgetWidth"
+            label = "WidgetWidth",
+            finishedListener = {
+                // Ensure layout params are updated after expansion animation
+                updateWindowSize()
+            }
         )
         val height by animateDpAsState(
             targetValue = if (state.isExpanded) 140.dp else 48.dp,
             animationSpec = spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow),
             label = "WidgetHeight"
         )
+
+        // Track expansion side to adjust lp.x if needed
+        LaunchedEffect(state.isExpanded) {
+            if (state.isExpanded) {
+                adjustPositionForExpansion()
+            } else {
+                snapToEdge()
+            }
+        }
 
         val infiniteTransition = rememberInfiniteTransition(label = "Pulse")
         val scale by infiniteTransition.animateFloat(
@@ -198,8 +217,8 @@ class FloatingWidgetManager @Inject constructor(
                 .size(width, height)
                 .scale(if (state.isExpanded) 1f else scale)
                 .clip(RoundedCornerShape(24.dp))
-                .background(Color.White.copy(alpha = 0.06f))
-                .border(1.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(24.dp))
+                .background(Color.White.copy(alpha = 0.15f))
+                .border(1.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(24.dp))
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null
@@ -311,21 +330,51 @@ class FloatingWidgetManager @Inject constructor(
         }
     }
 
-    private fun snapToEdge() {
+    private fun updateWindowSize() {
+        layoutParams?.let { lp ->
+            try {
+                windowManager.updateViewLayout(composeView, lp)
+            } catch (e: Exception) {}
+        }
+    }
+
+    private fun adjustPositionForExpansion() {
+        val view = composeView ?: return
         layoutParams?.let { lp ->
             val displayMetrics = context.resources.displayMetrics
-            val screenWidth = displayMetrics.widthWidth
-            val screenHeight = displayMetrics.heightHeight
+            val screenWidth = displayMetrics.widthPixels
             
+            // If we are on the right side, move lp.x to the left so expansion stays on screen
+            // Use view.width if available, otherwise assume collapsed width
+            val currentWidth = if (view.width > 0) view.width else 48.dpToPx()
+            if (lp.x + 220.dpToPx() > screenWidth) {
+                lp.x = screenWidth - 220.dpToPx() - 16.dpToPx()
+            }
+            
+            try {
+                windowManager.updateViewLayout(view, lp)
+            } catch (e: Exception) {}
+        }
+    }
+
+    private fun snapToEdge() {
+        val view = composeView ?: return
+        layoutParams?.let { lp ->
+            val displayMetrics = context.resources.displayMetrics
+            val screenWidth = displayMetrics.widthPixels
+            val screenHeight = displayMetrics.heightPixels
+            
+            val viewWidth = if (view.width > 0) view.width else 48.dpToPx()
+            val viewHeight = if (view.height > 0) view.height else 48.dpToPx()
+
             // Snap to nearest corner
-            val targetX = if (lp.x < screenWidth / 2) 16.dpToPx() else screenWidth - lp.width - 16.dpToPx()
-            val targetY = if (lp.y < screenHeight / 2) 16.dpToPx() else screenHeight - lp.height - 16.dpToPx()
+            val targetX = if (lp.x < (screenWidth - viewWidth) / 2) 16.dpToPx() else screenWidth - viewWidth - 16.dpToPx()
+            val targetY = lp.y.coerceIn(16.dpToPx(), screenHeight - viewHeight - 16.dpToPx())
             
-            // Simple snap for now, can use animator for spring feel
             lp.x = targetX
             lp.y = targetY
             try {
-                windowManager.updateViewLayout(composeView, lp)
+                windowManager.updateViewLayout(view, lp)
             } catch (e: Exception) {}
         }
     }

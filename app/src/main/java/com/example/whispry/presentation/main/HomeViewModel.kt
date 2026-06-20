@@ -9,6 +9,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.whispry.domain.model.Transcript
+import com.example.whispry.domain.model.TranscriptStats
 import com.example.whispry.domain.repository.TranscriptRepository
 import com.example.whispry.service.BubbleService
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -35,12 +36,16 @@ sealed class HomeIntent {
     data object RefreshStats : HomeIntent()
     data object ToggleService : HomeIntent()
     data object CheckPermissions : HomeIntent()
+    data object StartManualRecording : HomeIntent()
+    data object StopManualRecording : HomeIntent()
 }
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val repository: TranscriptRepository,
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
+    private val serviceBridge: com.example.whispry.service.ServiceBridge,
+    private val soundManager: com.example.whispry.service.SoundManager
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(HomeState())
@@ -72,21 +77,24 @@ class HomeViewModel @Inject constructor(
     }
 
     private fun observeTranscripts() {
-        repository.getAllTranscripts()
-            .onEach { transcripts ->
-                val totalWords = transcripts.sumOf { it.text.split("\\s+".toRegex()).size }
-                val avgDuration = if (transcripts.isNotEmpty()) {
-                    transcripts.sumOf { it.durationMs } / transcripts.size
-                } else 0L
-
+        // Observe optimized stats
+        repository.getStats()
+            .onEach { stats ->
                 _state.update {
                     it.copy(
-                        totalTranscripts = transcripts.size,
-                        totalWords = totalWords,
-                        avgDurationMs = avgDuration,
-                        recentTranscripts = transcripts.take(3)
+                        totalTranscripts = stats.totalCount,
+                        totalWords = stats.totalWords,
+                        avgDurationMs = stats.averageDurationMs
                     )
                 }
+            }
+            .flowOn(kotlinx.coroutines.Dispatchers.Default)
+            .launchIn(viewModelScope)
+
+        // Observe recent transcripts separately (limited to 3)
+        repository.getRecentTranscripts(3)
+            .onEach { transcripts ->
+                _state.update { it.copy(recentTranscripts = transcripts) }
             }
             .flowOn(kotlinx.coroutines.Dispatchers.Default)
             .launchIn(viewModelScope)
@@ -104,11 +112,23 @@ class HomeViewModel @Inject constructor(
         if (!Settings.canDrawOverlays(context)) {
             missing.add("Overlay")
         }
+
+        // Notifications (Android 13+)
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                missing.add("Notifications")
+            }
+        }
         
         // Accessibility - Important check
         val isAccessibilityEnabled = isAccessibilityServiceEnabled(context)
         if (!isAccessibilityEnabled) {
             missing.add("Accessibility")
+        }
+
+        // Phone State (for call suppression)
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_PHONE_STATE) != PackageManager.PERMISSION_GRANTED) {
+            missing.add("Phone State")
         }
 
         _state.update { it.copy(missingPermissions = missing) }
@@ -128,6 +148,20 @@ class HomeViewModel @Inject constructor(
                 // Logic to toggle service if needed
             }
             HomeIntent.CheckPermissions -> checkPermissions()
+            HomeIntent.StartManualRecording -> {
+                soundManager.play(com.example.whispry.service.SoundEvent.TRIGGER_START)
+                val i = android.content.Intent(context, BubbleService::class.java)
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                    context.startForegroundService(i)
+                } else {
+                    context.startService(i)
+                }
+                serviceBridge.emit(com.example.whispry.service.ServiceBridge.TriggerEvent.RecordingStarted)
+            }
+            HomeIntent.StopManualRecording -> {
+                soundManager.play(com.example.whispry.service.SoundEvent.TRIGGER_STOP)
+                serviceBridge.emit(com.example.whispry.service.ServiceBridge.TriggerEvent.RecordingStopped)
+            }
         }
     }
 }

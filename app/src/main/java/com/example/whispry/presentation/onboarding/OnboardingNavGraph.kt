@@ -23,6 +23,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import com.example.whispry.presentation.onboarding.components.WhispryBackground
+import com.example.whispry.ui.util.liquid.rememberCachedBackdrop
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 
@@ -93,22 +94,17 @@ fun OnboardingNavGraph(
         }
     )
 
-    val onboardingBackdrop = rememberLayerBackdrop {
-        drawContent()
-    }
+    // ONE cached backdrop for the whole background
+    val onboardingBackdrop = rememberCachedBackdrop()
 
     Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .layerBackdrop(onboardingBackdrop)
-        ) {
-            WhispryBackground(
-                glowIntensity = animatedGlowIntensity,
-                glowOffset = animatedGlowOffset,
-                particleAlpha = 0.3f
-            )
-        }
+        // Background still renders live for the "real" visual, 
+        // but backdrop library doesn't capture it every frame anymore.
+        WhispryBackground(
+            glowIntensity = animatedGlowIntensity,
+            glowOffset = animatedGlowOffset,
+            particleAlpha = 0.3f
+        )
 
         NavHost(
             navController = navController,

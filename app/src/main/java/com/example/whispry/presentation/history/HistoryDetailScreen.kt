@@ -1,6 +1,13 @@
 package com.example.whispry.presentation.history
 
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.platform.LocalContext
+import com.example.whispry.util.TranscriptExporter
+import com.example.whispry.util.ExportFormat
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
@@ -26,13 +33,14 @@ import androidx.compose.ui.unit.lerp
 import androidx.navigation.NavController
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.backdrops.layerBackdrop
-import com.kyant.backdrop.backdrops.rememberCombinedBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
-
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import android.graphics.RenderEffect
 import android.graphics.Shader
+import android.os.Build
 import androidx.compose.ui.graphics.asComposeRenderEffect
+import com.kyant.backdrop.backdrops.LayerBackdrop
+import com.example.whispry.domain.model.Transcript
 
 @Composable
 fun HistoryDetailScreen(
@@ -40,22 +48,39 @@ fun HistoryDetailScreen(
     isPinnedOnly: Boolean,
     viewModel: HistoryViewModel,
     navController: NavController,
-    backdrop: Backdrop,
+    backdrop: LayerBackdrop,
     onSearchActiveChange: (Boolean) -> Unit = {}
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val focusManager = LocalFocusManager.current
     var isSearchActive by remember { mutableStateOf(false) }
 
+    var exportText by remember { mutableStateOf("") }
+    var exportingTranscript by remember { mutableStateOf<Transcript?>(null) }
+    val coroutineScope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val exportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("*/*")
+    ) { uri ->
+        if (uri != null) {
+            val textToWrite = exportText
+            coroutineScope.launch(Dispatchers.IO) {
+                try {
+                    context.contentResolver.openOutputStream(uri)?.use { output ->
+                        output.write(textToWrite.toByteArray())
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+        }
+    }
+
     val searchProgress by animateFloatAsState(
         targetValue = if (isSearchActive) 1f else 0f,
         animationSpec = spring(stiffness = Spring.StiffnessMediumLow, dampingRatio = 0.8f),
         label = "SearchProgress"
     )
-
-    // Liquid Glass: Capture list content
-    val listBackdrop = rememberLayerBackdrop { drawContent() }
-    val glassBackdrop = rememberCombinedBackdrop(backdrop, listBackdrop)
 
     BackHandler(enabled = isSearchActive) {
         isSearchActive = false
@@ -77,7 +102,7 @@ fun HistoryDetailScreen(
 
     Box(modifier = Modifier.fillMaxSize()) {
         // Content Layer
-        Box(modifier = Modifier.fillMaxSize().layerBackdrop(listBackdrop)) {
+        Box(modifier = Modifier.fillMaxSize()) {
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
@@ -87,10 +112,10 @@ fun HistoryDetailScreen(
                         scaleY = s
                         alpha = 1f - (0.3f * searchProgress)
 
-                        // Render Effect blur (skip Recomposition)
-                        if (searchProgress > 0f && state.searchQuery.isEmpty()) {
+                        // Render Effect blur
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && searchProgress > 0f && state.searchQuery.isEmpty()) {
                             val blurPx = (lerp(0.dp, 12.dp, searchProgress)).toPx()
-                            if (blurPx > 0f) {
+                            if (blurPx > 0.1f) {
                                 renderEffect = RenderEffect.createBlurEffect(
                                     blurPx, blurPx, Shader.TileMode.CLAMP
                                 ).asComposeRenderEffect()
@@ -106,23 +131,28 @@ fun HistoryDetailScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 userScrollEnabled = !isSearchActive 
             ) {
-                items(filteredList, key = { it.id }) { transcript ->
-                    Box(modifier = Modifier.animateItem()) {
-                        LibraryTranscriptItem(
-                            transcript = transcript,
-                            backdrop = backdrop,
-                            onDelete = { viewModel.onIntent(HistoryIntent.DeleteTranscript(transcript.id)) },
-                            onCopy = { viewModel.onIntent(HistoryIntent.CopyToClipboard(transcript.text)) },
-                            onTogglePin = { viewModel.onIntent(HistoryIntent.TogglePin(transcript.id)) }
-                        )
-                    }
+                item {
+                    LocalStorageNotice(transcriptCount = state.transcripts.size)
                 }
-                
+
                 if (filteredList.isEmpty()) {
                     item {
                         Box(modifier = Modifier.fillMaxWidth().height(400.dp), contentAlignment = Alignment.Center) {
                             Text("No items found", color = Color.White.copy(alpha = 0.4f))
                         }
+                    }
+                } else {
+                    items(filteredList, key = { it.id }) { transcript ->
+                        LibraryTranscriptItemOptimized(
+                            transcript = transcript,
+                            onDelete = { viewModel.onIntent(HistoryIntent.DeleteTranscript(transcript.id)) },
+                            onCopy = { viewModel.onIntent(HistoryIntent.CopyToClipboard(transcript.text)) },
+                            onTogglePin = { viewModel.onIntent(HistoryIntent.TogglePin(transcript.id)) },
+                            onOpenDetail = { viewModel.onIntent(HistoryIntent.OpenDetail(transcript)) },
+                            isReformatting = state.reformattingIds.contains(transcript.id),
+                            onCopyOriginal = { viewModel.onIntent(HistoryIntent.CopyToClipboard(transcript.rawText)) },
+                            onChangePreset = { viewModel.onIntent(HistoryIntent.ChangePreset(transcript.id, it)) }
+                        )
                     }
                 }
             }
@@ -172,9 +202,32 @@ fun HistoryDetailScreen(
                     progress = searchProgress,
                     onQueryChange = { viewModel.onIntent(HistoryIntent.Search(it)) },
                     onSearchActiveChange = { isSearchActive = it },
-                    backdrop = glassBackdrop
+                    backdrop = backdrop
                 )
             }
+        }
+
+        // Detail View Overlay
+        if (state.selectedTranscript != null) {
+            TranscriptDetailView(
+                transcript = state.selectedTranscript!!,
+                onDismiss = { viewModel.onIntent(HistoryIntent.OpenDetail(null)) },
+                onCopy = { viewModel.onIntent(HistoryIntent.CopyToClipboard(it)) },
+                onExport = { exportingTranscript = state.selectedTranscript },
+                backdrop = backdrop
+            )
+        }
+
+        val transcriptToExport = exportingTranscript
+        if (transcriptToExport != null) {
+            ExportBottomSheet(
+                transcript = transcriptToExport,
+                onSaveToFile = { filename, content ->
+                    exportText = content
+                    exportLauncher.launch(filename)
+                },
+                onDismiss = { exportingTranscript = null }
+            )
         }
     }
 }
