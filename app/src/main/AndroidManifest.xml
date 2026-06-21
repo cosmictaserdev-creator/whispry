@@ -38,6 +38,11 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Whispry"
         android:enableOnBackInvokedCallback="true">
+
+        <!-- Samsung NowBar / Live Notifications future-proofing (One UI 8+) -->
+        <meta-data
+            android:name="com.samsung.android.support.ongoing_activity"
+            android:value="true" />
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -45,8 +50,20 @@
             android:theme="@style/Theme.Whispry">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="whispry" android:host="home" />
+                <data android:scheme="whispry" android:host="history" />
+                <data android:scheme="whispry" android:host="settings" />
+                <data android:scheme="whispry" android:host="presets" />
+                <data android:scheme="whispry" android:host="text-expander" />
+                <data android:scheme="whispry" android:host="app-tones" />
+                <data android:scheme="whispry" android:host="memory" />
+                <data android:scheme="whispry" android:host="about" />
             </intent-filter>
         </activity>
         <service

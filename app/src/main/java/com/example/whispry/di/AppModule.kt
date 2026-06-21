@@ -4,6 +4,9 @@ import android.content.Context
 import android.media.AudioManager
 import com.example.whispry.data.local.datasource.ApiKeyProvider
 import com.example.whispry.data.local.datasource.TranscriptLocalDataSource
+import com.example.whispry.data.local.datasource.UsageDataStore
+import com.example.whispry.data.repository.UsageRepositoryImpl
+import com.example.whispry.domain.repository.UsageRepository
 import com.example.whispry.data.remote.datasource.GroqRemoteDataSource
 import com.example.whispry.data.repository.AudioRepositoryImpl
 import com.example.whispry.data.repository.GroqFormatterRepositoryImpl
@@ -116,5 +119,22 @@ object AppModule {
         dao: AppToneDao
     ): AppToneRepository {
         return AppToneRepositoryImpl(dao)
+    }
+
+    @Provides
+    @Singleton
+    fun provideUsageRepository(
+        usageDataStore: UsageDataStore
+    ): UsageRepository {
+        return UsageRepositoryImpl(usageDataStore)
+    }
+
+    @Provides
+    @Singleton
+    fun provideWhispryNotificationManager(
+        @ApplicationContext context: Context,
+        settingsProvider: com.example.whispry.data.local.datasource.SettingsProvider
+    ): com.example.whispry.notification.WhispryNotificationManager {
+        return com.example.whispry.notification.WhispryNotificationManager(context, settingsProvider)
     }
 }

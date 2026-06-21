@@ -2,8 +2,6 @@ package com.example.whispry.service
 
 import android.Manifest
 import android.app.Notification
-import android.app.NotificationChannel
-import android.app.NotificationManager
 import android.app.Service
 import android.content.Intent
 import android.content.pm.ServiceInfo
@@ -24,7 +22,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.unit.dp
-import androidx.core.app.NotificationCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleRegistry
@@ -36,7 +33,6 @@ import androidx.savedstate.SavedStateRegistry
 import androidx.savedstate.SavedStateRegistryController
 import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
-import com.example.whispry.R
 import com.example.whispry.data.local.datasource.DataStoreKeys
 import com.example.whispry.domain.repository.AudioRepository
 import com.example.whispry.domain.repository.TranscriptRepository
@@ -65,6 +61,8 @@ import android.view.animation.PathInterpolator
 import androidx.annotation.RequiresPermission
 import androidx.datastore.preferences.core.edit
 import com.example.whispry.domain.model.OutputPreset
+import com.example.whispry.domain.repository.UsageRepository
+import com.example.whispry.notification.WhispryNotificationManager
 import com.example.whispry.service.AudioDuckingManager
 import kotlinx.coroutines.flow.distinctUntilChanged
 
@@ -240,6 +238,8 @@ class BubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedState
     @Inject lateinit var floatingWidgetManager: FloatingWidgetManager
     @Inject lateinit var soundManager: SoundManager
     @Inject lateinit var audioDuckingManager: AudioDuckingManager
+    @Inject lateinit var usageRepository: UsageRepository
+    @Inject lateinit var notificationManager: WhispryNotificationManager
 
     private lateinit var windowManager: WindowManager
     private var composeView: ComposeView? = null
@@ -319,6 +319,7 @@ class BubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedState
     private fun updateForegroundStatus() {
         try {
             val notification = buildNotification()
+            updateNotificationWithUsage()
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
                 // Check for microphone permission before requesting microphone FGS type
                 val hasMicPermission = checkSelfPermission(Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED
@@ -497,6 +498,18 @@ class BubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedState
                 mainHandler.removeCallbacks(miniModeTransitionRunnable)
                 hintJob.cancel()
                 showCancelHint.value = false
+
+                // Track usage after successful transcription (before UI handling)
+                if (transcribeResult is com.example.whispry.domain.util.Result.Success) {
+                    try {
+                        usageRepository.incrementRequests(1)
+                        val wordCount = transcribeResult.data.split("\\s+".toRegex()).size
+                        if (wordCount > 0) usageRepository.incrementWords(wordCount)
+                        val usage = usageRepository.getTodayUsage()
+                        notificationManager.updateForegroundNotification(usage)
+                    } catch (_: Exception) { }
+                }
+
                 val handleResult = {
                     when (transcribeResult) {
                         is com.example.whispry.domain.util.Result.Success<String> -> {
@@ -697,13 +710,22 @@ class BubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedState
     private fun getScreenHeight(): Int = resources.displayMetrics.heightPixels
     
     private fun createNotificationChannel() {
-        val channel = NotificationChannel(CHANNEL_ID, "Whispry Service", NotificationManager.IMPORTANCE_LOW)
-        getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
+        notificationManager.createChannels()
     }
-    
-    private fun buildNotification(): Notification = NotificationCompat.Builder(this, CHANNEL_ID)
-        .setContentTitle("Whispry is active").setContentText("Volume trigger ready")
-        .setSmallIcon(R.drawable.ic_launcher_foreground).setOngoing(true).build()
+
+    private fun buildNotification(): Notification {
+        return notificationManager.buildFallbackNotification()
+    }
+
+    private fun updateNotificationWithUsage() {
+        serviceScope.launch {
+            try {
+                usageRepository.resetIfNewDay()
+                val usage = usageRepository.getTodayUsage()
+                notificationManager.updateForegroundNotification(usage)
+            } catch (_: Exception) { }
+        }
+    }
         
     private fun Int.dpToPx(): Int = (this * resources.displayMetrics.density).toInt()
 }

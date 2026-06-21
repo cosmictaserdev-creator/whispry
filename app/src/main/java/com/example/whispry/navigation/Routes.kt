@@ -32,4 +32,20 @@ sealed interface Route {
 
     @Serializable
     data object Memory : Route
+
+    companion object {
+        fun fromDeepLinkHost(host: String): Route {
+            return when (host.lowercase()) {
+                "home" -> Home
+                "history", "library" -> Library
+                "presets" -> Presets
+                "settings" -> Settings
+                "about" -> About
+                "text-expander" -> TextExpander
+                "app-tones" -> AppTones
+                "memory" -> Memory
+                else -> Home
+            }
+        }
+    }
 }
