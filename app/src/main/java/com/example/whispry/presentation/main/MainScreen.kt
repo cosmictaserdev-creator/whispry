@@ -2,6 +2,7 @@ package com.example.whispry.presentation.main
 
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.*
@@ -14,10 +15,14 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.example.whispry.navigation.mainNavigationItems
 import com.example.whispry.presentation.settings.LanguagePickerBottomSheet
 import com.example.whispry.presentation.settings.SettingsIntent
 import com.example.whispry.presentation.settings.SettingsViewModel
 import com.example.whispry.ui.theme.WhispryTheme
+import com.example.whispry.ui.util.adaptive.LiquidNavigationRail
+import com.example.whispry.ui.util.adaptive.RailNavigationItem
+import com.example.whispry.ui.util.adaptive.currentDeviceType
 import com.example.whispry.ui.util.liquid.components.LiquidBottomTab
 import com.example.whispry.ui.util.liquid.components.LiquidBottomTabs
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -28,27 +33,24 @@ import androidx.compose.ui.geometry.Offset
 import androidx.navigation.NavDestination.Companion.hasRoute
 import com.example.whispry.navigation.Route
 import com.example.whispry.navigation.WhispryNavHost
-import com.example.whispry.navigation.mainNavigationItems
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 
-/**
- * MainScreen is the primary entry point for the application's main UI.
- */
 @Composable
-fun MainScreen(onRevisitTutorial: () -> Unit) {
+fun MainScreen(
+    onRevisitTutorial: () -> Unit,
+    deepLinkRoute: Route? = null
+) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
-    
+
     val settingsViewModel: SettingsViewModel = hiltViewModel()
     val settingsState by settingsViewModel.state.collectAsStateWithLifecycle()
 
-    // 1. Initialize the Backdrop State
-    val backdrop = rememberLayerBackdrop { 
-        // Draw a solid background color first to avoid transparent pixels
-        drawRect(Color(0xFF121212)) 
-        drawContent() 
+    val backdrop = rememberLayerBackdrop {
+        drawRect(Color(0xFF121212))
+        drawContent()
     }
 
     val currentTabIndex = remember(currentDestination) {
@@ -62,7 +64,18 @@ fun MainScreen(onRevisitTutorial: () -> Unit) {
     var sheetProgress by remember { mutableFloatStateOf(0f) }
     var isSearchActiveGlobal by remember { mutableStateOf(false) }
 
-    // --- Hide on Scroll Logic ---
+    val deepLinkHandled = remember { mutableStateOf(false) }
+    LaunchedEffect(deepLinkRoute, deepLinkHandled.value) {
+        if (deepLinkRoute != null && !deepLinkHandled.value) {
+            deepLinkHandled.value = true
+            navController.navigate(deepLinkRoute) {
+                popUpTo<Route.Home> { saveState = true }
+                launchSingleTop = true
+                restoreState = true
+            }
+        }
+    }
+
     var isNavbarVisible by remember { mutableStateOf(true) }
     val navbarScrollOffset by animateDpAsState(
         targetValue = if (isNavbarVisible && !isSearchActiveGlobal) 0.dp else 130.dp,
@@ -83,6 +96,71 @@ fun MainScreen(onRevisitTutorial: () -> Unit) {
         }
     }
 
+    val deviceType = currentDeviceType()
+
+    if (deviceType == com.example.whispry.ui.util.adaptive.DeviceType.Tablet) {
+        TabletLayout(
+            navController = navController,
+            backdrop = backdrop,
+            settingsViewModel = settingsViewModel,
+            currentTabIndex = currentTabIndex,
+            targetTabIndex = targetTabIndex,
+            onTargetTabIndexChange = { targetTabIndex = it },
+            showLanguagePicker = showLanguagePicker,
+            onShowLanguagePickerChange = { showLanguagePicker = it },
+            sheetProgress = sheetProgress,
+            onSheetProgressChange = { sheetProgress = it },
+            isSearchActiveGlobal = isSearchActiveGlobal,
+            onSearchActiveChange = { isSearchActiveGlobal = it },
+            onRevisitTutorial = onRevisitTutorial,
+            deepLinkRoute = deepLinkRoute,
+            settingsState = settingsState
+        )
+    } else {
+        PhoneLayout(
+            navController = navController,
+            backdrop = backdrop,
+            settingsViewModel = settingsViewModel,
+            currentTabIndex = currentTabIndex,
+            targetTabIndex = targetTabIndex,
+            onTargetTabIndexChange = { targetTabIndex = it },
+            showLanguagePicker = showLanguagePicker,
+            onShowLanguagePickerChange = { showLanguagePicker = it },
+            sheetProgress = sheetProgress,
+            onSheetProgressChange = { sheetProgress = it },
+            isSearchActiveGlobal = isSearchActiveGlobal,
+            onSearchActiveChange = { isSearchActiveGlobal = it },
+            onRevisitTutorial = onRevisitTutorial,
+            deepLinkRoute = deepLinkRoute,
+            settingsState = settingsState,
+            navbarScrollOffset = navbarScrollOffset,
+            nestedScrollConnection = nestedScrollConnection,
+            isNavbarVisible = isNavbarVisible
+        )
+    }
+}
+
+@Composable
+private fun PhoneLayout(
+    navController: androidx.navigation.NavHostController,
+    backdrop: com.kyant.backdrop.backdrops.LayerBackdrop,
+    settingsViewModel: SettingsViewModel,
+    currentTabIndex: Int,
+    targetTabIndex: Int,
+    onTargetTabIndexChange: (Int) -> Unit,
+    showLanguagePicker: Boolean,
+    onShowLanguagePickerChange: (Boolean) -> Unit,
+    sheetProgress: Float,
+    onSheetProgressChange: (Float) -> Unit,
+    isSearchActiveGlobal: Boolean,
+    onSearchActiveChange: (Boolean) -> Unit,
+    onRevisitTutorial: () -> Unit,
+    deepLinkRoute: Route?,
+    settingsState: com.example.whispry.presentation.settings.SettingsState,
+    navbarScrollOffset: androidx.compose.ui.unit.Dp,
+    nestedScrollConnection: NestedScrollConnection,
+    isNavbarVisible: Boolean
+) {
     Scaffold(
         modifier = Modifier
             .fillMaxSize()
@@ -92,10 +170,8 @@ fun MainScreen(onRevisitTutorial: () -> Unit) {
     ) { innerPadding ->
         val themeAccent = WhispryTheme.colors.accent
         val padding = innerPadding
-        
+
         Box(modifier = Modifier.fillMaxSize()) {
-            
-            // Decorative background
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -112,12 +188,11 @@ fun MainScreen(onRevisitTutorial: () -> Unit) {
                         )
                     }
             )
-            
-            // 2. The content to be captured (the background)
+
             Box(
                 modifier = Modifier
-                    .fillMaxSize() 
-                    .layerBackdrop(backdrop) // Capture ONLY this layer
+                    .fillMaxSize()
+                    .layerBackdrop(backdrop)
                     .graphicsLayer {
                         val s = if (showLanguagePicker) 0.94f + (0.06f * (1f - sheetProgress)) else 1f
                         scaleX = s
@@ -128,19 +203,16 @@ fun MainScreen(onRevisitTutorial: () -> Unit) {
                     navController = navController,
                     globalGlassBackdrop = backdrop,
                     settingsViewModel = settingsViewModel,
-                    onShowLanguagePicker = { showLanguagePicker = true },
+                    onShowLanguagePicker = { onShowLanguagePickerChange(true) },
                     onRevisitTutorial = onRevisitTutorial,
-                    onSearchActiveChange = { isSearchActiveGlobal = it }
+                    onSearchActiveChange = onSearchActiveChange
                 )
             }
 
-            // 3. The Glass Bottom Bar (Consume blur)
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .graphicsLayer { 
-                        translationY = navbarScrollOffset.toPx() 
-                    }
+                    .graphicsLayer { translationY = navbarScrollOffset.toPx() }
                     .windowInsetsPadding(WindowInsets.navigationBars)
                     .padding(start = 24.dp, end = 24.dp, bottom = 12.dp)
                     .fillMaxWidth()
@@ -148,7 +220,7 @@ fun MainScreen(onRevisitTutorial: () -> Unit) {
                 LiquidBottomTabs(
                     selectedTabIndex = { targetTabIndex },
                     tabsCount = mainNavigationItems.size,
-                    backdrop = backdrop, 
+                    backdrop = backdrop,
                     accentColor = themeAccent,
                     useGlass = settingsState.glassNavbar
                 ) {
@@ -157,7 +229,7 @@ fun MainScreen(onRevisitTutorial: () -> Unit) {
                             selected = currentTabIndex == index,
                             onClick = {
                                 if (currentTabIndex != index) {
-                                    targetTabIndex = index
+                                    onTargetTabIndexChange(index)
                                     navController.navigate(item.route) {
                                         popUpTo<Route.Home> { saveState = true }
                                         launchSingleTop = true
@@ -173,18 +245,122 @@ fun MainScreen(onRevisitTutorial: () -> Unit) {
                 }
             }
 
-            // 4. Overlays (Modals)
             if (showLanguagePicker) {
                 val settingsStateData by settingsViewModel.state.collectAsStateWithLifecycle()
-                
+
                 LanguagePickerBottomSheet(
                     selectedLanguage = settingsStateData.language,
-                    onLanguageSelected = { 
+                    onLanguageSelected = {
                         settingsViewModel.onIntent(SettingsIntent.SetLanguage(it))
-                        showLanguagePicker = false
+                        onShowLanguagePickerChange(false)
                     },
-                    onDismiss = { showLanguagePicker = false },
-                    onDragProgress = { progress -> sheetProgress = progress },
+                    onDismiss = { onShowLanguagePickerChange(false) },
+                    onDragProgress = { progress -> onSheetProgressChange(progress) },
+                    backdrop = backdrop
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun TabletLayout(
+    navController: androidx.navigation.NavHostController,
+    backdrop: com.kyant.backdrop.backdrops.LayerBackdrop,
+    settingsViewModel: SettingsViewModel,
+    currentTabIndex: Int,
+    targetTabIndex: Int,
+    onTargetTabIndexChange: (Int) -> Unit,
+    showLanguagePicker: Boolean,
+    onShowLanguagePickerChange: (Boolean) -> Unit,
+    sheetProgress: Float,
+    onSheetProgressChange: (Float) -> Unit,
+    isSearchActiveGlobal: Boolean,
+    onSearchActiveChange: (Boolean) -> Unit,
+    onRevisitTutorial: () -> Unit,
+    deepLinkRoute: Route?,
+    settingsState: com.example.whispry.presentation.settings.SettingsState
+) {
+    val themeAccent = WhispryTheme.colors.accent
+
+    Row(modifier = Modifier.fillMaxSize().background(Color(0xFF121212))) {
+        LiquidNavigationRail(
+            selectedIndex = targetTabIndex,
+            items = mainNavigationItems.map { item ->
+                RailNavigationItem(
+                    label = item.label,
+                    icon = item.icon,
+                    filledIcon = item.filledIcon
+                )
+            },
+            backdrop = backdrop,
+            accentColor = themeAccent,
+            useGlass = settingsState.glassNavbar,
+            onItemClick = { index ->
+                if (currentTabIndex != index) {
+                    onTargetTabIndexChange(index)
+                    navController.navigate(mainNavigationItems[index].route) {
+                        popUpTo<Route.Home> { saveState = true }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
+                }
+            },
+            modifier = Modifier.windowInsetsPadding(WindowInsets.systemBars)
+        )
+
+        Spacer(modifier = Modifier.width(4.dp))
+
+        Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .drawBehind {
+                        val radius = size.width * 0.7f
+                        drawCircle(
+                            brush = androidx.compose.ui.graphics.Brush.radialGradient(
+                                colors = listOf(themeAccent.copy(alpha = 0.15f), Color.Transparent),
+                                center = androidx.compose.ui.geometry.Offset(size.width, 0f),
+                                radius = radius
+                            ),
+                            radius = radius,
+                            center = androidx.compose.ui.geometry.Offset(size.width, 0f)
+                        )
+                    }
+            )
+
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .layerBackdrop(backdrop)
+                    .graphicsLayer {
+                        val s = if (showLanguagePicker) 0.94f + (0.06f * (1f - sheetProgress)) else 1f
+                        scaleX = s
+                        scaleY = s
+                    }
+                    .windowInsetsPadding(WindowInsets.systemBars)
+            ) {
+                WhispryNavHost(
+                    navController = navController,
+                    globalGlassBackdrop = backdrop,
+                    settingsViewModel = settingsViewModel,
+                    onShowLanguagePicker = { onShowLanguagePickerChange(true) },
+                    onRevisitTutorial = onRevisitTutorial,
+                    onSearchActiveChange = onSearchActiveChange
+                )
+            }
+
+            if (showLanguagePicker) {
+                val settingsStateData by settingsViewModel.state.collectAsStateWithLifecycle()
+
+                LanguagePickerBottomSheet(
+                    selectedLanguage = settingsStateData.language,
+                    onLanguageSelected = {
+                        settingsViewModel.onIntent(SettingsIntent.SetLanguage(it))
+                        onShowLanguagePickerChange(false)
+                    },
+                    onDismiss = { onShowLanguagePickerChange(false) },
+                    onDragProgress = { progress -> onSheetProgressChange(progress) },
                     backdrop = backdrop
                 )
             }
