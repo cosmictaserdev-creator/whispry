@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <dimen name="screen_top_padding">24dp</dimen>
+    <dimen name="screen_horizontal_padding">24dp</dimen>
+    <dimen name="screen_bottom_padding">140dp</dimen>
+
+    <dimen name="library_header_top_offset">150dp</dimen>
+    <dimen name="library_header_extra_padding">24dp</dimen>
+    <dimen name="library_content_top_offset">24dp</dimen>
+
+    <dimen name="home_content_top_offset">24dp</dimen>
+    <dimen name="home_header_bottom_spacing">140dp</dimen>
+
+    <dimen name="tablet_nav_rail_width">88dp</dimen>
+    <dimen name="tablet_nav_rail_content_width">80dp</dimen>
+    <dimen name="tablet_nav_rail_indicator_width">68dp</dimen>
+    <dimen name="tablet_nav_rail_indicator_height">56dp</dimen>
+    <dimen name="tablet_content_right_padding">12dp</dimen>
+</resources>

@@ -11,6 +11,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -284,33 +285,6 @@ private fun TabletLayout(
     val themeAccent = WhispryTheme.colors.accent
 
     Row(modifier = Modifier.fillMaxSize().background(Color(0xFF121212))) {
-        LiquidNavigationRail(
-            selectedIndex = targetTabIndex,
-            items = mainNavigationItems.map { item ->
-                RailNavigationItem(
-                    label = item.label,
-                    icon = item.icon,
-                    filledIcon = item.filledIcon
-                )
-            },
-            backdrop = backdrop,
-            accentColor = themeAccent,
-            useGlass = settingsState.glassNavbar,
-            onItemClick = { index ->
-                if (currentTabIndex != index) {
-                    onTargetTabIndexChange(index)
-                    navController.navigate(mainNavigationItems[index].route) {
-                        popUpTo<Route.Home> { saveState = true }
-                        launchSingleTop = true
-                        restoreState = true
-                    }
-                }
-            },
-            modifier = Modifier.windowInsetsPadding(WindowInsets.systemBars)
-        )
-
-        Spacer(modifier = Modifier.width(4.dp))
-
         Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
             Box(
                 modifier = Modifier
@@ -338,7 +312,6 @@ private fun TabletLayout(
                         scaleX = s
                         scaleY = s
                     }
-                    .windowInsetsPadding(WindowInsets.systemBars)
             ) {
                 WhispryNavHost(
                     navController = navController,
@@ -365,5 +338,34 @@ private fun TabletLayout(
                 )
             }
         }
+
+        Spacer(modifier = Modifier.width(8.dp))
+
+        LiquidNavigationRail(
+            selectedIndex = targetTabIndex,
+            items = mainNavigationItems.map { item ->
+                RailNavigationItem(
+                    label = item.label,
+                    icon = item.icon,
+                    filledIcon = item.filledIcon
+                )
+            },
+            backdrop = backdrop,
+            accentColor = themeAccent,
+            useGlass = settingsState.glassNavbar,
+            onItemClick = { index ->
+                if (currentTabIndex != index) {
+                    onTargetTabIndexChange(index)
+                    navController.navigate(mainNavigationItems[index].route) {
+                        popUpTo<Route.Home> { saveState = true }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
+                }
+            },
+            modifier = Modifier
+                .windowInsetsPadding(WindowInsets.systemBars)
+                .padding(end = dimensionResource(com.example.whispry.R.dimen.tablet_content_right_padding))
+        )
     }
 }

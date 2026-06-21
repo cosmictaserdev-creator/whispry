@@ -27,11 +27,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.whispry.R
 import com.example.whispry.ui.theme.WhispryTheme
 import com.kyant.backdrop.backdrops.LayerBackdrop
 import com.kyant.backdrop.backdrops.layerBackdrop
@@ -74,10 +76,11 @@ fun LiquidNavigationRail(
         label = "RailSelectedOffset"
     )
 
-    val indicatorTopPaddingPx = with(density) { 4.dp.toPx() }
+    val indicatorHeight = dimensionResource(R.dimen.tablet_nav_rail_indicator_height)
+    val indicatorHeightPx = with(density) { indicatorHeight.toPx() }
 
     BoxWithConstraints(
-        modifier = modifier.width(88.dp).fillMaxHeight(),
+        modifier = modifier.width(dimensionResource(R.dimen.tablet_nav_rail_width)).fillMaxHeight(),
         contentAlignment = Alignment.TopStart
     ) {
         val railHeight = constraints.maxHeight.toFloat()
@@ -88,7 +91,7 @@ fun LiquidNavigationRail(
         Box(
             modifier = Modifier
                 .fillMaxHeight()
-                .width(80.dp)
+                .width(dimensionResource(R.dimen.tablet_nav_rail_content_width))
                 .padding(vertical = 6.dp)
                 .let { m ->
                     if (useGlass) {
@@ -121,13 +124,14 @@ fun LiquidNavigationRail(
                 }
         ) {
             // Selection indicator
+            val indicatorCenterY = verticalPadding + (animatedSelectedOffset * itemHeight) + (itemHeight / 2f)
             Box(
                 modifier = Modifier
-                    .width(68.dp)
-                    .height(with(density) { itemHeight.toDp() - 8.dp })
+                    .width(dimensionResource(R.dimen.tablet_nav_rail_indicator_width))
+                    .height(indicatorHeight)
                     .align(Alignment.TopStart)
                     .graphicsLayer {
-                        translationY = verticalPadding + (animatedSelectedOffset * itemHeight) + indicatorTopPaddingPx
+                        translationY = indicatorCenterY - (indicatorHeightPx / 2f)
                         clip = true
                         shape = ContinuousRoundedRectangle(100.dp)
                     }

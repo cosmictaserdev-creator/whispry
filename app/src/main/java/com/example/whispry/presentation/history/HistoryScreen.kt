@@ -48,6 +48,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
@@ -64,6 +65,7 @@ import android.graphics.Shader
 import android.os.Build
 import androidx.compose.ui.graphics.asComposeRenderEffect
 import com.example.whispry.domain.model.Transcript
+import com.example.whispry.R
 import com.example.whispry.presentation.common.GlassCard
 import com.example.whispry.ui.theme.WhispryTheme
 import com.kyant.backdrop.Backdrop
@@ -219,10 +221,10 @@ fun HistoryScreen(
                         }
                     },
                 contentPadding = PaddingValues(
-                    top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 150.dp,
-                    bottom = 140.dp,
-                    start = 24.dp,
-                    end = 24.dp
+                    top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + dimensionResource(R.dimen.library_header_top_offset),
+                    bottom = dimensionResource(R.dimen.screen_bottom_padding),
+                    start = dimensionResource(R.dimen.screen_horizontal_padding),
+                    end = dimensionResource(R.dimen.screen_horizontal_padding)
                 ),
                 verticalArrangement = Arrangement.spacedBy(20.dp),
                 userScrollEnabled = !isSearchActive 
@@ -326,7 +328,7 @@ fun HistoryScreen(
             // 3. Content Panel
             Column(
                 modifier = Modifier
-                    .padding(top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 24.dp)
+                    .padding(top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + dimensionResource(R.dimen.library_header_extra_padding))
                     .padding(horizontal = 50.dp + 32.dp, vertical = 12.dp)
             ) {
                 Box(
