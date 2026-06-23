@@ -46,6 +46,8 @@ import androidx.savedstate.SavedStateRegistry
 import androidx.savedstate.SavedStateRegistryController
 import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
+import androidx.datastore.preferences.core.edit
+import com.example.whispry.data.local.datasource.DataStoreKeys
 import com.example.whispry.data.local.datasource.SettingsProvider
 import com.example.whispry.ui.theme.WhispryTheme
 import com.example.whispry.ui.theme.WhispryTokens
@@ -53,6 +55,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -82,12 +85,15 @@ class FloatingWidgetManager @Inject constructor(
 
     private val widgetState = MutableStateFlow(FloatingWidgetState())
 
+    private val positionManager by lazy {
+        BubblePositionManager(context.resources.displayMetrics.density)
+    }
+
     init {
         savedStateRegistryController.performRestore(null)
         lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_CREATE)
         
         observeOverlayCoordinator()
-        observeTranscriptionResults()
     }
 
     private fun observeOverlayCoordinator() {
@@ -97,16 +103,6 @@ class FloatingWidgetManager @Inject constructor(
                     show()
                 } else {
                     hide()
-                }
-            }
-        }
-    }
-
-    private fun observeTranscriptionResults() {
-        managerScope.launch {
-            serviceBridge.triggerEvent.collect { event ->
-                if (event is ServiceBridge.TriggerEvent.TranscriptionResult) {
-                    widgetState.update { it.copy(lastTranscript = event.text) }
                 }
             }
         }
@@ -146,15 +142,36 @@ class FloatingWidgetManager @Inject constructor(
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
-            x = 16.dpToPx()
-            y = 120.dpToPx()
         }
 
-        try {
-            windowManager.addView(composeView, layoutParams)
-            lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_START)
-        } catch (e: Exception) {
-            Log.e(TAG, "Error adding widget", e)
+        managerScope.launch {
+            val safeBounds = getSafeBounds().toBubbleBounds()
+            val savedXPct = settingsProvider.dataStore.data.first()[DataStoreKeys.BUBBLE_POSITION_X]
+            val savedYPct = settingsProvider.dataStore.data.first()[DataStoreKeys.BUBBLE_POSITION_Y]
+            val initialSize = 48.dpToPx().toFloat()
+
+            layoutParams?.let { lp ->
+                if (savedXPct != null && savedYPct != null) {
+                    val (x, y) = positionManager.denormalize(
+                        savedXPct.toFloat(), savedYPct.toFloat(), safeBounds
+                    )
+                    lp.x = x.toInt()
+                    lp.y = y.toInt()
+                } else {
+                    val (x, y) = positionManager.defaultPosition(
+                        initialSize, initialSize, safeBounds
+                    )
+                    lp.x = x.toInt()
+                    lp.y = y.toInt()
+                }
+            }
+
+            try {
+                windowManager.addView(composeView, layoutParams)
+                lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_START)
+            } catch (e: Exception) {
+                Log.e(TAG, "Error adding widget", e)
+            }
         }
     }
 
@@ -181,43 +198,27 @@ class FloatingWidgetManager @Inject constructor(
             targetValue = if (state.isExpanded) 220.dp else 48.dp,
             animationSpec = spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow),
             label = "WidgetWidth",
-            finishedListener = {
-                // Ensure layout params are updated after expansion animation
-                updateWindowSize()
-            }
+            finishedListener = { updateWindowSize() }
         )
         val height by animateDpAsState(
-            targetValue = if (state.isExpanded) 140.dp else 48.dp,
+            targetValue = if (state.isExpanded) 64.dp else 48.dp,
             animationSpec = spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow),
             label = "WidgetHeight"
         )
 
-        // Track expansion side to adjust lp.x if needed
         LaunchedEffect(state.isExpanded) {
             if (state.isExpanded) {
-                adjustPositionForExpansion()
+                reSnapAfterResize()
             } else {
-                snapToEdge()
+                reSnapAfterResize()
             }
         }
-
-        val infiniteTransition = rememberInfiniteTransition(label = "Pulse")
-        val scale by infiniteTransition.animateFloat(
-            initialValue = 1f,
-            targetValue = 1.03f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(1500, easing = FastOutSlowInEasing),
-                repeatMode = RepeatMode.Reverse
-            ),
-            label = "Breathing"
-        )
 
         Box(
             modifier = Modifier
                 .size(width, height)
-                .scale(if (state.isExpanded) 1f else scale)
                 .clip(RoundedCornerShape(24.dp))
-                .background(Color.White.copy(alpha = 0.15f))
+                .background(Color.White.copy(alpha = 0.12f))
                 .border(1.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(24.dp))
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
@@ -235,9 +236,7 @@ class FloatingWidgetManager @Inject constructor(
                                 } catch (e: Exception) {}
                             }
                         },
-                        onDragEnd = {
-                            snapToEdge()
-                        }
+                        onDragEnd = { snapAndSavePosition() }
                     )
                 }
         ) {
@@ -254,9 +253,9 @@ class FloatingWidgetManager @Inject constructor(
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(12.dp)
+                        .padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    // Header
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -278,22 +277,6 @@ class FloatingWidgetManager @Inject constructor(
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    // Transcript
-                    Text(
-                        text = state.lastTranscript ?: "Ready to listen",
-                        style = MaterialTheme.typography.bodySmall,
-                        fontSize = 11.sp,
-                        color = if (state.lastTranscript != null) Color.White.copy(alpha = 0.8f) else Color.White.copy(alpha = 0.4f),
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f)
-                    )
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    // Actions
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -338,41 +321,47 @@ class FloatingWidgetManager @Inject constructor(
         }
     }
 
-    private fun adjustPositionForExpansion() {
+    private fun snapAndSavePosition() {
         val view = composeView ?: return
         layoutParams?.let { lp ->
-            val displayMetrics = context.resources.displayMetrics
-            val screenWidth = displayMetrics.widthPixels
-            
-            // If we are on the right side, move lp.x to the left so expansion stays on screen
-            // Use view.width if available, otherwise assume collapsed width
-            val currentWidth = if (view.width > 0) view.width else 48.dpToPx()
-            if (lp.x + 220.dpToPx() > screenWidth) {
-                lp.x = screenWidth - 220.dpToPx() - 16.dpToPx()
-            }
-            
-            try {
-                windowManager.updateViewLayout(view, lp)
-            } catch (e: Exception) {}
-        }
-    }
-
-    private fun snapToEdge() {
-        val view = composeView ?: return
-        layoutParams?.let { lp ->
-            val displayMetrics = context.resources.displayMetrics
-            val screenWidth = displayMetrics.widthPixels
-            val screenHeight = displayMetrics.heightPixels
-            
+            val bounds = getSafeBounds().toBubbleBounds()
             val viewWidth = if (view.width > 0) view.width else 48.dpToPx()
             val viewHeight = if (view.height > 0) view.height else 48.dpToPx()
 
-            // Snap to nearest corner
-            val targetX = if (lp.x < (screenWidth - viewWidth) / 2) 16.dpToPx() else screenWidth - viewWidth - 16.dpToPx()
-            val targetY = lp.y.coerceIn(16.dpToPx(), screenHeight - viewHeight - 16.dpToPx())
-            
-            lp.x = targetX
-            lp.y = targetY
+            val (snapX, snapY) = positionManager.snapPosition(
+                lp.x.toFloat(), lp.y.toFloat(),
+                viewWidth.toFloat(), viewHeight.toFloat(), bounds
+            )
+            lp.x = snapX.toInt()
+            lp.y = snapY.toInt()
+            try {
+                windowManager.updateViewLayout(view, lp)
+            } catch (e: Exception) {}
+
+            val (nx, ny) = positionManager.normalize(
+                lp.x.toFloat(), lp.y.toFloat(), bounds
+            )
+            managerScope.launch {
+                settingsProvider.dataStore.edit { prefs ->
+                    prefs[DataStoreKeys.BUBBLE_POSITION_X] = nx.toInt()
+                    prefs[DataStoreKeys.BUBBLE_POSITION_Y] = ny.toInt()
+                }
+            }
+        }
+    }
+
+    private fun reSnapAfterResize() {
+        val view = composeView ?: return
+        layoutParams?.let { lp ->
+            val bounds = getSafeBounds().toBubbleBounds()
+            val viewWidth = if (view.width > 0) view.width else 48.dpToPx()
+            val viewHeight = if (view.height > 0) view.height else 48.dpToPx()
+            val (snapX, snapY) = positionManager.snapPosition(
+                lp.x.toFloat(), lp.y.toFloat(),
+                viewWidth.toFloat(), viewHeight.toFloat(), bounds
+            )
+            lp.x = snapX.toInt()
+            lp.y = snapY.toInt()
             try {
                 windowManager.updateViewLayout(view, lp)
             } catch (e: Exception) {}
@@ -380,7 +369,25 @@ class FloatingWidgetManager @Inject constructor(
     }
 
     private fun Int.dpToPx(): Int = (this * context.resources.displayMetrics.density).toInt()
-    
-    private val android.util.DisplayMetrics.widthWidth: Int get() = widthPixels
-    private val android.util.DisplayMetrics.heightHeight: Int get() = heightPixels
+
+    private fun android.graphics.Rect.toBubbleBounds() = BubbleBounds(left, top, right, bottom)
+
+    private fun getSafeBounds(): android.graphics.Rect {
+        return if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+            val metrics = windowManager.currentWindowMetrics
+            val bounds = metrics.bounds
+            val insets = metrics.windowInsets.getInsetsIgnoringVisibility(
+                android.view.WindowInsets.Type.systemBars() or android.view.WindowInsets.Type.displayCutout()
+            )
+            android.graphics.Rect(
+                bounds.left + insets.left,
+                bounds.top + insets.top,
+                bounds.right - insets.right,
+                bounds.bottom - insets.bottom
+            )
+        } else {
+            val dm = context.resources.displayMetrics
+            android.graphics.Rect(0, 0, dm.widthPixels, dm.heightPixels)
+        }
+    }
 }

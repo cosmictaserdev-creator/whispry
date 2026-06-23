@@ -255,6 +255,10 @@ class BubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedState
     private val isRecording = mutableStateOf(false)
     private val showCancelHint = mutableStateOf(false)
 
+    private val positionManager by lazy {
+        BubblePositionManager(resources.displayMetrics.density)
+    }
+
     private var lastAudioFilePath: String? = null
     private var lastAudioDurationMs: Long = 0L
 
@@ -380,6 +384,34 @@ class BubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedState
             pendingIntent
         )
         super.onTaskRemoved(rootIntent)
+    }
+
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        val view = composeView ?: return
+        val params = layoutParams ?: return
+        if (!view.isAttachedToWindow) return
+
+        serviceScope.launch {
+            val savedXPct = settingsProvider.dataStore.data.first()[DataStoreKeys.BUBBLE_POSITION_X]
+            val savedYPct = settingsProvider.dataStore.data.first()[DataStoreKeys.BUBBLE_POSITION_Y]
+            if (savedXPct == null || savedYPct == null) return@launch
+
+            val safeBounds = getSafeWindowBounds().toBubbleBounds()
+            val bubbleWidth = view.width.toFloat()
+            val bubbleHeight = view.height.toFloat()
+
+            val (denormX, denormY) = positionManager.denormalize(
+                savedXPct.toFloat(), savedYPct.toFloat(), safeBounds
+            )
+            val (newX, newY) = positionManager.snapPosition(
+                denormX, denormY, bubbleWidth, bubbleHeight, safeBounds
+            )
+
+            animateToPosition(params.x, newX.toInt(), params.y, newY.toInt()) {
+                saveBubblePosition()
+            }
+        }
     }
 
     private fun observeTriggerEvents() {
@@ -615,16 +647,28 @@ class BubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedState
             }
 
             serviceScope.launch {
-                val safeBounds = getSafeWindowBounds()
-                val savedX = settingsProvider.dataStore.data.first()[DataStoreKeys.BUBBLE_POSITION_X]
-                val savedY = settingsProvider.dataStore.data.first()[DataStoreKeys.BUBBLE_POSITION_Y]
-                
+                val safeBounds = getSafeWindowBounds().toBubbleBounds()
+                val savedXPct = settingsProvider.dataStore.data.first()[DataStoreKeys.BUBBLE_POSITION_X]
+                val savedYPct = settingsProvider.dataStore.data.first()[DataStoreKeys.BUBBLE_POSITION_Y]
+                val initialWidth = 280.dpToPx().toFloat()
+                val initialHeight = 68.dpToPx().toFloat()
+
                 layoutParams?.let { lp ->
-                    // Default to bottom center (centered X, near bottom Y)
-                    lp.x = savedX ?: (safeBounds.left + (safeBounds.width() - 280.dpToPx()) / 2)
-                    lp.y = savedY ?: (safeBounds.bottom - 140.dpToPx())
+                    if (savedXPct != null && savedYPct != null) {
+                        val (x, y) = positionManager.denormalize(
+                            savedXPct.toFloat(), savedYPct.toFloat(), safeBounds
+                        )
+                        lp.x = x.toInt()
+                        lp.y = y.toInt()
+                    } else {
+                        val (x, y) = positionManager.defaultPosition(
+                            initialWidth, initialHeight, safeBounds
+                        )
+                        lp.x = x.toInt()
+                        lp.y = y.toInt()
+                    }
                 }
-                
+
                 try {
                     windowManager.addView(composeView, layoutParams)
                 } catch (e: Exception) {
@@ -655,28 +699,41 @@ class BubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedState
     private fun snapToNearestEdge() {
         val params = layoutParams ?: return
         val view = composeView ?: return
-        val safeBounds = getSafeWindowBounds()
-        val bubbleWidth = view.width
-        val bubbleCenterX = params.x + bubbleWidth / 2
-        val safeWidth = safeBounds.width()
-        
-        // Snapping logic: Snap to left or right edge with 16dp margin
-        val targetX = if (bubbleCenterX < safeBounds.left + safeWidth / 2) {
-            safeBounds.left + 16.dpToPx()
-        } else {
-            safeBounds.right - bubbleWidth - 16.dpToPx()
+        val safeBounds = getSafeWindowBounds().toBubbleBounds()
+        val bubbleWidth = view.width.toFloat()
+        val bubbleHeight = view.height.toFloat()
+
+        val (targetX, targetY) = positionManager.snapPosition(
+            params.x.toFloat(), params.y.toFloat(),
+            bubbleWidth, bubbleHeight, safeBounds
+        )
+
+        animateToPosition(params.x, targetX.toInt(), params.y, targetY.toInt()) {
+            saveBubblePosition()
         }
-        
-        ValueAnimator.ofInt(params.x, targetX).apply {
+    }
+
+    private fun animateToPosition(
+        startX: Int, endX: Int, startY: Int, endY: Int,
+        onEnd: () -> Unit
+    ) {
+        val params = layoutParams ?: return
+        val view = composeView ?: return
+        val dx = endX - startX
+        val dy = endY - startY
+
+        ValueAnimator.ofFloat(0f, 1f).apply {
             duration = 300
             interpolator = OvershootInterpolator(1.2f)
             addUpdateListener { anim ->
-                params.x = anim.animatedValue as Int
+                val fraction = anim.animatedFraction
+                params.x = (startX + dx * fraction).toInt()
+                params.y = (startY + dy * fraction).toInt()
                 try { windowManager.updateViewLayout(view, params) } catch (e: Exception) {}
             }
             addListener(object : android.animation.AnimatorListenerAdapter() {
                 override fun onAnimationEnd(animation: android.animation.Animator) {
-                    saveBubblePosition()
+                    onEnd()
                 }
             })
             start()
@@ -685,10 +742,14 @@ class BubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedState
 
     private fun saveBubblePosition() {
         val params = layoutParams ?: return
+        val safeBounds = getSafeWindowBounds().toBubbleBounds()
+        val (nx, ny) = positionManager.normalize(
+            params.x.toFloat(), params.y.toFloat(), safeBounds
+        )
         serviceScope.launch {
             settingsProvider.dataStore.edit { prefs ->
-                prefs[DataStoreKeys.BUBBLE_POSITION_X] = params.x
-                prefs[DataStoreKeys.BUBBLE_POSITION_Y] = params.y
+                prefs[DataStoreKeys.BUBBLE_POSITION_X] = nx.toInt()
+                prefs[DataStoreKeys.BUBBLE_POSITION_Y] = ny.toInt()
             }
         }
     }
@@ -707,3 +768,5 @@ class BubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedState
         
     private fun Int.dpToPx(): Int = (this * resources.displayMetrics.density).toInt()
 }
+
+private fun android.graphics.Rect.toBubbleBounds() = BubbleBounds(left, top, right, bottom)

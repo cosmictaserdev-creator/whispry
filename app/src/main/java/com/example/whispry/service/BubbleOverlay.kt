@@ -21,6 +21,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.whispry.ui.theme.WhispryTheme
@@ -113,6 +115,12 @@ private fun PillContent(
     val targetHeight = if (isMiniMode) 56.dp else 68.dp 
     val cornerRadius = if (isMiniMode) 28.dp else 34.dp
 
+    val configuration = LocalConfiguration.current
+    val maxBubbleWidth = with(LocalDensity.current) {
+        val widthDp = (configuration.screenWidthDp * 0.85f).dp
+        if (widthDp > 420.dp) 420.dp else widthDp
+    }
+
     val animatedWidth by animateDpAsState(
         targetValue = targetWidth,
         animationSpec = spring(dampingRatio = 0.72f, stiffness = 380f),
@@ -127,6 +135,7 @@ private fun PillContent(
 
     Box(
         modifier = Modifier
+            .widthIn(max = maxBubbleWidth)
             .width(animatedWidth)
             .height(animatedHeight)
             .graphicsLayer {
