@@ -27,6 +27,32 @@
 
     <uses-permission android:name="android.permission.READ_PHONE_STATE"/>
 
+    <!-- Package visibility for Voice Commands (Android 11+). We deliberately avoid the
+         sensitive QUERY_ALL_PACKAGES permission and only query launchable apps + the
+         schemes we launch (web/maps/play store). -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="http" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="geo" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="market" />
+        </intent>
+    </queries>
+
     <application
         android:allowBackup="true"
         android:name=".WhispryApp"
@@ -63,6 +89,8 @@
                 <data android:scheme="whispry" android:host="text-expander" />
                 <data android:scheme="whispry" android:host="app-tones" />
                 <data android:scheme="whispry" android:host="memory" />
+                <data android:scheme="whispry" android:host="my-info" />
+                <data android:scheme="whispry" android:host="voice-commands" />
                 <data android:scheme="whispry" android:host="about" />
             </intent-filter>
         </activity>

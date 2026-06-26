@@ -12,10 +12,12 @@ import com.example.whispry.ui.util.liquid.GlassBackdropCache
 import com.example.whispry.util.CleanupWorker
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
+import kotlinx.coroutines.launch
 
 @HiltAndroidApp
 class WhispryApp : Application() {
     @Inject lateinit var glassBackdropCache: GlassBackdropCache
+    @Inject lateinit var defaultsSeeder: com.example.whispry.data.local.DefaultsSeeder
 
     override fun onCreate() {
         super.onCreate()
@@ -25,6 +27,9 @@ class WhispryApp : Application() {
         scheduleWatchdog()
         scheduleTranscriptCleanup()
         schedulePremiumReminder()
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+            try { defaultsSeeder.seedIfNeeded() } catch (_: Exception) { }
+        }
     }
 
     private fun scheduleTranscriptCleanup() {

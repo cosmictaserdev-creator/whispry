@@ -33,6 +33,8 @@ class SettingsProvider @Inject constructor(
     val accentColor: Flow<String> = dataStore.data.map { it[DataStoreKeys.ACCENT_COLOR] ?: "Purple" }
     val customAiInstructions: Flow<String> = dataStore.data.map { it[DataStoreKeys.CUSTOM_AI_INSTRUCTIONS] ?: "" }
     val appAwareToneEnabled: Flow<Boolean> = dataStore.data.map { it[DataStoreKeys.APP_AWARE_TONE_ENABLED] ?: false }
+    val translateTargetLanguage: Flow<String> = dataStore.data.map { it[DataStoreKeys.TRANSLATE_TARGET_LANGUAGE] ?: "English" }
+    val voiceCommandsEnabled: Flow<Boolean> = dataStore.data.map { it[DataStoreKeys.VOICE_COMMANDS_ENABLED] ?: true }
 
     // Bug 1
     val smartTriggerSuppression: Flow<Boolean> = dataStore.data.map { it[DataStoreKeys.SMART_TRIGGER_SUPPRESSION] ?: true }
@@ -53,6 +55,8 @@ class SettingsProvider @Inject constructor(
     suspend fun setSmartTriggerSuppression(value: Boolean) = dataStore.edit { it[DataStoreKeys.SMART_TRIGGER_SUPPRESSION] = value }
     suspend fun setCustomAiInstructions(value: String) = dataStore.edit { it[DataStoreKeys.CUSTOM_AI_INSTRUCTIONS] = value }
     suspend fun setAppAwareToneEnabled(value: Boolean) = dataStore.edit { it[DataStoreKeys.APP_AWARE_TONE_ENABLED] = value }
+    suspend fun setTranslateTargetLanguage(value: String) = dataStore.edit { it[DataStoreKeys.TRANSLATE_TARGET_LANGUAGE] = value }
+    suspend fun setVoiceCommandsEnabled(value: Boolean) = dataStore.edit { it[DataStoreKeys.VOICE_COMMANDS_ENABLED] = value }
 
     suspend fun <T> setPreference(key: Preferences.Key<T>, value: T) {
         dataStore.edit { it[key] = value }

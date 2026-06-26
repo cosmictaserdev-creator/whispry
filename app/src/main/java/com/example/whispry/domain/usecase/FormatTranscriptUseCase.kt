@@ -20,6 +20,10 @@ class FormatTranscriptUseCase @Inject constructor(
         preset: OutputPreset,
         skipAppAware: Boolean = false
     ): Result<String> {
+        // Guard: never ship empty/near-empty input to the model — it hallucinates content
+        // to fill the void. Return the raw text untouched instead.
+        if (rawText.isBlank()) return Result.Success(rawText)
+
         val appAwareEnabled = !skipAppAware && settingsProvider.appAwareToneEnabled.first()
         val pkg = ServiceLocator.lastForegroundPackage
         
@@ -48,7 +52,13 @@ class FormatTranscriptUseCase @Inject constructor(
             if (customPrompt.isBlank()) return Result.Success(rawText)
             customPrompt
         } else {
-            finalPreset.systemPrompt
+            // Inject the user's chosen output language into the Translate preset prompt.
+            if (finalPreset == OutputPreset.TRANSLATE_AUTO) {
+                val targetLanguage = settingsProvider.translateTargetLanguage.first().ifBlank { "English" }
+                finalPreset.systemPrompt.replace(OutputPreset.TARGET_LANGUAGE_PLACEHOLDER, targetLanguage)
+            } else {
+                finalPreset.systemPrompt
+            }
         }
 
         if (basePrompt.isEmpty()) {

@@ -123,6 +123,22 @@ object AppModule {
 
     @Provides
     @Singleton
+    fun provideMyInfoRepository(
+        dao: com.example.whispry.features.myinfo.data.local.db.MyInfoDao
+    ): com.example.whispry.features.myinfo.domain.repository.MyInfoRepository {
+        return com.example.whispry.features.myinfo.data.repository.MyInfoRepositoryImpl(dao)
+    }
+
+    @Provides
+    @Singleton
+    fun provideVoiceCommandRepository(
+        dao: com.example.whispry.features.voicecommand.data.local.db.VoiceCommandDao
+    ): com.example.whispry.features.voicecommand.domain.repository.VoiceCommandRepository {
+        return com.example.whispry.features.voicecommand.data.repository.VoiceCommandRepositoryImpl(dao)
+    }
+
+    @Provides
+    @Singleton
     fun provideUsageRepository(
         usageDataStore: UsageDataStore
     ): UsageRepository {

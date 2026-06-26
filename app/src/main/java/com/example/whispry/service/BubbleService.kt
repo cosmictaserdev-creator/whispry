@@ -231,6 +231,8 @@ class BubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedState
     @Inject lateinit var formatTranscriptUseCase: FormatTranscriptUseCase
     @Inject lateinit var transcribeAudioUseCase: TranscribeAudioUseCase
     @Inject lateinit var expandTextUseCase: ExpandTextUseCase
+    @Inject lateinit var processTranscriptUseCase: com.example.whispry.domain.usecase.ProcessTranscriptUseCase
+    @Inject lateinit var voiceCommandExecutor: VoiceCommandExecutor
     @Inject lateinit var textInserter: TextInserter
     @Inject lateinit var hapticHelper: HapticHelper
     @Inject lateinit var settingsProvider: com.example.whispry.data.local.datasource.SettingsProvider
@@ -272,6 +274,16 @@ class BubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedState
     private var amplitudeJob: Job? = null
     private var transcriptionJob: Job? = null
     private val mainHandler = Handler(Looper.getMainLooper())
+
+    /** Result of routing a finished transcript through [processTranscriptUseCase]. */
+    private sealed interface Processed {
+        data class Text(val text: String) : Processed
+        data class Command(
+            val action: com.example.whispry.domain.model.VoiceAppAction,
+            val original: String
+        ) : Processed
+        data class Err(val message: String, val noInternet: Boolean) : Processed
+    }
 
     companion object {
         const val ACTION_START_RECORDING = "com.example.whispry.action.START_RECORDING"
@@ -503,39 +515,50 @@ class BubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedState
             try {
                 val language = settingsProvider.language.first()
                 val preset = defaultOutputPreset
-                val transcribeResult = withContext(Dispatchers.IO) {
+                val processed: Processed = withContext(Dispatchers.IO) {
                     val rawResult = audioRepository.transcribeAudio(
                         audioFilePath = filePath,
                         languageCode = if (language == "Auto") "en" else language
                     )
-                    if (rawResult is com.example.whispry.domain.util.Result.Success) {
-                        val expandedText = expandTextUseCase(rawResult.data)
-                        val result = com.example.whispry.domain.util.Result.Success(expandedText)
-                        if (preset != OutputPreset.NONE) {
-                            withContext(Dispatchers.Main) { bubbleState.value = BubbleState.Formatting(preset) }
-                            val formatResult = formatTranscriptUseCase(result.data, preset)
-                            if (formatResult is com.example.whispry.domain.util.Result.Success) {
-                                transcriptRepository.saveTranscript(formatResult.data, result.data, durationMs, language ?: "en", preset.name)
-                                com.example.whispry.domain.util.Result.Success(formatResult.data)
-                            } else {
-                                transcriptRepository.saveTranscript(result.data, result.data, durationMs, language ?: "en", OutputPreset.NONE.name)
-                                com.example.whispry.domain.util.Result.Success(result.data)
+                    when (rawResult) {
+                        is com.example.whispry.domain.util.Result.Success -> {
+                            val rawText = rawResult.data
+                            if (preset != OutputPreset.NONE) {
+                                withContext(Dispatchers.Main) { bubbleState.value = BubbleState.Formatting(preset) }
                             }
-                        } else {
-                            transcriptRepository.saveTranscript(result.data, result.data, durationMs, language ?: "en", OutputPreset.NONE.name)
-                            result
+                            // Single decision point: expand / insert / voice command / normal format.
+                            when (val outcome = processTranscriptUseCase(rawText, preset)) {
+                                is com.example.whispry.domain.model.TranscriptOutcome.InsertText -> {
+                                    val finalText = outcome.text
+                                    val savedPreset = if (finalText == rawText) OutputPreset.NONE.name else preset.name
+                                    transcriptRepository.saveTranscript(finalText, rawText, durationMs, language ?: "en", savedPreset)
+                                    Processed.Text(finalText)
+                                }
+                                is com.example.whispry.domain.model.TranscriptOutcome.RunCommand -> {
+                                    transcriptRepository.saveTranscript(outcome.originalTranscript, rawText, durationMs, language ?: "en", OutputPreset.NONE.name)
+                                    Processed.Command(outcome.action, outcome.originalTranscript)
+                                }
+                            }
                         }
-                    } else rawResult
+                        is com.example.whispry.domain.util.Result.Error ->
+                            Processed.Err(rawResult.message, rawResult.message == "no_internet")
+                        else -> Processed.Err("Error", false)
+                    }
                 }
                 mainHandler.removeCallbacks(miniModeTransitionRunnable)
                 hintJob.cancel()
                 showCancelHint.value = false
 
                 // Track usage after successful transcription (before UI handling)
-                if (transcribeResult is com.example.whispry.domain.util.Result.Success) {
+                val producedText: String? = when (processed) {
+                    is Processed.Text -> processed.text
+                    is Processed.Command -> processed.original
+                    is Processed.Err -> null
+                }
+                if (producedText != null) {
                     try {
                         usageRepository.incrementRequests(1)
-                        val wordCount = transcribeResult.data.split("\\s+".toRegex()).size
+                        val wordCount = producedText.split("\\s+".toRegex()).size
                         if (wordCount > 0) usageRepository.incrementWords(wordCount)
                         val usage = usageRepository.getTodayUsage()
                         notificationManager.updateForegroundNotification(usage)
@@ -543,10 +566,10 @@ class BubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedState
                 }
 
                 val handleResult = {
-                    when (transcribeResult) {
-                        is com.example.whispry.domain.util.Result.Success<String> -> {
-                            val insertResult = textInserter.insertText(transcribeResult.data, this@BubbleService, ServiceLocator.triggerService)
-                            serviceBridge.emit(ServiceBridge.TriggerEvent.TranscriptionResult(transcribeResult.data))
+                    when (processed) {
+                        is Processed.Text -> {
+                            val insertResult = textInserter.insertText(processed.text, this@BubbleService, ServiceLocator.triggerService)
+                            serviceBridge.emit(ServiceBridge.TriggerEvent.TranscriptionResult(processed.text))
                             bubbleState.value = BubbleState.Success
                             hapticHelper.vibrateSuccess()
                             soundManager.play(SoundEvent.SUCCESS)
@@ -555,16 +578,33 @@ class BubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedState
                             scheduleBubbleDismissal(SUCCESS_DISMISS_DELAY_MS)
                             lastAudioFilePath = null
                         }
-                        is com.example.whispry.domain.util.Result.Error -> {
-                            val isNoInternet = transcribeResult.message == "no_internet"
-                            bubbleState.value = BubbleState.Error(transcribeResult.message, isNoInternet)
-                            message.value = if (isNoInternet) "No Internet" else transcribeResult.message
+                        is Processed.Command -> {
+                            val exec = voiceCommandExecutor.execute(processed.action)
+                            serviceBridge.emit(ServiceBridge.TriggerEvent.TranscriptionResult(processed.original))
+                            if (exec is VoiceCommandExecutor.ExecResult.Failed) {
+                                // App missing / launch failed -> paste original transcript so nothing is lost.
+                                textInserter.insertText(processed.original, this@BubbleService, ServiceLocator.triggerService)
+                            }
+                            bubbleState.value = BubbleState.Success
+                            hapticHelper.vibrateSuccess()
+                            soundManager.play(SoundEvent.SUCCESS)
+                            audioDuckingManager.restore()
+                            message.value = when (exec) {
+                                is VoiceCommandExecutor.ExecResult.Launched -> exec.message
+                                is VoiceCommandExecutor.ExecResult.Failed -> exec.message
+                            }
+                            scheduleBubbleDismissal(SUCCESS_DISMISS_DELAY_MS)
+                            lastAudioFilePath = null
+                        }
+                        is Processed.Err -> {
+                            val isNoInternet = processed.noInternet
+                            bubbleState.value = BubbleState.Error(processed.message, isNoInternet)
+                            message.value = if (isNoInternet) "No Internet" else processed.message
                             hapticHelper.vibrateError()
                             soundManager.play(SoundEvent.ERROR)
                             audioDuckingManager.restore()
                             scheduleBubbleDismissal(ERROR_DISMISS_DELAY_MS)
                         }
-                        else -> {}
                     }
                 }
                 if (isMiniMode) expandFromMini { handleResult() } else handleResult()

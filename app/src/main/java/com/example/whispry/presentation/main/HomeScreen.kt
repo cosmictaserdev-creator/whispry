@@ -308,7 +308,7 @@ fun HomeScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .shadow(4.dp, com.kyant.capsule.ContinuousRoundedRectangle(20.dp), spotColor = androidx.compose.ui.graphics.Color.Black)
-                    .background(androidx.compose.ui.graphics.Color(0xFF1C1C1E), com.kyant.capsule.ContinuousRoundedRectangle(20.dp))
+                    .background(com.example.whispry.ui.theme.WhispryTokens.SurfaceElevated, com.kyant.capsule.ContinuousRoundedRectangle(20.dp))
                     .border(1.dp, com.example.whispry.ui.theme.WhispryTokens.GlassBorder, com.kyant.capsule.ContinuousRoundedRectangle(20.dp))
                     .padding(16.dp)
             ) {
@@ -348,7 +348,7 @@ fun UsageCard(
         modifier = Modifier
             .fillMaxWidth()
             .shadow(4.dp, com.kyant.capsule.ContinuousRoundedRectangle(20.dp), spotColor = Color.Black)
-            .background(Color(0xFF1C1C1E), com.kyant.capsule.ContinuousRoundedRectangle(20.dp))
+            .background(com.example.whispry.ui.theme.WhispryTokens.SurfaceElevated, com.kyant.capsule.ContinuousRoundedRectangle(20.dp))
             .border(1.dp, WhispryTokens.GlassBorder, com.kyant.capsule.ContinuousRoundedRectangle(20.dp))
             .padding(16.dp)
     ) {
@@ -424,7 +424,7 @@ fun StatCard(
     Box(
         modifier = modifier
             .shadow(4.dp, com.kyant.capsule.ContinuousRoundedRectangle(20.dp), spotColor = androidx.compose.ui.graphics.Color.Black)
-                    .background(androidx.compose.ui.graphics.Color(0xFF1C1C1E), com.kyant.capsule.ContinuousRoundedRectangle(20.dp))
+                    .background(com.example.whispry.ui.theme.WhispryTokens.SurfaceElevated, com.kyant.capsule.ContinuousRoundedRectangle(20.dp))
                     .border(1.dp, com.example.whispry.ui.theme.WhispryTokens.GlassBorder, com.kyant.capsule.ContinuousRoundedRectangle(20.dp))
             .padding(16.dp),
         contentAlignment = Alignment.Center
@@ -460,7 +460,7 @@ fun StatusBanner(
         modifier = Modifier
             .fillMaxWidth()
             .shadow(4.dp, com.kyant.capsule.ContinuousRoundedRectangle(24.dp), spotColor = androidx.compose.ui.graphics.Color.Black)
-                    .background(androidx.compose.ui.graphics.Color(0xFF1C1C1E), com.kyant.capsule.ContinuousRoundedRectangle(24.dp))
+                    .background(com.example.whispry.ui.theme.WhispryTokens.SurfaceElevated, com.kyant.capsule.ContinuousRoundedRectangle(24.dp))
                     .border(1.dp, com.example.whispry.ui.theme.WhispryTokens.GlassBorder, com.kyant.capsule.ContinuousRoundedRectangle(24.dp))
             .clickable { onClick() }
             .padding(16.dp)

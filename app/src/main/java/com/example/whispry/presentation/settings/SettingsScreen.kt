@@ -89,6 +89,8 @@ fun SettingsScreen(
     onNavigateToTextExpander: () -> Unit = {},
     onNavigateToAppTones: () -> Unit = {},
     onNavigateToMemory: () -> Unit = {},
+    onNavigateToMyInfo: () -> Unit = {},
+    onNavigateToVoiceCommands: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -133,6 +135,8 @@ fun SettingsScreen(
                         onNavigateToTextExpander = onNavigateToTextExpander,
                         onNavigateToAppTones = onNavigateToAppTones,
                         onNavigateToMemory = onNavigateToMemory,
+                        onNavigateToMyInfo = onNavigateToMyInfo,
+                        onNavigateToVoiceCommands = onNavigateToVoiceCommands,
                         onShowRetentionPicker = { showRetentionPicker = true }
                     )
                 }
@@ -167,7 +171,8 @@ fun SettingsScreen(
                 item {
                     ProductivitySection(
                         state, viewModel, backdrop,
-                        onNavigateToTextExpander, onNavigateToAppTones, onNavigateToMemory
+                        onNavigateToTextExpander, onNavigateToAppTones, onNavigateToMemory,
+                        onNavigateToMyInfo, onNavigateToVoiceCommands
                     )
                 }
                 item { DataPrivacySection(state, viewModel, backdrop) { showRetentionPicker = true } }
@@ -285,6 +290,8 @@ private fun SettingsDetailPane(
     onNavigateToTextExpander: () -> Unit,
     onNavigateToAppTones: () -> Unit,
     onNavigateToMemory: () -> Unit,
+    onNavigateToMyInfo: () -> Unit,
+    onNavigateToVoiceCommands: () -> Unit,
     onShowRetentionPicker: () -> Unit
 ) {
     LazyColumn(
@@ -308,7 +315,8 @@ private fun SettingsDetailPane(
                 SettingsCategory.Productivity ->
                     ProductivitySection(
                         state, viewModel, backdrop,
-                        onNavigateToTextExpander, onNavigateToAppTones, onNavigateToMemory
+                        onNavigateToTextExpander, onNavigateToAppTones, onNavigateToMemory,
+                        onNavigateToMyInfo, onNavigateToVoiceCommands
                     )
                 SettingsCategory.Data ->
                     DataPrivacySection(state, viewModel, backdrop, onShowRetentionPicker)
@@ -454,13 +462,56 @@ private fun ProductivitySection(
     backdrop: LayerBackdrop,
     onNavigateToTextExpander: () -> Unit,
     onNavigateToAppTones: () -> Unit,
-    onNavigateToMemory: () -> Unit
+    onNavigateToMemory: () -> Unit,
+    onNavigateToMyInfo: () -> Unit,
+    onNavigateToVoiceCommands: () -> Unit
 ) {
     SettingsSectionOptimized(title = "Productivity", backdrop = backdrop) {
+        LiquidSettingsToggle(
+            icon = Icons.Rounded.Bolt,
+            title = "Voice Commands & Shortcuts",
+            checked = state.voiceCommandsEnabled,
+            onCheckedChange = { viewModel.onIntent(SettingsIntent.SetVoiceCommandsEnabled(it)) },
+            backdrop = backdrop
+        )
+        Text(
+            "Enables \"expand\", \"insert\" and your app commands as the first spoken word.",
+            style = MaterialTheme.typography.labelSmall,
+            color = Color.White.copy(alpha = 0.4f),
+            modifier = Modifier.padding(start = 36.dp, top = 4.dp, bottom = 4.dp)
+        )
+
+        AnimatedVisibility(
+            visible = state.voiceCommandsEnabled,
+            enter = expandVertically() + fadeIn(),
+            exit = shrinkVertically() + fadeOut()
+        ) {
+            Column {
+                Spacer(modifier = Modifier.height(16.dp))
+                SettingsRow(
+                    icon = Icons.Rounded.Bolt,
+                    title = "Voice Commands",
+                    value = "Word → open / search app",
+                    onClick = onNavigateToVoiceCommands
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                SettingsRow(
+                    icon = Icons.Rounded.Person,
+                    title = "My Info",
+                    value = "insert address, email…",
+                    onClick = onNavigateToMyInfo
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
         SettingsRow(
             icon = Icons.Rounded.TextFields,
             title = "Text Expander",
-            value = "Shortcuts → full text",
+            value = "expand shortcut → full text",
             onClick = onNavigateToTextExpander
         )
 
@@ -910,7 +961,7 @@ fun SettingsSectionOptimized(
             modifier = Modifier
                 .fillMaxWidth()
                 .shadow(4.dp, com.kyant.capsule.ContinuousRoundedRectangle(24.dp), spotColor = androidx.compose.ui.graphics.Color.Black)
-                    .background(androidx.compose.ui.graphics.Color(0xFF1C1C1E), com.kyant.capsule.ContinuousRoundedRectangle(24.dp))
+                    .background(com.example.whispry.ui.theme.WhispryTokens.SurfaceElevated, com.kyant.capsule.ContinuousRoundedRectangle(24.dp))
                     .border(1.dp, com.example.whispry.ui.theme.WhispryTokens.GlassBorder, com.kyant.capsule.ContinuousRoundedRectangle(24.dp))
                 .padding(16.dp)
         ) {
@@ -1450,7 +1501,7 @@ fun StatusRow(
             modifier = Modifier
                 .size(40.dp)
                 .shadow(4.dp, com.kyant.capsule.ContinuousRoundedRectangle(20.dp), spotColor = androidx.compose.ui.graphics.Color.Black)
-                    .background(androidx.compose.ui.graphics.Color(0xFF1C1C1E), com.kyant.capsule.ContinuousRoundedRectangle(20.dp))
+                    .background(com.example.whispry.ui.theme.WhispryTokens.SurfaceElevated, com.kyant.capsule.ContinuousRoundedRectangle(20.dp))
                     .border(1.dp, com.example.whispry.ui.theme.WhispryTokens.GlassBorder, com.kyant.capsule.ContinuousRoundedRectangle(20.dp))
                 .border(
                     width = 1.dp,

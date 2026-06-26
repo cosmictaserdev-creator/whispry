@@ -33,7 +33,7 @@ fun GlassBox(
     backdrop: Backdrop, // Kept for compatibility but unused
     modifier: Modifier = Modifier,
     cornerRadius: Dp = 24.dp,
-    containerColor: Color = Color(0xFF1C1C1E), // Solid dark
+    containerColor: Color = WhispryTokens.SurfaceElevated, // translucent elevated panel
     blurRadius: Dp = 20.dp, 
     content: @Composable BoxScope.() -> Unit
 ) {
@@ -56,7 +56,7 @@ fun GlassCard(
     backdrop: Backdrop,
     modifier: Modifier = Modifier,
     cornerRadius: Dp = 24.dp,
-    containerColor: Color = Color(0xFF1C1C1E), // Matching Solid Matte Dark
+    containerColor: Color = WhispryTokens.SurfaceElevated, // translucent elevated panel
     onClick: (() -> Unit)? = null,
     content: @Composable BoxScope.() -> Unit
 ) {

@@ -12,6 +12,11 @@ object WhispryTokens {
     val DeepVoid = Color(0xFF08080F)        // background base
     val SurfaceGlass = Color(0x0FFFFFFF)    // 6% white — glass card fill
     val GlassBorder = Color(0x1AFFFFFF)     // 10% white — card border
+
+    // Translucent elevated panel fill. Replaces the old opaque 0xFF1C1C1E so the shared
+    // accent-glow background bleeds through and content panels feel like one glass system
+    // across every tab (instead of separate flat black boxes). ~82% alpha = readable but alive.
+    val SurfaceElevated = Color(0xD11C1C1E)
     
     val TextPrimary = Color(0xFFFFFFFF)
     val TextSecondary = Color(0x99FFFFFF)   // 60% white

@@ -15,6 +15,10 @@ import com.example.whispry.features.expander.presentation.TextExpanderScreen
 import com.example.whispry.features.expander.presentation.TextExpanderViewModel
 import com.example.whispry.features.memory.presentation.MemoryScreen
 import com.example.whispry.features.memory.presentation.MemoryViewModel
+import com.example.whispry.features.myinfo.presentation.MyInfoScreen
+import com.example.whispry.features.myinfo.presentation.MyInfoViewModel
+import com.example.whispry.features.voicecommand.presentation.VoiceCommandScreen
+import com.example.whispry.features.voicecommand.presentation.VoiceCommandViewModel
 import com.example.whispry.features.tone.presentation.AppToneScreen
 import com.example.whispry.features.tone.presentation.AppToneViewModel
 import com.example.whispry.presentation.about.AboutScreen
@@ -116,7 +120,9 @@ fun WhispryNavHost(
                 onRevisitTutorial = onRevisitTutorial,
                 onNavigateToTextExpander = { navController.navigate(Route.TextExpander) },
                 onNavigateToAppTones = { navController.navigate(Route.AppTones) },
-                onNavigateToMemory = { navController.navigate(Route.Memory) }
+                onNavigateToMemory = { navController.navigate(Route.Memory) },
+                onNavigateToMyInfo = { navController.navigate(Route.MyInfo) },
+                onNavigateToVoiceCommands = { navController.navigate(Route.VoiceCommands) }
             )
         }
         composable<Route.About> {
@@ -144,6 +150,21 @@ fun WhispryNavHost(
                 viewModel = vm,
                 navController = navController,
                 backdrop = globalGlassBackdrop
+            )
+        }
+        composable<Route.MyInfo> {
+            val vm: MyInfoViewModel = hiltViewModel()
+            MyInfoScreen(
+                viewModel = vm,
+                navController = navController,
+                backdrop = globalGlassBackdrop
+            )
+        }
+        composable<Route.VoiceCommands> {
+            val vm: VoiceCommandViewModel = hiltViewModel()
+            VoiceCommandScreen(
+                viewModel = vm,
+                navController = navController
             )
         }
     }

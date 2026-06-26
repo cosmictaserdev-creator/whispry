@@ -285,7 +285,7 @@ fun HistoryScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .shadow(4.dp, ContinuousRoundedRectangle(20.dp), spotColor = Color.Black)
-                                .background(Color(0xFF1C1C1E), ContinuousRoundedRectangle(20.dp))
+                                .background(com.example.whispry.ui.theme.WhispryTokens.SurfaceElevated, ContinuousRoundedRectangle(20.dp))
                                 .border(1.dp, com.example.whispry.ui.theme.WhispryTokens.GlassBorder, ContinuousRoundedRectangle(20.dp))
                                 .clickable { viewModel.onIntent(HistoryIntent.OpenDetail(transcript)) }
                                 .padding(16.dp)
@@ -359,7 +359,7 @@ fun HistoryScreen(
                                 modifier = Modifier
                                     .size(44.dp)
                                     .shadow(4.dp, com.kyant.capsule.ContinuousRoundedRectangle(20.dp), spotColor = androidx.compose.ui.graphics.Color.Black)
-                    .background(androidx.compose.ui.graphics.Color(0xFF1C1C1E), com.kyant.capsule.ContinuousRoundedRectangle(20.dp))
+                    .background(com.example.whispry.ui.theme.WhispryTokens.SurfaceElevated, com.kyant.capsule.ContinuousRoundedRectangle(20.dp))
                     .border(1.dp, com.example.whispry.ui.theme.WhispryTokens.GlassBorder, com.kyant.capsule.ContinuousRoundedRectangle(20.dp))
                             ) {
                                 Icon(Icons.Rounded.FilterList, null, tint = Color.White)
@@ -449,7 +449,7 @@ fun RubberySearchBar(
                     scaleY = 1f / pressScale
                 }
                 .shadow(4.dp, com.kyant.capsule.ContinuousRoundedRectangle(100.dp), spotColor = androidx.compose.ui.graphics.Color.Black)
-                    .background(androidx.compose.ui.graphics.Color(0xFF1C1C1E), com.kyant.capsule.ContinuousRoundedRectangle(100.dp))
+                    .background(com.example.whispry.ui.theme.WhispryTokens.SurfaceElevated, com.kyant.capsule.ContinuousRoundedRectangle(100.dp))
                     .border(1.dp, com.example.whispry.ui.theme.WhispryTokens.GlassBorder, com.kyant.capsule.ContinuousRoundedRectangle(100.dp))
                 .clickable(
                     enabled = progress < 0.5f, // Disable clickable area when expanded to allow text field focus
@@ -578,7 +578,7 @@ fun LibraryTranscriptItemOptimized(
                 scaleY = scale
             }
             .shadow(4.dp, ContinuousRoundedRectangle(20.dp), spotColor = Color.Black)
-            .background(Color(0xFF1C1C1E), ContinuousRoundedRectangle(20.dp))
+            .background(com.example.whispry.ui.theme.WhispryTokens.SurfaceElevated, ContinuousRoundedRectangle(20.dp))
             .border(1.dp, com.example.whispry.ui.theme.WhispryTokens.GlassBorder, ContinuousRoundedRectangle(20.dp))
             .clickable(
                 interactionSource = interactionSource,
@@ -745,7 +745,7 @@ fun TranscriptDetailContent(
             modifier = modifier
                 .fillMaxWidth()
                 .shadow(4.dp, com.kyant.capsule.ContinuousRoundedRectangle(20.dp), spotColor = androidx.compose.ui.graphics.Color.Black)
-                    .background(androidx.compose.ui.graphics.Color(0xFF1C1C1E), com.kyant.capsule.ContinuousRoundedRectangle(20.dp))
+                    .background(com.example.whispry.ui.theme.WhispryTokens.SurfaceElevated, com.kyant.capsule.ContinuousRoundedRectangle(20.dp))
                     .border(1.dp, com.example.whispry.ui.theme.WhispryTokens.GlassBorder, com.kyant.capsule.ContinuousRoundedRectangle(20.dp))
                 .border(0.5.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(32.dp))
                 .padding(24.dp)
@@ -1031,7 +1031,7 @@ fun FilterMenu(
                     )
                 }
                 .shadow(4.dp, com.kyant.capsule.ContinuousRoundedRectangle(24.dp), spotColor = androidx.compose.ui.graphics.Color.Black)
-                    .background(androidx.compose.ui.graphics.Color(0xFF1C1C1E), com.kyant.capsule.ContinuousRoundedRectangle(24.dp))
+                    .background(com.example.whispry.ui.theme.WhispryTokens.SurfaceElevated, com.kyant.capsule.ContinuousRoundedRectangle(24.dp))
                     .border(1.dp, com.example.whispry.ui.theme.WhispryTokens.GlassBorder, com.kyant.capsule.ContinuousRoundedRectangle(24.dp))
                 .padding(8.dp)
         ) {

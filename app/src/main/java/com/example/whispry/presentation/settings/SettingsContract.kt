@@ -45,7 +45,10 @@ data class SettingsState(
     val retentionPolicy: RetentionPolicy = RetentionPolicy.FOREVER,
 
     // App-Aware Tone
-    val appAwareToneEnabled: Boolean = false
+    val appAwareToneEnabled: Boolean = false,
+
+    // Voice Commands + expand/insert first-word router
+    val voiceCommandsEnabled: Boolean = true
 )
 
 sealed class SettingsIntent {
@@ -91,4 +94,7 @@ sealed class SettingsIntent {
 
     // App-Aware Tone
     data class SetAppAwareToneEnabled(val enabled: Boolean) : SettingsIntent()
+
+    // Voice Commands
+    data class SetVoiceCommandsEnabled(val enabled: Boolean) : SettingsIntent()
 }

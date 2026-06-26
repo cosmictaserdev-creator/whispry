@@ -3,6 +3,8 @@ package com.example.whispry.presentation.presets
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -55,6 +57,9 @@ class PresetsViewModel @Inject constructor(
         .map { prefs -> prefs[DataStoreKeys.CUSTOM_AI_INSTRUCTIONS] ?: "" }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "")
 
+    val translateTargetLanguage: StateFlow<String> = settingsProvider.translateTargetLanguage
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), com.example.whispry.domain.model.TranslationLanguages.DEFAULT)
+
     fun selectPreset(preset: OutputPreset) {
         viewModelScope.launch {
             settingsProvider.dataStore.edit { it[DataStoreKeys.DEFAULT_OUTPUT_PRESET] = preset.name }
@@ -66,6 +71,12 @@ class PresetsViewModel @Inject constructor(
             settingsProvider.dataStore.edit { it[DataStoreKeys.CUSTOM_AI_INSTRUCTIONS] = instructions }
         }
     }
+
+    fun setTranslateTargetLanguage(language: String) {
+        viewModelScope.launch {
+            settingsProvider.setTranslateTargetLanguage(language)
+        }
+    }
 }
 
 @Composable
@@ -75,6 +86,8 @@ fun PresetsScreen(
 ) {
     val selectedPreset by viewModel.selectedPreset.collectAsStateWithLifecycle()
     val customInstructions by viewModel.customInstructions.collectAsStateWithLifecycle()
+    val translateLanguage by viewModel.translateTargetLanguage.collectAsStateWithLifecycle()
+    var showLanguageSheet by remember { mutableStateOf(false) }
     val themeAccent = androidx.compose.ui.graphics.Color.White
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -108,7 +121,17 @@ fun PresetsScreen(
                     )
                 }
             }
-            
+
+            if (selectedPreset == OutputPreset.TRANSLATE_AUTO) {
+                item(span = { GridItemSpan(2) }) {
+                    TranslateLanguageSelector(
+                        selectedLanguage = translateLanguage,
+                        onClick = { showLanguageSheet = true },
+                        accentColor = themeAccent
+                    )
+                }
+            }
+
             item(span = { GridItemSpan(2) }) {
                 Text(
                     text = "Smart presets send your transcript to Groq for formatting. This uses a small amount of your API quota.",
@@ -163,6 +186,134 @@ fun PresetsScreen(
                 )
             }
           }
+        }
+
+        if (showLanguageSheet) {
+            TranslateLanguageSheet(
+                selectedLanguage = translateLanguage,
+                onSelect = {
+                    viewModel.setTranslateTargetLanguage(it)
+                    showLanguageSheet = false
+                },
+                onDismiss = { showLanguageSheet = false }
+            )
+        }
+    }
+}
+
+@Composable
+fun TranslateLanguageSelector(
+    selectedLanguage: String,
+    onClick: () -> Unit,
+    accentColor: Color
+) {
+    Card(
+        onClick = onClick,
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.05f)),
+        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.1f)),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 8.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Translate to",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Whatever you say is translated into this language.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.White.copy(alpha = 0.6f)
+                )
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(accentColor.copy(alpha = 0.12f))
+                    .border(0.5.dp, accentColor.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+                    .padding(horizontal = 14.dp, vertical = 8.dp)
+            ) {
+                Text(
+                    text = selectedLanguage,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun TranslateLanguageSheet(
+    selectedLanguage: String,
+    onSelect: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val sheetState = rememberModalBottomSheetState()
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = Color(0xFF0D0D14),
+        scrimColor = Color.Black.copy(alpha = 0.6f),
+        dragHandle = { BottomSheetDefaults.DragHandle(color = Color.White.copy(alpha = 0.2f)) }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp)
+        ) {
+            Text(
+                "Translate to",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = Color.White,
+                modifier = Modifier.padding(bottom = 4.dp)
+            )
+            Text(
+                "Output language for the Translate preset.",
+                style = MaterialTheme.typography.bodySmall,
+                color = Color.White.copy(alpha = 0.5f),
+                modifier = Modifier.padding(bottom = 16.dp)
+            )
+            LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 420.dp)) {
+                items(com.example.whispry.domain.model.TranslationLanguages.all) { lang ->
+                    val isSelected = lang == selectedLanguage
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(if (isSelected) Color.White.copy(alpha = 0.06f) else Color.Transparent)
+                            .clickable { onSelect(lang) }
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            lang,
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = Color.White,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                            modifier = Modifier.weight(1f)
+                        )
+                        if (isSelected) {
+                            Icon(Icons.Rounded.Check, null, tint = Color.White, modifier = Modifier.size(20.dp))
+                        }
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(24.dp))
         }
     }
 }

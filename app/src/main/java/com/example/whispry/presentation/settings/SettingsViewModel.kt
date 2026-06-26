@@ -94,6 +94,7 @@ class SettingsViewModel @Inject constructor(
         settingsProvider.dataStore.data.map { TriggerSound.fromName(it[DataStoreKeys.SOUND_START]) }.onEach { v -> _state.update { it.copy(selectedSound = v) } }.launchIn(viewModelScope)
         
         settingsProvider.appAwareToneEnabled.onEach { v -> _state.update { it.copy(appAwareToneEnabled = v) } }.launchIn(viewModelScope)
+        settingsProvider.voiceCommandsEnabled.onEach { v -> _state.update { it.copy(voiceCommandsEnabled = v) } }.launchIn(viewModelScope)
     }
 
     fun onIntent(intent: SettingsIntent) {
@@ -153,6 +154,7 @@ class SettingsViewModel @Inject constructor(
                     soundManager.play(com.example.whispry.service.SoundEvent.TRIGGER_START, intent.sound)
                 }
                 is SettingsIntent.SetAppAwareToneEnabled -> settingsProvider.setAppAwareToneEnabled(intent.enabled)
+                is SettingsIntent.SetVoiceCommandsEnabled -> settingsProvider.setVoiceCommandsEnabled(intent.enabled)
                 is SettingsIntent.SetTriggerVolumeKey -> settingsProvider.dataStore.edit { it[DataStoreKeys.TRIGGER_VOLUME_KEY] = intent.key }
                 is SettingsIntent.SetDuckingEnabled -> settingsProvider.dataStore.edit { it[DataStoreKeys.DUCKING_ENABLED] = intent.enabled }
                 is SettingsIntent.SetDuckingPercent -> settingsProvider.dataStore.edit { it[DataStoreKeys.DUCKING_PERCENT] = intent.percent }

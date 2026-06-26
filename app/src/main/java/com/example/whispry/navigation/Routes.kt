@@ -33,6 +33,12 @@ sealed interface Route {
     @Serializable
     data object Memory : Route
 
+    @Serializable
+    data object MyInfo : Route
+
+    @Serializable
+    data object VoiceCommands : Route
+
     companion object {
         fun fromDeepLinkHost(host: String): Route {
             return when (host.lowercase()) {
@@ -44,6 +50,8 @@ sealed interface Route {
                 "text-expander" -> TextExpander
                 "app-tones" -> AppTones
                 "memory" -> Memory
+                "my-info" -> MyInfo
+                "voice-commands" -> VoiceCommands
                 else -> Home
             }
         }

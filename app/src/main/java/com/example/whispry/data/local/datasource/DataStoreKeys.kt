@@ -60,4 +60,13 @@ object DataStoreKeys {
     val DEFAULT_OUTPUT_PRESET = stringPreferencesKey("default_output_preset")
     val CUSTOM_AI_INSTRUCTIONS = stringPreferencesKey("custom_ai_instructions")
     val APP_AWARE_TONE_ENABLED = booleanPreferencesKey("app_aware_tone_enabled")
+
+    // Translation target language (for the Translate preset)
+    val TRANSLATE_TARGET_LANGUAGE = stringPreferencesKey("translate_target_language")
+
+    // Voice Commands + expand/insert first-word router (global on/off)
+    val VOICE_COMMANDS_ENABLED = booleanPreferencesKey("voice_commands_enabled")
+
+    // One-time seeding of default expanders / commands / my-info rows
+    val DEFAULTS_SEEDED = booleanPreferencesKey("defaults_seeded")
 }

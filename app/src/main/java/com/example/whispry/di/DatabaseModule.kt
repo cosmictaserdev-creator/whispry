@@ -34,7 +34,8 @@ object DatabaseModule {
                 AppDatabase.MIGRATION_3_4,
                 AppDatabase.MIGRATION_4_5,
                 AppDatabase.MIGRATION_5_6,
-                AppDatabase.MIGRATION_6_7
+                AppDatabase.MIGRATION_6_7,
+                AppDatabase.MIGRATION_7_8
             )
             .build()
      }
@@ -61,5 +62,17 @@ object DatabaseModule {
     @Singleton
     fun provideMemoryDao(database: AppDatabase): MemoryDao {
         return database.memoryDao()
+    }
+
+    @Provides
+    @Singleton
+    fun provideMyInfoDao(database: AppDatabase): com.example.whispry.features.myinfo.data.local.db.MyInfoDao {
+        return database.myInfoDao()
+    }
+
+    @Provides
+    @Singleton
+    fun provideVoiceCommandDao(database: AppDatabase): com.example.whispry.features.voicecommand.data.local.db.VoiceCommandDao {
+        return database.voiceCommandDao()
     }
 }
