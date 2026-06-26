@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <dimen name="library_header_top_offset">120dp</dimen>
+    <dimen name="library_header_extra_padding">16dp</dimen>
+</resources>

@@ -42,7 +42,7 @@ object DataStoreKeys {
     val GLASS_NAVBAR = booleanPreferencesKey("glass_navbar")
     val GLASS_LIQUID_BACKDROP = booleanPreferencesKey("glass_liquid_backdrop")
 
-    // Bubble Position
+    // Bubble Position (stored as integer percentage 0-100 of safe bounds)
     val BUBBLE_POSITION_X = intPreferencesKey("bubble_position_x")
     val BUBBLE_POSITION_Y = intPreferencesKey("bubble_position_y")
 

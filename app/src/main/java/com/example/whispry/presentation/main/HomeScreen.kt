@@ -28,8 +28,13 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.example.whispry.R
+import com.example.whispry.ui.util.adaptive.currentWidthSizeClass
+import com.example.whispry.ui.util.adaptive.gridColumnsFor
+import com.example.whispry.ui.util.gridItems
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
@@ -56,6 +61,8 @@ fun HomeScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val lifecycleOwner = LocalLifecycleOwner.current
     val context = LocalContext.current
+    val gridColumns = gridColumnsFor(currentWidthSizeClass())
+    val gridSpacing = dimensionResource(R.dimen.spacing_sm)
 
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
@@ -89,7 +96,11 @@ fun HomeScreen(
     }
     Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .fillMaxHeight()
+                .widthIn(max = dimensionResource(R.dimen.content_max_width))
+                .fillMaxWidth(),
         contentPadding = PaddingValues(
             top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 24.dp,
             bottom = 140.dp, 
@@ -271,11 +282,16 @@ fun HomeScreen(
                 text = "Recent Transcripts",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
+                color = Color.White,
                 modifier = Modifier.fillMaxWidth()
             )
         }
 
-        items(state.recentTranscripts, key = { it.id }) { transcript ->
+        gridItems(
+            items = state.recentTranscripts,
+            columns = gridColumns,
+            horizontalSpacing = gridSpacing
+        ) { transcript ->
             Box(
                 modifier = Modifier
                     .fillMaxWidth()

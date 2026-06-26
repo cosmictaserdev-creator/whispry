@@ -38,6 +38,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -48,6 +49,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
@@ -64,7 +66,12 @@ import android.graphics.Shader
 import android.os.Build
 import androidx.compose.ui.graphics.asComposeRenderEffect
 import com.example.whispry.domain.model.Transcript
+import com.example.whispry.R
 import com.example.whispry.presentation.common.GlassCard
+import com.example.whispry.ui.util.adaptive.currentWidthSizeClass
+import com.example.whispry.ui.util.adaptive.gridColumnsFor
+import com.example.whispry.ui.util.gridItems
+import com.example.whispry.ui.util.TopFadeScrim
 import com.example.whispry.ui.theme.WhispryTheme
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.backdrops.LayerBackdrop
@@ -134,6 +141,7 @@ fun HistoryScreen(
     modifier: Modifier = Modifier
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val gridColumns = gridColumnsFor(currentWidthSizeClass())
     val focusManager = LocalFocusManager.current
     var showFilterMenu by remember { mutableStateOf(false) }
     var isSearchActive by remember { mutableStateOf(false) }
@@ -219,10 +227,10 @@ fun HistoryScreen(
                         }
                     },
                 contentPadding = PaddingValues(
-                    top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 150.dp,
-                    bottom = 140.dp,
-                    start = 24.dp,
-                    end = 24.dp
+                    top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + dimensionResource(R.dimen.library_header_top_offset),
+                    bottom = dimensionResource(R.dimen.screen_bottom_padding),
+                    start = dimensionResource(R.dimen.screen_horizontal_padding),
+                    end = dimensionResource(R.dimen.screen_horizontal_padding)
                 ),
                 verticalArrangement = Arrangement.spacedBy(20.dp),
                 userScrollEnabled = !isSearchActive 
@@ -240,7 +248,11 @@ fun HistoryScreen(
                             onSeeMore = { navController.navigate(com.example.whispry.navigation.Route.FavoriteDetails) }
                         )
                     }
-                    items(state.pinnedTranscripts.take(3), key = { "pinned_preview_${it.id}" }) { transcript ->
+                    gridItems(
+                        items = state.pinnedTranscripts.take(3),
+                        columns = gridColumns,
+                        horizontalSpacing = 16.dp
+                    ) { transcript ->
                         LibraryTranscriptItemOptimized(
                             transcript = transcript,
                             onDelete = { viewModel.onIntent(HistoryIntent.DeleteTranscript(transcript.id)) },
@@ -264,7 +276,11 @@ fun HistoryScreen(
                             onSeeMore = { navController.navigate(com.example.whispry.navigation.Route.RecentDetails) }
                         )
                     }
-                    items(state.recentTranscripts.take(5), key = { "recent_preview_${it.id}" }) { transcript ->
+                    gridItems(
+                        items = state.recentTranscripts.take(5),
+                        columns = gridColumns,
+                        horizontalSpacing = 16.dp
+                    ) { transcript ->
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -303,32 +319,21 @@ fun HistoryScreen(
             }
         }
 
-        // Top Panel Container (Bleeds outside screen)
-        Box(
+        // Top bar: a darkening fade behind a full-width header (24dp margins), so the title and
+        // search bar are as wide as the Recents screen and aligned with the list below.
+        TopFadeScrim(
             modifier = Modifier
                 .align(Alignment.TopCenter)
-                .offset(y = (-16).dp)
-                .requiredWidth(LocalConfiguration.current.screenWidthDp.dp + 100.dp)
+                .fillMaxWidth()
+                .height(WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 180.dp)
+        )
+        Column(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .fillMaxWidth()
+                .padding(top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 56.dp)
+                .padding(horizontal = 24.dp, vertical = 12.dp)
         ) {
-            // 1. Gradual Fade Layer
-            Box(
-                modifier = Modifier
-                    .matchParentSize()
-                    .background(
-                        brush = Brush.verticalGradient(
-                            0.3f to Color(0xFF121212),
-                            1.0f to Color.Transparent
-                        )
-                    )
-            )
-
-
-            // 3. Content Panel
-            Column(
-                modifier = Modifier
-                    .padding(top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 24.dp)
-                    .padding(horizontal = 50.dp + 32.dp, vertical = 12.dp)
-            ) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -367,10 +372,9 @@ fun HistoryScreen(
                     query = state.searchQuery,
                     progress = searchProgress,
                     onQueryChange = { viewModel.onIntent(HistoryIntent.Search(it)) },
-                    onSearchActiveChange = { isSearchActive = it }, 
+                    onSearchActiveChange = { isSearchActive = it },
                     backdrop = backdrop
                 )
-            }
         }
 
         if (showFilterMenu) {
@@ -716,8 +720,29 @@ fun TranscriptDetailView(
     backdrop: Backdrop
 ) {
     Dialog(onDismissRequest = onDismiss) {
+        TranscriptDetailContent(
+            transcript = transcript,
+            onDismiss = onDismiss,
+            onCopy = onCopy,
+            onExport = onExport
+        )
+    }
+}
+
+/**
+ * The detail card content, extracted from the Dialog wrapper so it can render either inside a
+ * Dialog (compact, tap-to-open) or inline as a master-detail side pane (Expanded width).
+ */
+@Composable
+fun TranscriptDetailContent(
+    transcript: Transcript,
+    onDismiss: () -> Unit,
+    onCopy: (String) -> Unit,
+    onExport: () -> Unit,
+    modifier: Modifier = Modifier
+) {
         Box(
-            modifier = Modifier
+            modifier = modifier
                 .fillMaxWidth()
                 .shadow(4.dp, com.kyant.capsule.ContinuousRoundedRectangle(20.dp), spotColor = androidx.compose.ui.graphics.Color.Black)
                     .background(androidx.compose.ui.graphics.Color(0xFF1C1C1E), com.kyant.capsule.ContinuousRoundedRectangle(20.dp))
@@ -886,7 +911,6 @@ fun TranscriptDetailView(
                 Spacer(Modifier.height(8.dp))
             }
         }
-    }
 }
 
 @Composable
