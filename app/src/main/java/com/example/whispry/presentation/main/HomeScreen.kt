@@ -23,6 +23,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -276,6 +277,17 @@ fun HomeScreen(
             }
         }
 
+        // Usage Meter
+        item {
+            UsageCard(
+                used = state.usageInfo.requestsUsed,
+                limit = state.usageInfo.dailyLimit,
+                percent = state.usageInfo.requestsPercent,
+                words = state.usageInfo.wordsUsed,
+                backdrop = backdrop
+            )
+        }
+
         item {
             Spacer(modifier = Modifier.height(16.dp))
             Text(
@@ -319,6 +331,87 @@ fun HomeScreen(
         }
     }
 }
+}
+
+@Composable
+fun UsageCard(
+    used: Int,
+    limit: Int,
+    percent: Float,
+    words: Int,
+    backdrop: Backdrop
+) {
+    val accent = WhispryTheme.colors.accent
+    val barColor = if (percent < 0.7f) accent else if (percent < 0.9f) Color(0xFFFFA000) else Color(0xFFFF5252)
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .shadow(4.dp, com.kyant.capsule.ContinuousRoundedRectangle(20.dp), spotColor = Color.Black)
+            .background(Color(0xFF1C1C1E), com.kyant.capsule.ContinuousRoundedRectangle(20.dp))
+            .border(1.dp, WhispryTokens.GlassBorder, com.kyant.capsule.ContinuousRoundedRectangle(20.dp))
+            .padding(16.dp)
+    ) {
+        Column {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Daily Usage",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color.White
+                )
+                Text(
+                    text = "${(percent * 100).toInt()}%",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = barColor
+                )
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+            // Progress bar
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(6.dp)
+                    .clip(com.kyant.capsule.ContinuousRoundedRectangle(6.dp))
+                    .background(Color.White.copy(alpha = 0.1f))
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .fillMaxWidth(percent.coerceIn(0f, 1f))
+                        .clip(com.kyant.capsule.ContinuousRoundedRectangle(6.dp))
+                        .background(
+                            Brush.horizontalGradient(
+                                colors = listOf(barColor.copy(alpha = 0.7f), barColor)
+                            )
+                        )
+                )
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = "$used / $limit requests",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.White.copy(alpha = 0.5f)
+                )
+                if (words > 0) {
+                    Text(
+                        text = "$words words",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = WhispryTheme.colors.accentSoft.copy(alpha = 0.7f)
+                    )
+                }
+            }
+        }
+    }
 }
 
 @Composable

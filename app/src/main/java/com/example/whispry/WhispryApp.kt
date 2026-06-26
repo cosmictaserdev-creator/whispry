@@ -4,6 +4,8 @@ import android.app.Application
 import dagger.hilt.android.HiltAndroidApp
 
 import androidx.work.*
+import com.example.whispry.notification.NotificationChannels
+import com.example.whispry.notification.PremiumReminderWorker
 import com.example.whispry.service.ServiceWatchdogWorker
 import com.example.whispry.service.TranscriptCleanupWorker
 import com.example.whispry.ui.util.liquid.GlassBackdropCache
@@ -18,9 +20,11 @@ class WhispryApp : Application() {
     override fun onCreate() {
         super.onCreate()
         glassBackdropCache.init()
+        NotificationChannels.createAll(this)
         scheduleCleanup()
         scheduleWatchdog()
         scheduleTranscriptCleanup()
+        schedulePremiumReminder()
     }
 
     private fun scheduleTranscriptCleanup() {
@@ -70,6 +74,25 @@ class WhispryApp : Application() {
             "service_watchdog",
             ExistingPeriodicWorkPolicy.KEEP,
             watchdogRequest
+        )
+    }
+
+    private fun schedulePremiumReminder() {
+        val reminderRequest = PeriodicWorkRequestBuilder<PremiumReminderWorker>(
+            2, TimeUnit.DAYS
+        )
+            .setInitialDelay(1, TimeUnit.DAYS)
+            .setConstraints(
+                Constraints.Builder()
+                    .setRequiresBatteryNotLow(true)
+                    .build()
+            )
+            .build()
+
+        WorkManager.getInstance(this).enqueueUniquePeriodicWork(
+            "premium_reminder",
+            ExistingPeriodicWorkPolicy.KEEP,
+            reminderRequest
         )
     }
 }

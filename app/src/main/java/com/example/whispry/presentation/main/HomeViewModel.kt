@@ -10,7 +10,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.whispry.domain.model.Transcript
 import com.example.whispry.domain.model.TranscriptStats
+import com.example.whispry.domain.model.UsageInfo
 import com.example.whispry.domain.repository.TranscriptRepository
+import com.example.whispry.domain.repository.UsageRepository
 import com.example.whispry.service.BubbleService
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -29,7 +31,8 @@ data class HomeState(
     val recentTranscripts: List<Transcript> = emptyList(),
     val isServiceRunning: Boolean = false,
     val missingPermissions: List<String> = emptyList(),
-    val serviceState: ServiceState = ServiceState.Unknown
+    val serviceState: ServiceState = ServiceState.Unknown,
+    val usageInfo: UsageInfo = UsageInfo(0, 0)
 )
 
 sealed class HomeIntent {
@@ -45,7 +48,8 @@ class HomeViewModel @Inject constructor(
     private val repository: TranscriptRepository,
     @ApplicationContext private val context: Context,
     private val serviceBridge: com.example.whispry.service.ServiceBridge,
-    private val soundManager: com.example.whispry.service.SoundManager
+    private val soundManager: com.example.whispry.service.SoundManager,
+    private val usageRepository: UsageRepository
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(HomeState())
@@ -61,12 +65,20 @@ class HomeViewModel @Inject constructor(
 
     init {
         observeTranscripts()
+        observeUsage()
         checkPermissions()
         
         // Sync serviceState with HomeState
         serviceState.onEach { state ->
             _state.update { it.copy(serviceState = state) }
         }.launchIn(viewModelScope)
+    }
+
+    private fun observeUsage() {
+        usageRepository.observeTodayUsage()
+            .onEach { usage -> _state.update { it.copy(usageInfo = usage) } }
+            .flowOn(kotlinx.coroutines.Dispatchers.Default)
+            .launchIn(viewModelScope)
     }
 
     private fun isServiceRunning(): Boolean {
