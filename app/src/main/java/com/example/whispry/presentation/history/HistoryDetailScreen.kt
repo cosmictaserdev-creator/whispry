@@ -41,6 +41,12 @@ import android.os.Build
 import androidx.compose.ui.graphics.asComposeRenderEffect
 import com.kyant.backdrop.backdrops.LayerBackdrop
 import com.example.whispry.domain.model.Transcript
+import com.example.whispry.ui.util.adaptive.MasterDetailScaffold
+import com.example.whispry.ui.util.adaptive.currentWidthSizeClass
+import com.example.whispry.ui.util.adaptive.gridColumnsFor
+import com.example.whispry.ui.util.adaptive.masterDetailEnabledFor
+import com.example.whispry.ui.util.gridItems
+import com.example.whispry.ui.util.TopFadeScrim
 
 @Composable
 fun HistoryDetailScreen(
@@ -53,6 +59,8 @@ fun HistoryDetailScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val focusManager = LocalFocusManager.current
+    val gridColumns = gridColumnsFor(currentWidthSizeClass())
+    val isMasterDetail = masterDetailEnabledFor(currentWidthSizeClass())
     var isSearchActive by remember { mutableStateOf(false) }
 
     var exportText by remember { mutableStateOf("") }
@@ -100,7 +108,10 @@ fun HistoryDetailScreen(
         else state.filteredTranscripts
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    // The list + header/search overlay. Filled into either the master pane (Expanded)
+    // or the whole screen (compact).
+    val masterContent: @Composable () -> Unit = {
+      Box(modifier = Modifier.fillMaxSize()) {
         // Content Layer
         Box(modifier = Modifier.fillMaxSize()) {
             LazyColumn(
@@ -123,7 +134,7 @@ fun HistoryDetailScreen(
                         }
                     },
                 contentPadding = PaddingValues(
-                    top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 140.dp,
+                    top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 195.dp,
                     bottom = 40.dp,
                     start = 24.dp,
                     end = 24.dp
@@ -142,7 +153,11 @@ fun HistoryDetailScreen(
                         }
                     }
                 } else {
-                    items(filteredList, key = { it.id }) { transcript ->
+                    gridItems(
+                        items = filteredList,
+                        columns = gridColumns,
+                        horizontalSpacing = 16.dp
+                    ) { transcript ->
                         LibraryTranscriptItemOptimized(
                             transcript = transcript,
                             onDelete = { viewModel.onIntent(HistoryIntent.DeleteTranscript(transcript.id)) },
@@ -158,11 +173,19 @@ fun HistoryDetailScreen(
             }
         }
 
+        // Darkening top bar consistent with the other screens.
+        TopFadeScrim(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .fillMaxWidth()
+                .height(WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 175.dp)
+        )
+
         // Header & Search
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding())
+                .padding(top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 48.dp)
                 .padding(horizontal = 24.dp, vertical = 12.dp)
         ) {
             Column {
@@ -206,9 +229,45 @@ fun HistoryDetailScreen(
                 )
             }
         }
+      } // end masterContent box
+    }
 
-        // Detail View Overlay
-        if (state.selectedTranscript != null) {
+    Box(modifier = Modifier.fillMaxSize()) {
+        // At Expanded width the list and detail sit side by side; otherwise the list
+        // fills the screen and selection opens the tap-to-open dialog below.
+        if (isMasterDetail) {
+            MasterDetailScaffold(
+                master = { masterContent() },
+                detail = {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .windowInsetsPadding(WindowInsets.statusBars)
+                            .padding(end = 16.dp, top = 16.dp, bottom = 16.dp)
+                    ) {
+                        val selected = state.selectedTranscript
+                        if (selected != null) {
+                            TranscriptDetailContent(
+                                transcript = selected,
+                                onDismiss = { viewModel.onIntent(HistoryIntent.OpenDetail(null)) },
+                                onCopy = { viewModel.onIntent(HistoryIntent.CopyToClipboard(it)) },
+                                onExport = { exportingTranscript = selected },
+                                modifier = Modifier.fillMaxHeight()
+                            )
+                        } else {
+                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                Text("Select a transcript to view it here", color = Color.White.copy(alpha = 0.3f))
+                            }
+                        }
+                    }
+                }
+            )
+        } else {
+            masterContent()
+        }
+
+        // Detail overlay — tap-to-open dialog, compact widths only.
+        if (!isMasterDetail && state.selectedTranscript != null) {
             TranscriptDetailView(
                 transcript = state.selectedTranscript!!,
                 onDismiss = { viewModel.onIntent(HistoryIntent.OpenDetail(null)) },

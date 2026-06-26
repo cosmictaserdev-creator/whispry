@@ -27,6 +27,7 @@ import com.example.whispry.data.local.datasource.DataStoreKeys
 import com.example.whispry.data.local.datasource.SettingsProvider
 import com.example.whispry.domain.model.OutputPreset
 import com.example.whispry.ui.theme.WhispryTheme
+import com.example.whispry.ui.util.TopFadeScrim
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.backdrops.LayerBackdrop
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -82,7 +83,7 @@ fun PresetsScreen(
             horizontalArrangement = Arrangement.spacedBy(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
             contentPadding = PaddingValues(
-                top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 150.dp,
+                top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 190.dp,
                 bottom = 140.dp,
                 start = 24.dp,
                 end = 24.dp
@@ -119,30 +120,29 @@ fun PresetsScreen(
             }
         }
 
-        // Top Panel Container (Bleeds outside screen)
-        Box(
+        // Top Panel Container (bleeds 50dp past each edge of the available area). Width is
+        // based on the *local* available width so it stays aligned and doesn't clip when the
+        // content is inset by the rail in landscape.
+        BoxWithConstraints(
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .offset(y = (-16).dp)
-                .requiredWidth(LocalConfiguration.current.screenWidthDp.dp + 100.dp)
         ) {
-            // Gradual Fade Layer
-            Box(
-                modifier = Modifier
-                    .matchParentSize()
-                    .background(
-                        brush = Brush.verticalGradient(
-                            0.3f to Color(0xFF121212),
-                            1.0f to Color.Transparent
-                        )
-                    )
+          Box(
+            modifier = Modifier
+                .width(maxWidth + 100.dp)
+                .align(Alignment.TopCenter)
+          ) {
+            // Darkening top bar (fade), shared across screens.
+            TopFadeScrim(
+                modifier = Modifier.matchParentSize()
             )
 
             // Content Panel
             Column(
                 modifier = Modifier
-                    .padding(top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 24.dp)
-                    .padding(horizontal = 50.dp + 24.dp, vertical = 12.dp)
+                    .padding(top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 56.dp)
+                    .padding(horizontal = 64.dp, vertical = 12.dp)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
@@ -162,6 +162,7 @@ fun PresetsScreen(
                     modifier = Modifier.padding(top = 8.dp)
                 )
             }
+          }
         }
     }
 }

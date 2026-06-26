@@ -1,17 +1,25 @@
 package com.example.whispry.ui.util.adaptive
 
+import android.content.res.Configuration
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.Immutable
 import androidx.compose.ui.platform.LocalConfiguration
 
-@Immutable
-enum class DeviceType { Phone, Tablet }
+/**
+ * Compose readers for the adaptive layout decisions. These are thin wrappers around the
+ * pure functions in `AdaptiveLayout.kt`; all breakpoint logic lives there so it can be
+ * unit-tested. Width comes from the current window (`screenWidthDp`), which updates in
+ * split-screen / multi-window.
+ */
 
 @Composable
-fun currentDeviceType(): DeviceType {
+fun currentWidthSizeClass(): WindowWidthSizeClass =
+    widthSizeClassFor(LocalConfiguration.current.screenWidthDp)
+
+@Composable
+fun currentLayoutMode(): LayoutMode {
     val configuration = LocalConfiguration.current
-    return when {
-        configuration.screenWidthDp >= 600 -> DeviceType.Tablet
-        else -> DeviceType.Phone
-    }
+    return layoutModeFor(
+        widthSizeClassFor(configuration.screenWidthDp),
+        configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+    )
 }

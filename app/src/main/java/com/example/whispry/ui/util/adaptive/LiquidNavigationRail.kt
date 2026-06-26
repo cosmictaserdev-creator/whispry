@@ -24,16 +24,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.whispry.R
 import com.example.whispry.ui.theme.WhispryTheme
 import com.kyant.backdrop.backdrops.LayerBackdrop
 import com.kyant.backdrop.backdrops.layerBackdrop
@@ -67,7 +65,7 @@ fun LiquidNavigationRail(
 ) {
     val isLightTheme = !isSystemInDarkTheme()
     val containerColor = if (isLightTheme) Color(0xFFFAFAFA).copy(0.4f) else Color(0xFF121212).copy(0.4f)
-    val railBackdrop = rememberLayerBackdrop()
+    val tabsBackdrop = rememberLayerBackdrop()
     val density = LocalDensity.current
 
     val animatedSelectedOffset by animateFloatAsState(
@@ -76,28 +74,34 @@ fun LiquidNavigationRail(
         label = "RailSelectedOffset"
     )
 
-    val indicatorHeight = dimensionResource(R.dimen.tablet_nav_rail_indicator_height)
-    val indicatorHeightPx = with(density) { indicatorHeight.toPx() }
-
     BoxWithConstraints(
-        modifier = modifier.width(dimensionResource(R.dimen.tablet_nav_rail_width)).fillMaxHeight(),
+        modifier = modifier.fillMaxHeight(),
         contentAlignment = Alignment.TopStart
     ) {
+        val railWidth = constraints.maxWidth.toFloat()
         val railHeight = constraints.maxHeight.toFloat()
-        val verticalPadding = with(density) { 6.dp.toPx() }
-        val effectiveHeight = railHeight - (verticalPadding * 2)
-        val itemHeight = if (items.isNotEmpty()) effectiveHeight / items.size else 0f
+        val tabHeight = if (items.isNotEmpty()) railHeight / items.size else 0f
 
+        // Compact fixed-height pill (matches the bottom bar), not the full tab height —
+        // otherwise the indicator stretches into a tall accent block that swallows the icon.
+        val baseIndicatorHeightPx = with(density) { 64.dp.toPx() }
+
+        val animatedCenterOffset by animateFloatAsState(
+            targetValue = (selectedIndex.toFloat() * tabHeight) + (tabHeight / 2f),
+            animationSpec = spring(stiffness = 800f, dampingRatio = 0.75f),
+            label = "RailIndicatorCenter"
+        )
+
+        // 1. Unified Rail Container
         Box(
             modifier = Modifier
                 .fillMaxHeight()
-                .width(dimensionResource(R.dimen.tablet_nav_rail_content_width))
-                .padding(vertical = 6.dp)
+                .width(with(density) { railWidth.toDp() })
                 .let { m ->
                     if (useGlass) {
                         m.drawBackdrop(
                             backdrop = backdrop,
-                            shape = { ContinuousRoundedRectangle(28.dp) },
+                            shape = { ContinuousRoundedRectangle(50.dp) },
                             highlight = {
                                 Highlight(
                                     width = 1.dp,
@@ -117,28 +121,27 @@ fun LiquidNavigationRail(
                             shadow = { Shadow(alpha = 0.1f, radius = 16.dp) }
                         )
                     } else {
-                        m.shadow(8.dp, ContinuousRoundedRectangle(28.dp), spotColor = Color.Black)
-                            .background(Color(0xFF1C1C1E), ContinuousRoundedRectangle(28.dp))
-                            .border(0.5.dp, Color.White.copy(alpha = 0.1f), ContinuousRoundedRectangle(28.dp))
+                        m.shadow(8.dp, ContinuousRoundedRectangle(34.dp), spotColor = Color.Black)
+                            .background(Color(0xFF1C1C1E), ContinuousRoundedRectangle(34.dp))
+                            .border(0.5.dp, Color.White.copy(alpha = 0.1f), ContinuousRoundedRectangle(34.dp))
                     }
                 }
         ) {
-            // Selection indicator
-            val indicatorCenterY = verticalPadding + (animatedSelectedOffset * itemHeight) + (itemHeight / 2f)
+            // 2. Selection Indicator
             Box(
                 modifier = Modifier
-                    .width(dimensionResource(R.dimen.tablet_nav_rail_indicator_width))
-                    .height(indicatorHeight)
-                    .align(Alignment.TopStart)
+                    .height(with(density) { baseIndicatorHeightPx.toDp() })
+                    .width(64.dp)
+                    .align(Alignment.TopCenter)
                     .graphicsLayer {
-                        translationY = indicatorCenterY - (indicatorHeightPx / 2f)
+                        translationY = animatedCenterOffset - (baseIndicatorHeightPx / 2f)
                         clip = true
                         shape = ContinuousRoundedRectangle(100.dp)
                     }
                     .let { m ->
                         if (useGlass) {
                             m.drawBackdrop(
-                                backdrop = rememberCombinedBackdrop(backdrop, railBackdrop),
+                                backdrop = rememberCombinedBackdrop(backdrop, tabsBackdrop),
                                 shape = { ContinuousRoundedRectangle(100.dp) },
                                 effects = {
                                     blur(2f)
@@ -166,33 +169,40 @@ fun LiquidNavigationRail(
             )
         }
 
-        // Invisible layer to capture backdrop
+        // 3. Invisible items layer to capture backdrop (tinted for glass effect)
         Column(
             modifier = Modifier
                 .alpha(0f)
-                .layerBackdrop(railBackdrop)
+                .layerBackdrop(tabsBackdrop)
                 .fillMaxHeight()
-                .width(80.dp)
-                .padding(vertical = 6.dp),
-            verticalArrangement = Arrangement.SpaceEvenly,
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            items.forEachIndexed { _, _ ->
-                Box(modifier = Modifier.fillMaxWidth())
-            }
-        }
-
-        // Actual visible items
-        Column(
-            modifier = Modifier
-                .fillMaxHeight()
-                .width(80.dp)
-                .padding(vertical = 6.dp),
-            verticalArrangement = Arrangement.SpaceEvenly,
+                .width(with(density) { railWidth.toDp() })
+                .padding(horizontal = 4.dp)
+                .graphicsLayer { alpha = 0f; colorFilter = ColorFilter.tint(accentColor) },
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             items.forEachIndexed { index, item ->
                 LiquidRailTab(
+                    modifier = Modifier.weight(1f),
+                    selected = selectedIndex == index,
+                    icon = item.icon,
+                    filledIcon = item.filledIcon,
+                    label = item.label,
+                    onClick = { }
+                )
+            }
+        }
+
+        // 4. Actual visible items
+        Column(
+            modifier = Modifier
+                .fillMaxHeight()
+                .width(with(density) { railWidth.toDp() })
+                .padding(horizontal = 4.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            items.forEachIndexed { index, item ->
+                LiquidRailTab(
+                    modifier = Modifier.weight(1f),
                     selected = selectedIndex == index,
                     icon = item.icon,
                     filledIcon = item.filledIcon,
@@ -205,7 +215,8 @@ fun LiquidNavigationRail(
 }
 
 @Composable
-private fun LiquidRailTab(
+private fun ColumnScope.LiquidRailTab(
+    modifier: Modifier = Modifier,
     selected: Boolean,
     icon: ImageVector,
     filledIcon: ImageVector,
@@ -224,9 +235,9 @@ private fun LiquidRailTab(
     val accentColor = WhispryTheme.colors.accent
 
     Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(ContinuousRoundedRectangle(16.dp))
+        modifier = modifier
+            .fillMaxHeight()
+            .clip(ContinuousRoundedRectangle(20.dp))
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,
@@ -240,8 +251,10 @@ private fun LiquidRailTab(
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        // Selected glyph is white for high contrast against the accent pill — accent-on-accent
+        // makes the icon vanish into the indicator in the narrow rail.
         val iconColor by animateColorAsState(
-            targetValue = if (selected) accentColor else Color.White.copy(alpha = 0.45f),
+            targetValue = if (selected) Color.White else Color.White.copy(alpha = 0.45f),
             animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
             label = "RailIconColor"
         )
@@ -250,7 +263,7 @@ private fun LiquidRailTab(
             imageVector = if (selected) filledIcon else icon,
             contentDescription = label,
             tint = iconColor,
-            modifier = Modifier.size(24.dp)
+            modifier = Modifier.size(26.dp)
         )
 
         Text(
@@ -259,7 +272,7 @@ private fun LiquidRailTab(
             color = iconColor,
             fontSize = 9.sp,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-            modifier = Modifier.padding(top = 2.dp)
+            modifier = Modifier.padding(top = 1.dp)
         )
     }
 }

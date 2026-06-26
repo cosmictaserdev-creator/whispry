@@ -68,10 +68,10 @@ fun LiquidBottomTabs(
         val horizontalPadding = with(androidx.compose.ui.platform.LocalDensity.current) { 4.dp.toPx() }
         val effectiveWidth = totalWidth - (horizontalPadding * 2)
         val tabWidth = effectiveWidth / tabsCount
-        
+
         // Fixed base width for indicator to avoid layout changes during animation
         val baseIndicatorWidthPx = tabWidth
-        
+
         // Use a very snappy spring for instant movement
         val animatedCenterOffset by animateFloatAsState(
             targetValue = horizontalPadding + (selectedTabIndex() * tabWidth) + (tabWidth / 2),
@@ -100,7 +100,7 @@ fun LiquidBottomTabs(
                                     style = HighlightStyle.Plain
                                 )},
                             effects = {
-                                vibrancy() 
+                                vibrancy()
                                 blur(6f)
                                 lens(24.dp.toPx(),
                                     24.dp.toPx(),
@@ -123,17 +123,17 @@ fun LiquidBottomTabs(
             Box(
                 modifier = Modifier
                     .width(with(androidx.compose.ui.platform.LocalDensity.current) { baseIndicatorWidthPx.toDp() })
-                    .height(if (useGlass) 64.dp else 64.dp)
+                    .height(64.dp)
                     .align(Alignment.CenterStart)
                     .graphicsLayer {
                         // Position based on center minus half width
                         translationX = animatedCenterOffset - (baseIndicatorWidthPx / 2)
-                        
+
                         // Snappy liquid stretch effect
-                        scaleX = 1f 
+                        scaleX = 1f
                         scaleY = 1f
                         clip = true
-                        shape = ContinuousRoundedRectangle(if (useGlass) 100.dp else 100.dp)
+                        shape = ContinuousRoundedRectangle(100.dp)
                     }
                     .let { m ->
                         if (useGlass) {
@@ -203,7 +203,9 @@ fun LiquidBottomTabs(
             verticalAlignment = Alignment.CenterVertically,
             content = content
         )
+
     }
+
 }
 
 @Composable
@@ -244,7 +246,6 @@ fun RowScope.LiquidBottomTab(
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        val accentColor = WhispryTheme.colors.accent
         val iconColor by animateColorAsState(
             targetValue = if (selected) accentColor else Color.White.copy(alpha = 0.45f),
             animationSpec = spring(stiffness = Spring.StiffnessMediumLow),

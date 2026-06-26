@@ -34,9 +34,11 @@ import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.whispry.R
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -47,6 +49,10 @@ import com.example.whispry.domain.model.TriggerMode
 import com.example.whispry.service.TriggerSound
 import com.example.whispry.ui.theme.AccentPreset
 import com.example.whispry.ui.theme.WhispryTheme
+import androidx.compose.runtime.saveable.rememberSaveable
+import com.example.whispry.ui.util.adaptive.MasterDetailScaffold
+import com.example.whispry.ui.util.adaptive.currentWidthSizeClass
+import com.example.whispry.ui.util.adaptive.masterDetailEnabledFor
 import com.example.whispry.ui.util.liquid.components.LiquidButton
 import com.example.whispry.ui.util.liquid.components.LiquidSlider
 import com.example.whispry.ui.util.liquid.components.LiquidToggle
@@ -58,6 +64,20 @@ import com.kyant.backdrop.effects.vibrancy
 import com.kyant.capsule.ContinuousRoundedRectangle
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+
+/**
+ * Settings categories. Drives the tablet/Expanded master-detail: the list on the left,
+ * the selected category's section rendered on the right. On phones every section is shown
+ * inline in one scroll and the category is implicit.
+ */
+enum class SettingsCategory(val title: String, val icon: ImageVector) {
+    Voice("Voice Recognition", Icons.Rounded.Language),
+    Trigger("Trigger Method", Icons.Rounded.TouchApp),
+    Interface("Interface & Sounds", Icons.Rounded.Palette),
+    Productivity("Productivity", Icons.Rounded.AutoAwesome),
+    Data("Data & Privacy", Icons.Rounded.Security),
+    Service("Service & Maintenance", Icons.Rounded.Build),
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -74,6 +94,8 @@ fun SettingsScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     var showRetentionPicker by remember { mutableStateOf(false) }
+    val isMasterDetail = masterDetailEnabledFor(currentWidthSizeClass())
+    var selectedCategory by rememberSaveable { mutableStateOf(SettingsCategory.Voice) }
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -88,301 +110,69 @@ fun SettingsScreen(
     }
 
     Box(modifier = modifier.fillMaxSize()) {
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(
-                top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 24.dp,
-                bottom = 140.dp,
-                start = 24.dp, 
-                end = 24.dp
-            ),
-            verticalArrangement = Arrangement.spacedBy(24.dp)
-        ) {
-            item {
-                Text(
-                    text = "Settings",
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
-                )
-            }
-
-            item {
-                SettingsSectionOptimized(title = "Voice Recognition", backdrop = backdrop) {
-                    ApiKeyField(
-                        apiKey = state.apiKey,
-                        onValueChange = { viewModel.onIntent(SettingsIntent.UpdateApiKey(it)) }
+        if (isMasterDetail) {
+            // Tablet / Expanded: fixed category list on the left, selected detail on the right.
+            MasterDetailScaffold(
+                masterPaneWidth = 300.dp,
+                detailPaneWidth = null,
+                master = {
+                    SettingsCategoryList(
+                        selectedCategory = selectedCategory,
+                        onSelect = { selectedCategory = it },
+                        footer = { SettingsFooter(viewModel = viewModel, backdrop = backdrop) }
                     )
-                    
-                    Spacer(modifier = Modifier.height(16.dp))
-                    
-                    SettingsRow(
-                        icon = Icons.Rounded.Language,
-                        title = "Language",
-                        value = state.language.uppercase(),
-                        onClick = onShowLanguagePicker
-                    )
-                    
-                    Spacer(modifier = Modifier.height(16.dp))
-                    
-                    LiquidSettingsSlider(
-                        title = "Temperature",
-                        value = state.temperature,
-                        onValueChange = { viewModel.onIntent(SettingsIntent.SetTemperature(it)) },
-                        valueRange = 0f..1f,
-                        backdrop = backdrop,
-                        startLabel = "Precise",
-                        endLabel = "Creative"
-                    )
-                }
-            }
-
-            item {
-                SettingsSectionOptimized(title = "Trigger Method", backdrop = backdrop) {
-                    TriggerPickerSection(
+                },
+                detail = {
+                    SettingsDetailPane(
+                        category = selectedCategory,
                         state = state,
-                        onIntent = { viewModel.onIntent(it) },
-                        backdrop = backdrop
-                    )
-                    
-                    if (state.triggerMode is TriggerMode.VolumeButton) {
-                        Spacer(modifier = Modifier.height(16.dp))
-                        VolumeKeyToggle(
-                            selectedKey = state.triggerVolumeKey,
-                            onKeySelected = { viewModel.onIntent(SettingsIntent.SetTriggerVolumeKey(it)) },
-                            backdrop = backdrop
-                        )
-                    }
-                    
-                    Spacer(modifier = Modifier.height(16.dp))
-                    
-                    DuckingSection(
-                        enabled = state.duckingEnabled,
-                        duckPercent = state.duckPercent,
-                        onEnabledChanged = { viewModel.onIntent(SettingsIntent.SetDuckingEnabled(it)) },
-                        onPercentChanged = { viewModel.onIntent(SettingsIntent.SetDuckingPercent(it)) },
-                        backdrop = backdrop
-                    )
-                }
-            }
-
-            item {
-                SettingsSectionOptimized(title = "Interface & Sounds", backdrop = backdrop) {
-                    LiquidSettingsToggle(
-                        icon = Icons.Rounded.OpenInNew,
-                        title = "Floating Widget",
-                        checked = state.floatingWidgetEnabled,
-                        onCheckedChange = { viewModel.onIntent(SettingsIntent.SetFloatingWidgetEnabled(it)) },
-                        backdrop = backdrop
-                    )
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    LiquidSettingsToggle(
-                        icon = Icons.Rounded.BlurOn,
-                        title = "Glass Navbar",
-                        checked = state.glassNavbar,
-                        onCheckedChange = { viewModel.onIntent(SettingsIntent.SetGlassNavbar(it)) },
-                        backdrop = backdrop
-                    )
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-//                    LiquidSettingsToggle(
-//                        icon = Icons.Rounded.Waves,
-//                        title = "Liquid Backdrop",
-//                        checked = state.glassLiquidBackdrop,
-//                        onCheckedChange = { viewModel.onIntent(SettingsIntent.SetGlassLiquidBackdrop(it)) },
-//                        backdrop = backdrop
-//                    )
-//
-//                    Spacer(modifier = Modifier.height(16.dp))
-
-                    AccentColorSelector(
-                        selectedPreset = AccentPreset.entries.find { it.name == state.accentColor } ?: AccentPreset.Purple,
-                        onPresetSelected = { viewModel.onIntent(SettingsIntent.SetAccentColor(it.name)) }
-                    )
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    LiquidSettingsToggle(
-                        icon = Icons.AutoMirrored.Rounded.VolumeUp,
-                        title = "Trigger Sounds",
-                        checked = state.soundEnabled,
-                        onCheckedChange = { viewModel.onIntent(SettingsIntent.SetSoundEnabled(it)) },
-                        backdrop = backdrop
-                    )
-                    
-                    AnimatedVisibility(
-                        visible = state.soundEnabled,
-                        enter = expandVertically() + fadeIn(),
-                        exit = shrinkVertically() + fadeOut()
-                    ) {
-                        Column(modifier = Modifier.padding(top = 12.dp)) {
-                            SoundSelectorRow(
-                                title = "Sound Pack",
-                                selectedSound = state.selectedSound,
-                                onSoundSelected = { viewModel.onIntent(SettingsIntent.SetSoundPack(it)) }
-                            )
-                        }
-                    }
-                }
-            }
-
-            item {
-                SettingsSectionOptimized(title = "Productivity", backdrop = backdrop) {
-                    SettingsRow(
-                        icon = Icons.Rounded.TextFields,
-                        title = "Text Expander",
-                        value = "Shortcuts → full text",
-                        onClick = onNavigateToTextExpander
-                    )
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    LiquidSettingsToggle(
-                       icon = Icons.Rounded.AutoAwesome,
-                       title = "App-Aware Tones",
-                       checked = state.appAwareToneEnabled,
-                       onCheckedChange = { viewModel.onIntent(SettingsIntent.SetAppAwareToneEnabled(it)) },
-                       backdrop = backdrop
-                    )
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    SettingsRow(
-                       icon = Icons.Rounded.Memory,
-                       title = "Memory Bank",
-                       value = "Personalize your context",
-                       onClick = onNavigateToMemory
-                    )
-
-                    AnimatedVisibility(
-                        visible = state.appAwareToneEnabled,
-                        enter = expandVertically() + fadeIn(),
-                        exit = shrinkVertically() + fadeOut()
-                    ) {
-                        Column(modifier = Modifier.padding(top = 16.dp)) {
-                            SettingsRow(
-                                icon = Icons.Rounded.SettingsApplications,
-                                title = "Configure App Tones",
-                                value = "Map apps to presets",
-                                onClick = onNavigateToAppTones
-                            )
-                        }
-                    }
-                }
-            }
-
-            item {
-                SettingsSectionOptimized(title = "Data & Privacy", backdrop = backdrop) {
-                    SettingsRow(
-                        icon = Icons.Rounded.History,
-                        title = "Retention Policy",
-                        value = state.retentionPolicy.displayName,
-                        onClick = { showRetentionPicker = true }
-                    )
-                    
-                    Spacer(modifier = Modifier.height(16.dp))
-                    
-                    LiquidButton(
-                        onClick = { viewModel.onIntent(SettingsIntent.ClearAudioCache) },
+                        viewModel = viewModel,
                         backdrop = backdrop,
-                        modifier = Modifier.fillMaxWidth().height(48.dp),
-                        tint = Color.White.copy(alpha = 0.05f)
-                    ) {
-                        Text("Clear audio cache", color = Color.White.copy(alpha = 0.8f))
-                    }
-                    
-                    Spacer(modifier = Modifier.height(16.dp))
-                    
-                    HoldToConfirmButton(
-                        text = "Clear all transcripts",
-                        onConfirmed = { viewModel.onIntent(SettingsIntent.ClearAllTranscripts) },
-                        modifier = Modifier.fillMaxWidth()
+                        onShowLanguagePicker = onShowLanguagePicker,
+                        onRevisitTutorial = onRevisitTutorial,
+                        onNavigateToTextExpander = onNavigateToTextExpander,
+                        onNavigateToAppTones = onNavigateToAppTones,
+                        onNavigateToMemory = onNavigateToMemory,
+                        onShowRetentionPicker = { showRetentionPicker = true }
                     )
                 }
-            }
-
-            item {
-                SettingsSectionOptimized(title = "Service & Maintenance", backdrop = backdrop) {
-                    StatusRow(
-                        title = "Accessibility Service",
-                        status = if (state.isAccessibilityEnabled) "Running" else "Disabled",
-                        isRunning = state.isAccessibilityEnabled,
-                        onClick = { viewModel.onIntent(SettingsIntent.OpenAccessibilitySettings) },
-                        backdrop = backdrop
-                    )
-                    
-                    Spacer(modifier = Modifier.height(16.dp))
-                    
-                    LiquidSettingsToggle(
-                        icon = Icons.Rounded.PowerSettingsNew,
-                        title = "Auto-start on Boot",
-                        checked = state.autoStartBoot,
-                        onCheckedChange = { viewModel.onIntent(SettingsIntent.SetAutoStartBoot(it)) },
-                        backdrop = backdrop
-                    )
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    SettingsRow(
-                        icon = Icons.Rounded.HelpOutline,
-                        title = "Revisit Tutorial",
-                        value = "Show guide",
-                        onClick = onRevisitTutorial
+            )
+        } else {
+            // Phone: every section inline in one readable-width scroll.
+            LazyColumn(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .fillMaxHeight()
+                    .widthIn(max = dimensionResource(R.dimen.content_max_width))
+                    .fillMaxWidth(),
+                contentPadding = PaddingValues(
+                    top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 24.dp,
+                    bottom = 140.dp,
+                    start = 24.dp,
+                    end = 24.dp
+                ),
+                verticalArrangement = Arrangement.spacedBy(24.dp)
+            ) {
+                item {
+                    Text(
+                        text = "Settings",
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
                     )
                 }
-            }
-
-            item {
-                var showResetDialog by remember { mutableStateOf(false) }
-                
-                if (showResetDialog) {
-                    AlertDialog(
-                        onDismissRequest = { showResetDialog = false },
-                        confirmButton = {
-                            TextButton(onClick = {
-                                viewModel.onIntent(SettingsIntent.ResetToDefaults)
-                                showResetDialog = false
-                            }) {
-                                Text("Reset", color = Color.Red)
-                            }
-                        },
-                        dismissButton = {
-                            TextButton(onClick = { showResetDialog = false }) {
-                                Text("Cancel")
-                            }
-                        },
-                        title = { Text("Reset to Defaults?") },
-                        text = { Text("This will clear all settings and your API key.") },
-                        shape = RoundedCornerShape(24.dp),
-                        containerColor = Color(0xFF1A1A1A),
-                        textContentColor = Color.White,
-                        titleContentColor = Color.White
+                item { VoiceRecognitionSection(state, viewModel, backdrop, onShowLanguagePicker) }
+                item { TriggerMethodSection(state, viewModel, backdrop) }
+                item { InterfaceSoundsSection(state, viewModel, backdrop) }
+                item {
+                    ProductivitySection(
+                        state, viewModel, backdrop,
+                        onNavigateToTextExpander, onNavigateToAppTones, onNavigateToMemory
                     )
                 }
-
-                LiquidButton(
-                    onClick = { showResetDialog = true },
-                    backdrop = backdrop,
-                    modifier = Modifier.fillMaxWidth().height(56.dp),
-                    tint = Color.White.copy(alpha = 0.05f)
-                ) {
-                    Text("Reset to defaults", color = Color.Red.copy(alpha = 0.8f), fontWeight = FontWeight.SemiBold)
-                }
-                
-                Spacer(modifier = Modifier.height(16.dp))
-                
-                Text(
-                    text = "Version 1.2.0",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Color.White.copy(alpha = 0.2f),
-                    modifier = Modifier.fillMaxWidth(),
-                    textAlign = TextAlign.Center
-                )
-                
-                Spacer(modifier = Modifier.height(40.dp))
+                item { DataPrivacySection(state, viewModel, backdrop) { showRetentionPicker = true } }
+                item { ServiceMaintenanceSection(state, viewModel, backdrop, onRevisitTutorial) }
+                item { SettingsFooter(viewModel = viewModel, backdrop = backdrop) }
             }
         }
 
@@ -400,6 +190,443 @@ fun SettingsScreen(
     }
 }
 
+/** Master pane: the tappable list of settings categories plus the global footer. */
+@Composable
+private fun SettingsCategoryList(
+    selectedCategory: SettingsCategory,
+    onSelect: (SettingsCategory) -> Unit,
+    footer: @Composable () -> Unit
+) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(
+            top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 24.dp,
+            bottom = 140.dp,
+            start = 16.dp,
+            end = 8.dp
+        ),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        item {
+            Text(
+                text = "Settings",
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+                color = Color.White,
+                modifier = Modifier.padding(start = 8.dp, bottom = 12.dp)
+            )
+        }
+        items(SettingsCategory.entries) { category ->
+            SettingsCategoryRow(
+                category = category,
+                selected = category == selectedCategory,
+                onClick = { onSelect(category) }
+            )
+        }
+        item {
+            Spacer(modifier = Modifier.height(24.dp))
+            footer()
+        }
+    }
+}
+
+@Composable
+private fun SettingsCategoryRow(
+    category: SettingsCategory,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(if (selected) Color.White.copy(alpha = 0.08f) else Color.Transparent)
+            .border(
+                1.dp,
+                if (selected) Color.White.copy(alpha = 0.12f) else Color.Transparent,
+                RoundedCornerShape(16.dp)
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            category.icon,
+            null,
+            tint = if (selected) Color.White else Color.White.copy(alpha = 0.6f),
+            modifier = Modifier.size(20.dp)
+        )
+        Spacer(modifier = Modifier.width(16.dp))
+        Text(
+            category.title,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+            color = if (selected) Color.White else Color.White.copy(alpha = 0.8f),
+            modifier = Modifier.weight(1f)
+        )
+        Icon(
+            Icons.Rounded.ChevronRight,
+            null,
+            tint = Color.White.copy(alpha = if (selected) 0.4f else 0.15f),
+            modifier = Modifier.size(18.dp)
+        )
+    }
+}
+
+/** Detail pane: the selected category's section, scrollable. */
+@Composable
+private fun SettingsDetailPane(
+    category: SettingsCategory,
+    state: SettingsState,
+    viewModel: SettingsViewModel,
+    backdrop: LayerBackdrop,
+    onShowLanguagePicker: () -> Unit,
+    onRevisitTutorial: () -> Unit,
+    onNavigateToTextExpander: () -> Unit,
+    onNavigateToAppTones: () -> Unit,
+    onNavigateToMemory: () -> Unit,
+    onShowRetentionPicker: () -> Unit
+) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(
+            top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 24.dp,
+            bottom = 140.dp,
+            start = 8.dp,
+            end = 24.dp
+        ),
+        verticalArrangement = Arrangement.spacedBy(24.dp)
+    ) {
+        item {
+            when (category) {
+                SettingsCategory.Voice ->
+                    VoiceRecognitionSection(state, viewModel, backdrop, onShowLanguagePicker)
+                SettingsCategory.Trigger ->
+                    TriggerMethodSection(state, viewModel, backdrop)
+                SettingsCategory.Interface ->
+                    InterfaceSoundsSection(state, viewModel, backdrop)
+                SettingsCategory.Productivity ->
+                    ProductivitySection(
+                        state, viewModel, backdrop,
+                        onNavigateToTextExpander, onNavigateToAppTones, onNavigateToMemory
+                    )
+                SettingsCategory.Data ->
+                    DataPrivacySection(state, viewModel, backdrop, onShowRetentionPicker)
+                SettingsCategory.Service ->
+                    ServiceMaintenanceSection(state, viewModel, backdrop, onRevisitTutorial)
+            }
+        }
+    }
+}
+
+@Composable
+private fun VoiceRecognitionSection(
+    state: SettingsState,
+    viewModel: SettingsViewModel,
+    backdrop: LayerBackdrop,
+    onShowLanguagePicker: () -> Unit
+) {
+    SettingsSectionOptimized(title = "Voice Recognition", backdrop = backdrop) {
+        ApiKeyField(
+            apiKey = state.apiKey,
+            onValueChange = { viewModel.onIntent(SettingsIntent.UpdateApiKey(it)) }
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        SettingsRow(
+            icon = Icons.Rounded.Language,
+            title = "Language",
+            value = state.language.uppercase(),
+            onClick = onShowLanguagePicker
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        LiquidSettingsSlider(
+            title = "Temperature",
+            value = state.temperature,
+            onValueChange = { viewModel.onIntent(SettingsIntent.SetTemperature(it)) },
+            valueRange = 0f..1f,
+            backdrop = backdrop,
+            startLabel = "Precise",
+            endLabel = "Creative"
+        )
+    }
+}
+
+@Composable
+private fun TriggerMethodSection(
+    state: SettingsState,
+    viewModel: SettingsViewModel,
+    backdrop: LayerBackdrop
+) {
+    SettingsSectionOptimized(title = "Trigger Method", backdrop = backdrop) {
+        TriggerPickerSection(
+            state = state,
+            onIntent = { viewModel.onIntent(it) },
+            backdrop = backdrop
+        )
+
+        if (state.triggerMode is TriggerMode.VolumeButton) {
+            Spacer(modifier = Modifier.height(16.dp))
+            VolumeKeyToggle(
+                selectedKey = state.triggerVolumeKey,
+                onKeySelected = { viewModel.onIntent(SettingsIntent.SetTriggerVolumeKey(it)) },
+                backdrop = backdrop
+            )
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        DuckingSection(
+            enabled = state.duckingEnabled,
+            duckPercent = state.duckPercent,
+            onEnabledChanged = { viewModel.onIntent(SettingsIntent.SetDuckingEnabled(it)) },
+            onPercentChanged = { viewModel.onIntent(SettingsIntent.SetDuckingPercent(it)) },
+            backdrop = backdrop
+        )
+    }
+}
+
+@Composable
+private fun InterfaceSoundsSection(
+    state: SettingsState,
+    viewModel: SettingsViewModel,
+    backdrop: LayerBackdrop
+) {
+    SettingsSectionOptimized(title = "Interface & Sounds", backdrop = backdrop) {
+        LiquidSettingsToggle(
+            icon = Icons.Rounded.OpenInNew,
+            title = "Floating Widget",
+            checked = state.floatingWidgetEnabled,
+            onCheckedChange = { viewModel.onIntent(SettingsIntent.SetFloatingWidgetEnabled(it)) },
+            backdrop = backdrop
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        LiquidSettingsToggle(
+            icon = Icons.Rounded.BlurOn,
+            title = "Glass Navbar",
+            checked = state.glassNavbar,
+            onCheckedChange = { viewModel.onIntent(SettingsIntent.SetGlassNavbar(it)) },
+            backdrop = backdrop
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        AccentColorSelector(
+            selectedPreset = AccentPreset.entries.find { it.name == state.accentColor } ?: AccentPreset.Purple,
+            onPresetSelected = { viewModel.onIntent(SettingsIntent.SetAccentColor(it.name)) }
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        LiquidSettingsToggle(
+            icon = Icons.AutoMirrored.Rounded.VolumeUp,
+            title = "Trigger Sounds",
+            checked = state.soundEnabled,
+            onCheckedChange = { viewModel.onIntent(SettingsIntent.SetSoundEnabled(it)) },
+            backdrop = backdrop
+        )
+
+        AnimatedVisibility(
+            visible = state.soundEnabled,
+            enter = expandVertically() + fadeIn(),
+            exit = shrinkVertically() + fadeOut()
+        ) {
+            Column(modifier = Modifier.padding(top = 12.dp)) {
+                SoundSelectorRow(
+                    title = "Sound Pack",
+                    selectedSound = state.selectedSound,
+                    onSoundSelected = { viewModel.onIntent(SettingsIntent.SetSoundPack(it)) }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProductivitySection(
+    state: SettingsState,
+    viewModel: SettingsViewModel,
+    backdrop: LayerBackdrop,
+    onNavigateToTextExpander: () -> Unit,
+    onNavigateToAppTones: () -> Unit,
+    onNavigateToMemory: () -> Unit
+) {
+    SettingsSectionOptimized(title = "Productivity", backdrop = backdrop) {
+        SettingsRow(
+            icon = Icons.Rounded.TextFields,
+            title = "Text Expander",
+            value = "Shortcuts → full text",
+            onClick = onNavigateToTextExpander
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        LiquidSettingsToggle(
+            icon = Icons.Rounded.AutoAwesome,
+            title = "App-Aware Tones",
+            checked = state.appAwareToneEnabled,
+            onCheckedChange = { viewModel.onIntent(SettingsIntent.SetAppAwareToneEnabled(it)) },
+            backdrop = backdrop
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        SettingsRow(
+            icon = Icons.Rounded.Memory,
+            title = "Memory Bank",
+            value = "Personalize your context",
+            onClick = onNavigateToMemory
+        )
+
+        AnimatedVisibility(
+            visible = state.appAwareToneEnabled,
+            enter = expandVertically() + fadeIn(),
+            exit = shrinkVertically() + fadeOut()
+        ) {
+            Column(modifier = Modifier.padding(top = 16.dp)) {
+                SettingsRow(
+                    icon = Icons.Rounded.SettingsApplications,
+                    title = "Configure App Tones",
+                    value = "Map apps to presets",
+                    onClick = onNavigateToAppTones
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DataPrivacySection(
+    state: SettingsState,
+    viewModel: SettingsViewModel,
+    backdrop: LayerBackdrop,
+    onShowRetentionPicker: () -> Unit
+) {
+    SettingsSectionOptimized(title = "Data & Privacy", backdrop = backdrop) {
+        SettingsRow(
+            icon = Icons.Rounded.History,
+            title = "Retention Policy",
+            value = state.retentionPolicy.displayName,
+            onClick = onShowRetentionPicker
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        LiquidButton(
+            onClick = { viewModel.onIntent(SettingsIntent.ClearAudioCache) },
+            backdrop = backdrop,
+            modifier = Modifier.fillMaxWidth().height(48.dp),
+            tint = Color.White.copy(alpha = 0.05f)
+        ) {
+            Text("Clear audio cache", color = Color.White.copy(alpha = 0.8f))
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        HoldToConfirmButton(
+            text = "Clear all transcripts",
+            onConfirmed = { viewModel.onIntent(SettingsIntent.ClearAllTranscripts) },
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
+}
+
+@Composable
+private fun ServiceMaintenanceSection(
+    state: SettingsState,
+    viewModel: SettingsViewModel,
+    backdrop: LayerBackdrop,
+    onRevisitTutorial: () -> Unit
+) {
+    SettingsSectionOptimized(title = "Service & Maintenance", backdrop = backdrop) {
+        StatusRow(
+            title = "Accessibility Service",
+            status = if (state.isAccessibilityEnabled) "Running" else "Disabled",
+            isRunning = state.isAccessibilityEnabled,
+            onClick = { viewModel.onIntent(SettingsIntent.OpenAccessibilitySettings) },
+            backdrop = backdrop
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        LiquidSettingsToggle(
+            icon = Icons.Rounded.PowerSettingsNew,
+            title = "Auto-start on Boot",
+            checked = state.autoStartBoot,
+            onCheckedChange = { viewModel.onIntent(SettingsIntent.SetAutoStartBoot(it)) },
+            backdrop = backdrop
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        SettingsRow(
+            icon = Icons.Rounded.HelpOutline,
+            title = "Revisit Tutorial",
+            value = "Show guide",
+            onClick = onRevisitTutorial
+        )
+    }
+}
+
+@Composable
+private fun SettingsFooter(
+    viewModel: SettingsViewModel,
+    backdrop: LayerBackdrop
+) {
+    var showResetDialog by remember { mutableStateOf(false) }
+
+    if (showResetDialog) {
+        AlertDialog(
+            onDismissRequest = { showResetDialog = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.onIntent(SettingsIntent.ResetToDefaults)
+                    showResetDialog = false
+                }) {
+                    Text("Reset", color = Color.Red)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showResetDialog = false }) {
+                    Text("Cancel")
+                }
+            },
+            title = { Text("Reset to Defaults?") },
+            text = { Text("This will clear all settings and your API key.") },
+            shape = RoundedCornerShape(24.dp),
+            containerColor = Color(0xFF1A1A1A),
+            textContentColor = Color.White,
+            titleContentColor = Color.White
+        )
+    }
+
+    LiquidButton(
+        onClick = { showResetDialog = true },
+        backdrop = backdrop,
+        modifier = Modifier.fillMaxWidth().height(56.dp),
+        tint = Color.White.copy(alpha = 0.05f)
+    ) {
+        Text("Reset to defaults", color = Color.Red.copy(alpha = 0.8f), fontWeight = FontWeight.SemiBold)
+    }
+
+    Spacer(modifier = Modifier.height(16.dp))
+
+    Text(
+        text = "Version 1.2.0",
+        style = MaterialTheme.typography.labelSmall,
+        color = Color.White.copy(alpha = 0.2f),
+        modifier = Modifier.fillMaxWidth(),
+        textAlign = TextAlign.Center
+    )
+
+    Spacer(modifier = Modifier.height(40.dp))
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RetentionPolicyBottomSheet(
@@ -409,7 +636,7 @@ fun RetentionPolicyBottomSheet(
     backdrop: LayerBackdrop
 ) {
     val sheetState = rememberModalBottomSheetState()
-    
+
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
@@ -434,7 +661,7 @@ fun RetentionPolicyBottomSheet(
                 color = Color.White.copy(alpha = 0.5f),
                 modifier = Modifier.padding(top = 4.dp, bottom = 24.dp)
             )
-            
+
             RetentionPolicy.entries.forEach { policy ->
                 val isSelected = policy == currentPolicy
                 Row(
@@ -482,7 +709,7 @@ fun VolumeKeyToggle(
     backdrop: Backdrop
 ) {
     val themeAccent = androidx.compose.ui.graphics.Color.White
-    
+
     Column {
         Text(
             text = "Trigger Key",
@@ -490,7 +717,7 @@ fun VolumeKeyToggle(
             color = Color.White.copy(alpha = 0.4f),
             modifier = Modifier.padding(bottom = 8.dp)
         )
-        
+
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -520,9 +747,9 @@ fun VolumeKeyToggle(
                 }
             }
         }
-        
+
         Spacer(modifier = Modifier.height(8.dp))
-        
+
         Crossfade(targetState = selectedKey, label = "TriggerDesc") { key ->
             Text(
                 text = if (key == "VOLUME_UP") "Double press and hold ↑ to record" else "Double press and hold ↓ to record",
@@ -551,7 +778,7 @@ fun DuckingSection(
             onCheckedChange = onEnabledChanged,
             backdrop = backdrop
         )
-        
+
         AnimatedVisibility(
             visible = enabled,
             enter = expandVertically() + fadeIn(),
@@ -575,9 +802,9 @@ fun DuckingSection(
                         fontWeight = FontWeight.Bold
                     )
                 }
-                
+
                 Spacer(modifier = Modifier.height(12.dp))
-                
+
                 LiquidSlider(
                     value = { duckPercent / 100f },
                     onValueChange = { onPercentChanged((it * 100).toInt()) },
@@ -586,9 +813,9 @@ fun DuckingSection(
                     visibilityThreshold = 0.01f,
                     backdrop = backdrop
                 )
-                
+
                 Spacer(modifier = Modifier.height(4.dp))
-                
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
@@ -678,7 +905,7 @@ fun SettingsSectionOptimized(
             color = androidx.compose.ui.graphics.Color.White,
             modifier = Modifier.padding(start = 8.dp, bottom = 12.dp)
         )
-        
+
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -763,7 +990,7 @@ fun TriggerPickerSection(
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         availableModes.forEach { mode ->
             val isSupported = if (mode is TriggerMode.ActionButton) state.isActionButtonSupported else true
-            
+
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -802,9 +1029,9 @@ fun TriggerPickerSection(
                             modifier = Modifier.size(20.dp)
                         )
                     }
-                    
+
                     Spacer(modifier = Modifier.width(16.dp))
-                    
+
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = getTriggerTitle(mode),
@@ -818,7 +1045,7 @@ fun TriggerPickerSection(
                             color = Color.White.copy(alpha = 0.5f)
                         )
                     }
-                    
+
                     if (isSelected(selectedMode, mode)) {
                         Icon(
                             Icons.Rounded.CheckCircle,
@@ -829,7 +1056,7 @@ fun TriggerPickerSection(
                     }
                 }
             }
-            
+
             AnimatedVisibility(
                 visible = isSelected(selectedMode, mode) && mode is TriggerMode.VolumeButton,
                 enter = expandVertically() + fadeIn(),
@@ -931,7 +1158,7 @@ fun SliderMeter(
 ) {
     Box(modifier.fillMaxWidth().height(20.dp).padding(horizontal = 4.dp)) {
         val totalSteps = if (steps > 0) steps + 2 else 11
-        
+
         Row(
             modifier = Modifier.fillMaxSize(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -944,13 +1171,13 @@ fun SliderMeter(
                 } else {
                     false
                 }
-                
+
                 Box(
                     modifier = Modifier
                         .width(1.5.dp)
                         .height(if (i % (if (steps > 0) 1 else 5) == 0) 6.dp else 3.dp)
                         .background(
-                            if (isSelected) androidx.compose.ui.graphics.Color.White 
+                            if (isSelected) androidx.compose.ui.graphics.Color.White
                             else Color.White.copy(alpha = if (i % (if (steps > 0) 1 else 5) == 0) 0.15f else 0.08f),
                             CircleShape
                         )
@@ -1102,11 +1329,11 @@ fun AccentColorSelector(
             modifier = Modifier.padding(bottom = 12.dp),
             color = Color.White
         )
-        
+
         val configuration = LocalConfiguration.current
         val screenWidth = configuration.screenWidthDp.dp
         val cardWidth = screenWidth - 48.dp
-        
+
         LazyRow(
             modifier = Modifier
                 .requiredWidth(cardWidth),
@@ -1115,16 +1342,16 @@ fun AccentColorSelector(
         ) {
             items(AccentPreset.entries) { preset ->
                 val isSelected = preset == selectedPreset
-                
+
                 val interactionSource = remember { MutableInteractionSource() }
                 val isPressed by interactionSource.collectIsPressedAsState()
-                
+
                 val scale by animateFloatAsState(
                     targetValue = if (isPressed) 0.9f else 1f,
                     animationSpec = spring(dampingRatio = 0.5f, stiffness = Spring.StiffnessLow),
                     label = "ColorScale"
                 )
-                
+
                 val contentDistortion by animateFloatAsState(
                     targetValue = if (isPressed) 0.95f else 1f,
                     animationSpec = spring(dampingRatio = 0.4f, stiffness = Spring.StiffnessLow),
@@ -1212,7 +1439,7 @@ fun StatusRow(
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
             .background(
-                if (isRunning) Color.Transparent 
+                if (isRunning) Color.Transparent
                 else Color(0xFFFF5252).copy(alpha = 0.05f)
             )
             .clickable { onClick() }
@@ -1227,7 +1454,7 @@ fun StatusRow(
                     .border(1.dp, com.example.whispry.ui.theme.WhispryTokens.GlassBorder, com.kyant.capsule.ContinuousRoundedRectangle(20.dp))
                 .border(
                     width = 1.dp,
-                    color = if (isRunning) Color.White.copy(alpha = 0.1f) 
+                    color = if (isRunning) Color.White.copy(alpha = 0.1f)
                             else Color(0xFFFF5252).copy(alpha = pulseAlpha),
                     shape = CircleShape
                 ),
@@ -1240,15 +1467,15 @@ fun StatusRow(
                 modifier = Modifier.size(20.dp)
             )
         }
-        
+
         Spacer(modifier = Modifier.width(16.dp))
-        
+
         Column(modifier = Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, color = Color.White)
             Text(
                 status,
                 style = MaterialTheme.typography.labelSmall,
-                color = if (isRunning) Color(0xFF00E676).copy(alpha = 0.8f) 
+                color = if (isRunning) Color(0xFF00E676).copy(alpha = 0.8f)
                         else Color(0xFFFF5252).copy(alpha = pulseAlpha)
             )
         }
