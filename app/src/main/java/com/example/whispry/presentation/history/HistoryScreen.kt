@@ -78,6 +78,7 @@ import com.example.whispry.ui.components.WhispryBottomSheet
 import com.example.whispry.ui.util.adaptive.currentWidthSizeClass
 import com.example.whispry.ui.util.adaptive.gridColumnsFor
 import com.example.whispry.ui.util.gridItems
+import com.example.whispry.ui.util.ProgressiveTopBlur
 import com.example.whispry.ui.util.TopFadeScrim
 import com.example.whispry.ui.theme.WhispryTheme
 import com.kyant.backdrop.Backdrop
@@ -158,6 +159,9 @@ fun HistoryScreen(
     // Whether the user is actively filtering — drives showing the flat results list vs the sections.
     val searching = state.searchQuery.isNotBlank()
     val listState = rememberLazyListState()
+    // Dedicated backdrop for the list only, so the top blur frosts list content WITHOUT blurring
+    // the crisp title/search header drawn above it.
+    val listBackdrop = rememberLayerBackdrop()
     // When a new transcript appears (a trigger just finished), jump back to the top to show it.
     val newestId = state.transcripts.firstOrNull()?.id
     LaunchedEffect(newestId) {
@@ -217,7 +221,7 @@ fun HistoryScreen(
 
     Box(modifier = modifier.fillMaxSize()) {
         // Content Layer - Blurs and recedes when search is active
-        Box(modifier = Modifier.fillMaxSize()) {
+        Box(modifier = Modifier.fillMaxSize().layerBackdrop(listBackdrop)) {
             // Content recedes/blurs only while the search field is focused and EMPTY (the inviting
             // "start typing" state). Once a query exists we keep it crisp and scrollable so the
             // changing results are clearly visible.
@@ -345,6 +349,18 @@ fun HistoryScreen(
                     }
                 }
             }
+        }
+
+        // Progressive frosted blur of the list as it scrolls under the top bar. Samples only the
+        // list backdrop, so the title/search header drawn afterwards stays perfectly crisp.
+        if (!isSearchActive) {
+            val blurHeight = if (headerHeightPx > 0) with(density) { headerHeightPx.toDp() } + 16.dp
+            else WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 160.dp
+            ProgressiveTopBlur(
+                backdrop = listBackdrop,
+                modifier = Modifier.align(Alignment.TopCenter),
+                height = blurHeight
+            )
         }
 
         // Top bar: a darkening fade behind a full-width header (24dp margins), so the title and

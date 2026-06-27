@@ -35,7 +35,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.navigation.NavDestination.Companion.hasRoute
 import com.example.whispry.navigation.Route
 import com.example.whispry.navigation.WhispryNavHost
-import com.example.whispry.ui.util.ProgressiveTopBlur
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 
@@ -211,16 +210,6 @@ private fun TabLayout(
                     onShowLanguagePicker = { onShowLanguagePickerChange(true) },
                     onRevisitTutorial = onRevisitTutorial,
                     onSearchActiveChange = onSearchActiveChange
-                )
-            }
-
-            // Progressive frosted blur under the Library top bar (drawn outside the backdrop layer).
-            val libraryTabIndex = remember { mainNavigationItems.indexOfFirst { it.route == Route.Library } }
-            if (currentTabIndex == libraryTabIndex && !isSearchActiveGlobal) {
-                ProgressiveTopBlur(
-                    backdrop = backdrop,
-                    modifier = Modifier.align(Alignment.TopCenter),
-                    height = 170.dp
                 )
             }
 
