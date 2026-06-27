@@ -15,6 +15,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
@@ -47,7 +49,9 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.text.font.FontWeight
@@ -68,6 +72,7 @@ import androidx.compose.ui.graphics.asComposeRenderEffect
 import com.example.whispry.domain.model.Transcript
 import com.example.whispry.R
 import com.example.whispry.presentation.common.GlassCard
+import com.example.whispry.ui.components.WhispryBottomSheet
 import com.example.whispry.ui.util.adaptive.currentWidthSizeClass
 import com.example.whispry.ui.util.adaptive.gridColumnsFor
 import com.example.whispry.ui.util.gridItems
@@ -143,8 +148,13 @@ fun HistoryScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val gridColumns = gridColumnsFor(currentWidthSizeClass())
     val focusManager = LocalFocusManager.current
+    val density = LocalDensity.current
     var showFilterMenu by remember { mutableStateOf(false) }
     var isSearchActive by remember { mutableStateOf(false) }
+    // Measured header height so the list never slides under the search bar (fixes landscape overlap).
+    var headerHeightPx by remember { mutableIntStateOf(0) }
+    // Whether the user is actively filtering — drives showing the flat results list vs the sections.
+    val searching = state.searchQuery.isNotBlank()
 
     var exportText by remember { mutableStateOf("") }
     var exportingTranscript by remember { mutableStateOf<Transcript?>(null) }
@@ -206,19 +216,24 @@ fun HistoryScreen(
     Box(modifier = modifier.fillMaxSize()) {
         // Content Layer - Blurs and recedes when search is active
         Box(modifier = Modifier.fillMaxSize()) {
+            // Content recedes/blurs only while the search field is focused and EMPTY (the inviting
+            // "start typing" state). Once a query exists we keep it crisp and scrollable so the
+            // changing results are clearly visible.
+            val recede = searchProgress * (if (state.searchQuery.isEmpty()) 1f else 0f)
+            val fallbackTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() +
+                dimensionResource(R.dimen.library_header_top_offset)
+            val topPadding = if (headerHeightPx > 0) with(density) { headerHeightPx.toDp() } + 12.dp else fallbackTop
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
                     .graphicsLayer {
-                        val s = 1f - (0.02f * searchProgress)
+                        val s = 1f - (0.02f * recede)
                         scaleX = s
                         scaleY = s
-                        alpha = 1f - (0.3f * searchProgress)
-                        
-                        // Render Effect blur (skip Recomposition)
-                        // Use a stable check to prevent blur "jumps" when query clears
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && searchProgress > 0.01f && state.searchQuery.isEmpty()) {
-                            val blurPx = (lerp(0.dp, 12.dp, searchProgress)).toPx()
+                        alpha = 1f - (0.3f * recede)
+
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && recede > 0.01f) {
+                            val blurPx = (lerp(0.dp, 12.dp, recede)).toPx()
                             if (blurPx > 0.1f) {
                                 renderEffect = RenderEffect.createBlurEffect(
                                     blurPx, blurPx, Shader.TileMode.CLAMP
@@ -227,33 +242,19 @@ fun HistoryScreen(
                         }
                     },
                 contentPadding = PaddingValues(
-                    top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + dimensionResource(R.dimen.library_header_top_offset),
+                    top = topPadding,
                     bottom = dimensionResource(R.dimen.screen_bottom_padding),
                     start = dimensionResource(R.dimen.screen_horizontal_padding),
                     end = dimensionResource(R.dimen.screen_horizontal_padding)
                 ),
                 verticalArrangement = Arrangement.spacedBy(20.dp),
-                userScrollEnabled = !isSearchActive 
+                userScrollEnabled = !(isSearchActive && state.searchQuery.isEmpty())
             ) {
-                item {
-                    LocalStorageNotice(transcriptCount = state.transcripts.size)
-                }
-
-                // Favorites Section
-                if (state.pinnedTranscripts.isNotEmpty()) {
-                    item {
-                        SectionHeader(
-                            title = "Favorites", 
-                            icon = Icons.Rounded.PushPin,
-                            onSeeMore = { navController.navigate(com.example.whispry.navigation.Route.FavoriteDetails) }
-                        )
-                    }
-                    gridItems(
-                        items = state.pinnedTranscripts.take(3),
-                        columns = gridColumns,
-                        horizontalSpacing = 16.dp
-                    ) { transcript ->
+                if (searching) {
+                    // --- Search results: flat, full-width, animated reorder on sort/add/remove ---
+                    items(state.filteredTranscripts, key = { it.id }) { transcript ->
                         LibraryTranscriptItemOptimized(
+                            modifier = Modifier.animateItem(),
                             transcript = transcript,
                             onDelete = { viewModel.onIntent(HistoryIntent.DeleteTranscript(transcript.id)) },
                             onCopy = { viewModel.onIntent(HistoryIntent.CopyToClipboard(transcript.text)) },
@@ -264,55 +265,79 @@ fun HistoryScreen(
                             onChangePreset = { viewModel.onIntent(HistoryIntent.ChangePreset(transcript.id, it)) }
                         )
                     }
-                    item { Spacer(modifier = Modifier.height(8.dp)) }
-                }
-
-                // Recent Section
-                if (state.recentTranscripts.isNotEmpty()) {
-                    item {
-                        SectionHeader(
-                            title = "Recents", 
-                            icon = Icons.Rounded.History,
-                            onSeeMore = { navController.navigate(com.example.whispry.navigation.Route.RecentDetails) }
-                        )
-                    }
-                    gridItems(
-                        items = state.recentTranscripts.take(5),
-                        columns = gridColumns,
-                        horizontalSpacing = 16.dp
-                    ) { transcript ->
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .shadow(4.dp, ContinuousRoundedRectangle(20.dp), spotColor = Color.Black)
-                                .background(com.example.whispry.ui.theme.WhispryTokens.SurfaceElevated, ContinuousRoundedRectangle(20.dp))
-                                .border(1.dp, com.example.whispry.ui.theme.WhispryTokens.GlassBorder, ContinuousRoundedRectangle(20.dp))
-                                .clickable { viewModel.onIntent(HistoryIntent.OpenDetail(transcript)) }
-                                .padding(16.dp)
-                        ) {
-                            Column {
-                                Text(
-                                    text = transcript.text,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    maxLines = 1,
-                                    fontWeight = FontWeight.Normal,
-                                    color = Color.White.copy(alpha = 0.9f)
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = transcript.createdAtFormatted,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = Color.White.copy(alpha = 0.4f)
-                                )
+                    if (!state.isLoading && state.filteredTranscripts.isEmpty()) {
+                        item {
+                            Box(modifier = Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
+                                Text(text = "No results for \"${state.searchQuery}\"", color = Color.White.copy(alpha = 0.4f))
                             }
                         }
                     }
-                }
-
-                if (!state.isLoading && state.filteredTranscripts.isEmpty()) {
+                } else {
                     item {
-                        Box(modifier = Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
-                            Text(text = "No results found", color = Color.White.copy(alpha = 0.4f))
+                        LocalStorageNotice(transcriptCount = state.transcripts.size)
+                    }
+
+                    // Favorites Section
+                    if (state.pinnedTranscripts.isNotEmpty()) {
+                        item {
+                            SectionHeader(
+                                title = "Favorites",
+                                icon = Icons.Rounded.Star,
+                                onSeeMore = { navController.navigate(com.example.whispry.navigation.Route.FavoriteDetails) }
+                            )
+                        }
+                        gridItems(
+                            items = state.pinnedTranscripts.take(3),
+                            columns = gridColumns,
+                            horizontalSpacing = 16.dp
+                        ) { transcript ->
+                            LibraryTranscriptItemOptimized(
+                                transcript = transcript,
+                                onDelete = { viewModel.onIntent(HistoryIntent.DeleteTranscript(transcript.id)) },
+                                onCopy = { viewModel.onIntent(HistoryIntent.CopyToClipboard(transcript.text)) },
+                                onTogglePin = { viewModel.onIntent(HistoryIntent.TogglePin(transcript.id)) },
+                                onOpenDetail = { viewModel.onIntent(HistoryIntent.OpenDetail(transcript)) },
+                                isReformatting = state.reformattingIds.contains(transcript.id),
+                                onCopyOriginal = { viewModel.onIntent(HistoryIntent.CopyToClipboard(transcript.rawText)) },
+                                onChangePreset = { viewModel.onIntent(HistoryIntent.ChangePreset(transcript.id, it)) }
+                            )
+                        }
+                        item { Spacer(modifier = Modifier.height(8.dp)) }
+                    }
+
+                    // Recent Section — same rich card as Favorites; reflects the sort filter.
+                    val recents = state.filteredTranscripts.take(8)
+                    if (recents.isNotEmpty()) {
+                        item {
+                            SectionHeader(
+                                title = "Recents",
+                                icon = Icons.Rounded.History,
+                                onSeeMore = { navController.navigate(com.example.whispry.navigation.Route.RecentDetails) }
+                            )
+                        }
+                        gridItems(
+                            items = recents,
+                            columns = gridColumns,
+                            horizontalSpacing = 16.dp
+                        ) { transcript ->
+                            LibraryTranscriptItemOptimized(
+                                transcript = transcript,
+                                onDelete = { viewModel.onIntent(HistoryIntent.DeleteTranscript(transcript.id)) },
+                                onCopy = { viewModel.onIntent(HistoryIntent.CopyToClipboard(transcript.text)) },
+                                onTogglePin = { viewModel.onIntent(HistoryIntent.TogglePin(transcript.id)) },
+                                onOpenDetail = { viewModel.onIntent(HistoryIntent.OpenDetail(transcript)) },
+                                isReformatting = state.reformattingIds.contains(transcript.id),
+                                onCopyOriginal = { viewModel.onIntent(HistoryIntent.CopyToClipboard(transcript.rawText)) },
+                                onChangePreset = { viewModel.onIntent(HistoryIntent.ChangePreset(transcript.id, it)) }
+                            )
+                        }
+                    }
+
+                    if (!state.isLoading && state.transcripts.isEmpty()) {
+                        item {
+                            Box(modifier = Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
+                                Text(text = "No transcripts yet", color = Color.White.copy(alpha = 0.4f))
+                            }
                         }
                     }
                 }
@@ -331,6 +356,7 @@ fun HistoryScreen(
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .fillMaxWidth()
+                .onSizeChanged { headerHeightPx = it.height }
                 .padding(top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 56.dp)
                 .padding(horizontal = 24.dp, vertical = 12.dp)
         ) {
@@ -558,7 +584,8 @@ fun LibraryTranscriptItemOptimized(
     onOpenDetail: () -> Unit,
     isReformatting: Boolean = false,
     onCopyOriginal: () -> Unit = {},
-    onChangePreset: (com.example.whispry.domain.model.OutputPreset) -> Unit = {}
+    onChangePreset: (com.example.whispry.domain.model.OutputPreset) -> Unit = {},
+    modifier: Modifier = Modifier
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
@@ -567,27 +594,85 @@ fun LibraryTranscriptItemOptimized(
         animationSpec = spring(stiffness = 500f, dampingRatio = 0.8f),
         label = "CardScale"
     )
-    
+
     var showPresetPicker by remember { mutableStateOf(false) }
 
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .graphicsLayer {
-                scaleX = scale
-                scaleY = scale
-            }
-            .shadow(4.dp, ContinuousRoundedRectangle(20.dp), spotColor = Color.Black)
-            .background(com.example.whispry.ui.theme.WhispryTokens.SurfaceElevated, ContinuousRoundedRectangle(20.dp))
-            .border(1.dp, com.example.whispry.ui.theme.WhispryTokens.GlassBorder, ContinuousRoundedRectangle(20.dp))
-            .clickable(
-                interactionSource = interactionSource,
-                indication = null,
-                onClick = onOpenDetail
+    // Swipe: drag right → favorite, drag left → delete.
+    val scope = rememberCoroutineScope()
+    val density = LocalDensity.current
+    val thresholdPx = with(density) { 88.dp.toPx() }
+    val maxSwipePx = thresholdPx * 1.4f
+    val swipeOffset = remember(transcript.id) { Animatable(0f) }
+
+    Box(modifier = modifier.fillMaxWidth()) {
+        // Reveal layer behind the card: star on the left, delete on the right.
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .clip(ContinuousRoundedRectangle(20.dp))
+                .background(Color.White.copy(alpha = 0.03f))
+        ) {
+            Icon(
+                Icons.Rounded.Star, null,
+                tint = Color(0xFFFFD60A),
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .padding(start = 24.dp)
+                    .size(24.dp)
+                    .graphicsLayer { alpha = (swipeOffset.value / thresholdPx).coerceIn(0f, 1f) }
             )
-            .padding(16.dp)
-    ) {
-        Column {
+            Icon(
+                Icons.Rounded.Delete, null,
+                tint = Color(0xFFFF6B6B),
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .padding(end = 24.dp)
+                    .size(24.dp)
+                    .graphicsLayer { alpha = (-swipeOffset.value / thresholdPx).coerceIn(0f, 1f) }
+            )
+        }
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .offset { IntOffset(swipeOffset.value.roundToInt(), 0) }
+                .pointerInput(transcript.id) {
+                    detectHorizontalDragGestures(
+                        onHorizontalDrag = { _, dragAmount ->
+                            scope.launch { swipeOffset.snapTo((swipeOffset.value + dragAmount).coerceIn(-maxSwipePx, maxSwipePx)) }
+                        },
+                        onDragEnd = {
+                            scope.launch {
+                                when {
+                                    swipeOffset.value <= -thresholdPx -> {
+                                        swipeOffset.animateTo(-maxSwipePx, spring(stiffness = Spring.StiffnessMedium))
+                                        onDelete()
+                                    }
+                                    swipeOffset.value >= thresholdPx -> {
+                                        onTogglePin()
+                                        swipeOffset.animateTo(0f, spring(dampingRatio = 0.6f, stiffness = Spring.StiffnessLow))
+                                    }
+                                    else -> swipeOffset.animateTo(0f, spring(dampingRatio = 0.7f))
+                                }
+                            }
+                        }
+                    )
+                }
+                .graphicsLayer {
+                    scaleX = scale
+                    scaleY = scale
+                }
+                .shadow(4.dp, ContinuousRoundedRectangle(20.dp), spotColor = Color.Black)
+                .background(com.example.whispry.ui.theme.WhispryTokens.SurfaceElevated, ContinuousRoundedRectangle(20.dp))
+                .border(1.dp, com.example.whispry.ui.theme.WhispryTokens.GlassBorder, ContinuousRoundedRectangle(20.dp))
+                .clickable(
+                    interactionSource = interactionSource,
+                    indication = null,
+                    onClick = onOpenDetail
+                )
+                .padding(16.dp)
+        ) {
+            Column {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -648,8 +733,25 @@ fun LibraryTranscriptItemOptimized(
                 }
                 
                 Row {
-                    IconButton(onClick = onTogglePin, modifier = Modifier.size(32.dp)) {
-                        Icon(Icons.Rounded.PushPin, null, tint = if (transcript.isPinned) androidx.compose.ui.graphics.Color.White else Color.White.copy(0.2f), modifier = Modifier.size(18.dp))
+                    val starScale = remember { Animatable(1f) }
+                    IconButton(
+                        onClick = {
+                            scope.launch {
+                                starScale.animateTo(1.35f, spring(dampingRatio = 0.35f, stiffness = Spring.StiffnessHigh))
+                                starScale.animateTo(1f, spring(dampingRatio = 0.45f, stiffness = Spring.StiffnessMedium))
+                            }
+                            onTogglePin()
+                        },
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            if (transcript.isPinned) Icons.Rounded.Star else Icons.Rounded.StarBorder,
+                            null,
+                            tint = if (transcript.isPinned) Color(0xFFFFD60A) else Color.White.copy(0.25f),
+                            modifier = Modifier
+                                .size(18.dp)
+                                .graphicsLayer { scaleX = starScale.value; scaleY = starScale.value }
+                        )
                     }
                     IconButton(onClick = onCopy, modifier = Modifier.size(32.dp)) {
                         Icon(Icons.Rounded.ContentCopy, null, tint = Color.White.copy(0.4f), modifier = Modifier.size(18.dp))
@@ -669,6 +771,7 @@ fun LibraryTranscriptItemOptimized(
                     }
                 }
                 Text(String.format("%.1fs", transcript.durationMs / 1000f), style = MaterialTheme.typography.labelSmall, color = androidx.compose.ui.graphics.Color.White)
+            }
             }
         }
     }
@@ -719,19 +822,23 @@ fun TranscriptDetailView(
     onExport: () -> Unit,
     backdrop: Backdrop
 ) {
-    Dialog(onDismissRequest = onDismiss) {
-        TranscriptDetailContent(
+    // Tap-to-open detail now uses the shared app bottom sheet for a consistent feel.
+    WhispryBottomSheet(
+        title = "Detail",
+        onDismiss = onDismiss,
+        heightFraction = 0.9f
+    ) {
+        TranscriptDetailBody(
             transcript = transcript,
-            onDismiss = onDismiss,
             onCopy = onCopy,
-            onExport = onExport
+            onExport = onExport,
+            showHeader = false
         )
     }
 }
 
 /**
- * The detail card content, extracted from the Dialog wrapper so it can render either inside a
- * Dialog (compact, tap-to-open) or inline as a master-detail side pane (Expanded width).
+ * Master-detail side-pane panel (Expanded width). Single glass border — no dual outline.
  */
 @Composable
 fun TranscriptDetailContent(
@@ -741,20 +848,45 @@ fun TranscriptDetailContent(
     onExport: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-        Box(
-            modifier = modifier
-                .fillMaxWidth()
-                .shadow(4.dp, com.kyant.capsule.ContinuousRoundedRectangle(20.dp), spotColor = androidx.compose.ui.graphics.Color.Black)
-                    .background(com.example.whispry.ui.theme.WhispryTokens.SurfaceElevated, com.kyant.capsule.ContinuousRoundedRectangle(20.dp))
-                    .border(1.dp, com.example.whispry.ui.theme.WhispryTokens.GlassBorder, com.kyant.capsule.ContinuousRoundedRectangle(20.dp))
-                .border(0.5.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(32.dp))
-                .padding(24.dp)
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .shadow(4.dp, com.kyant.capsule.ContinuousRoundedRectangle(20.dp), spotColor = androidx.compose.ui.graphics.Color.Black)
+            .background(com.example.whispry.ui.theme.WhispryTokens.SurfaceElevated, com.kyant.capsule.ContinuousRoundedRectangle(20.dp))
+            .border(1.dp, com.example.whispry.ui.theme.WhispryTokens.GlassBorder, com.kyant.capsule.ContinuousRoundedRectangle(20.dp))
+            .padding(24.dp)
+    ) {
+        TranscriptDetailBody(
+            transcript = transcript,
+            onCopy = onCopy,
+            onExport = onExport,
+            showHeader = true,
+            onDismiss = onDismiss,
+            scroll = true
+        )
+    }
+}
+
+/**
+ * The transcript detail content. Rendered headerless inside the bottom sheet (the sheet supplies
+ * its own title/close) and with a header + own scroll inside the side-pane panel.
+ */
+@Composable
+private fun TranscriptDetailBody(
+    transcript: Transcript,
+    onCopy: (String) -> Unit,
+    onExport: () -> Unit,
+    showHeader: Boolean,
+    onDismiss: () -> Unit = {},
+    scroll: Boolean = false,
+    modifier: Modifier = Modifier
+) {
+        Column(
+            modifier = modifier.then(if (scroll) Modifier.verticalScroll(rememberScrollState()) else Modifier),
+            verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
-            Column(
-                modifier = Modifier.verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(24.dp)
-            ) {
-                // Header
+                // Header (side-pane only; the bottom sheet renders its own)
+                if (showHeader) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -780,6 +912,7 @@ fun TranscriptDetailContent(
                     IconButton(onClick = onDismiss) {
                         Icon(Icons.Rounded.Close, null, tint = Color.White.copy(alpha = 0.3f))
                     }
+                }
                 }
 
                 // Remixed Section (The Pretty version)
@@ -910,7 +1043,6 @@ fun TranscriptDetailContent(
                 
                 Spacer(Modifier.height(8.dp))
             }
-        }
 }
 
 @Composable
