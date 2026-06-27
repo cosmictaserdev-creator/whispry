@@ -14,6 +14,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.offset
@@ -403,6 +404,36 @@ fun HistoryScreen(
                     onSearchActiveChange = { isSearchActive = it },
                     backdrop = backdrop
                 )
+
+                // Local, on-device autocomplete: word completions mined from existing transcripts.
+                val suggestions = remember(state.searchQuery, state.transcripts) {
+                    val q = state.searchQuery.trim().lowercase()
+                    if (q.length < 2) emptyList()
+                    else state.transcripts.asSequence()
+                        .flatMap { it.text.split(Regex("\\s+")).asSequence() }
+                        .map { it.trim('.', ',', '!', '?', ';', ':', '"', '\'', '(', ')').lowercase() }
+                        .filter { it.length > q.length && it.startsWith(q) }
+                        .distinct()
+                        .take(6)
+                        .toList()
+                }
+                AnimatedVisibility(
+                    visible = isSearchActive && suggestions.isNotEmpty(),
+                    enter = fadeIn() + expandVertically(),
+                    exit = fadeOut() + shrinkVertically()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState())
+                            .padding(top = 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        suggestions.forEach { word ->
+                            SuggestionChip(word) { viewModel.onIntent(HistoryIntent.Search(word)) }
+                        }
+                    }
+                }
         }
 
         if (showFilterMenu) {
@@ -550,6 +581,23 @@ fun RubberySearchBar(
                 fontWeight = FontWeight.SemiBold
             )
         }
+    }
+}
+
+@Composable
+private fun SuggestionChip(text: String, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .clip(ContinuousRoundedRectangle(100.dp))
+            .background(com.example.whispry.ui.theme.WhispryTokens.SurfaceElevated, ContinuousRoundedRectangle(100.dp))
+            .border(1.dp, com.example.whispry.ui.theme.WhispryTokens.GlassBorder, ContinuousRoundedRectangle(100.dp))
+            .clickable { onClick() }
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(Icons.Rounded.Search, null, tint = Color.White.copy(0.4f), modifier = Modifier.size(14.dp))
+        Spacer(Modifier.width(6.dp))
+        Text(text, style = MaterialTheme.typography.labelLarge, color = Color.White.copy(0.85f))
     }
 }
 
