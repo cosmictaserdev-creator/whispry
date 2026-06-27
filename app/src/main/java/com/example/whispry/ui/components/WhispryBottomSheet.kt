@@ -37,6 +37,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
 import com.example.whispry.ui.theme.WhispryTokens
 import com.kyant.capsule.ContinuousRoundedRectangle
 import kotlinx.coroutines.launch
@@ -91,8 +93,14 @@ fun WhispryBottomSheet(
         scope.launch { offsetY.snapTo((offsetY.value + delta).coerceAtLeast(0f)) }
     }
 
-    BackHandler { dismiss() }
-
+    // Render in a full-screen Popup so the sheet escapes any parent bounds (e.g. a LazyColumn
+    // item) and so its text fields can receive keyboard focus. focusable also routes the back
+    // press to onDismissRequest.
+    Popup(
+        alignment = Alignment.TopStart,
+        onDismissRequest = dismiss,
+        properties = PopupProperties(focusable = true)
+    ) {
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -184,6 +192,7 @@ fun WhispryBottomSheet(
                 )
             }
         }
+    }
     }
 }
 
