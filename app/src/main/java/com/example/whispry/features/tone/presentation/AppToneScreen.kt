@@ -26,6 +26,8 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.example.whispry.domain.model.OutputPreset
 import com.example.whispry.features.tone.data.model.AppToneEntity
+import com.example.whispry.ui.components.HeaderActionButton
+import com.example.whispry.ui.components.ScreenHeader
 import com.example.whispry.ui.theme.WhispryTheme
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.backdrops.LayerBackdrop
@@ -58,54 +60,13 @@ fun AppToneScreen(
                 .padding(horizontal = 24.dp)
         ) {
             // Header Row
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(
-                        top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 24.dp,
-                        bottom = 16.dp
-                    ),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(
-                    onClick = { navController.popBackStack() },
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(Color.White.copy(alpha = 0.05f))
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.ArrowBack,
-                        contentDescription = "Back",
-                        tint = Color.White
-                    )
+            ScreenHeader(
+                title = "App-Aware Tones",
+                onBack = { navController.popBackStack() },
+                actions = {
+                    HeaderActionButton(Icons.Rounded.Add, "Add mapping") { showAddDialog = true }
                 }
-
-                Spacer(modifier = Modifier.width(16.dp))
-
-                Text(
-                    text = "App-Aware Tones",
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White,
-                    modifier = Modifier.weight(1f)
-                )
-
-                IconButton(
-                    onClick = { showAddDialog = true },
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(androidx.compose.ui.graphics.Color.White.copy(alpha = 0.05f))
-                        .border(1.dp, androidx.compose.ui.graphics.Color.White.copy(alpha = 0.15f), RoundedCornerShape(12.dp))
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Add,
-                        contentDescription = "Add mapping",
-                        tint = androidx.compose.ui.graphics.Color.White
-                    )
-                }
-            }
+            )
 
             Spacer(modifier = Modifier.height(8.dp))
 

@@ -28,8 +28,10 @@ import androidx.datastore.preferences.core.edit
 import com.example.whispry.data.local.datasource.DataStoreKeys
 import com.example.whispry.data.local.datasource.SettingsProvider
 import com.example.whispry.domain.model.OutputPreset
+import com.example.whispry.ui.components.WhispryBottomSheet
 import com.example.whispry.ui.theme.WhispryTheme
 import com.example.whispry.ui.util.TopFadeScrim
+import com.kyant.capsule.ContinuousRoundedRectangle
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.backdrops.LayerBackdrop
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -255,65 +257,51 @@ fun TranslateLanguageSelector(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TranslateLanguageSheet(
     selectedLanguage: String,
     onSelect: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
-    val sheetState = rememberModalBottomSheetState()
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        containerColor = Color(0xFF0D0D14),
-        scrimColor = Color.Black.copy(alpha = 0.6f),
-        dragHandle = { BottomSheetDefaults.DragHandle(color = Color.White.copy(alpha = 0.2f)) }
+    WhispryBottomSheet(
+        title = "Translate to",
+        onDismiss = onDismiss,
+        heightFraction = 0.85f,
+        scrollableContent = false
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 24.dp)
+        Text(
+            "Output language for the Translate preset.",
+            style = MaterialTheme.typography.bodySmall,
+            color = Color.White.copy(alpha = 0.5f),
+            modifier = Modifier.padding(bottom = 12.dp)
+        )
+        LazyColumn(
+            modifier = Modifier.fillMaxWidth().weight(1f),
+            contentPadding = PaddingValues(bottom = 24.dp)
         ) {
-            Text(
-                "Translate to",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                color = Color.White,
-                modifier = Modifier.padding(bottom = 4.dp)
-            )
-            Text(
-                "Output language for the Translate preset.",
-                style = MaterialTheme.typography.bodySmall,
-                color = Color.White.copy(alpha = 0.5f),
-                modifier = Modifier.padding(bottom = 16.dp)
-            )
-            LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 420.dp)) {
-                items(com.example.whispry.domain.model.TranslationLanguages.all) { lang ->
-                    val isSelected = lang == selectedLanguage
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(if (isSelected) Color.White.copy(alpha = 0.06f) else Color.Transparent)
-                            .clickable { onSelect(lang) }
-                            .padding(horizontal = 16.dp, vertical = 14.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            lang,
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = Color.White,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                            modifier = Modifier.weight(1f)
-                        )
-                        if (isSelected) {
-                            Icon(Icons.Rounded.Check, null, tint = Color.White, modifier = Modifier.size(20.dp))
-                        }
+            items(com.example.whispry.domain.model.TranslationLanguages.all) { lang ->
+                val isSelected = lang == selectedLanguage
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(ContinuousRoundedRectangle(14.dp))
+                        .background(if (isSelected) Color.White.copy(alpha = 0.06f) else Color.Transparent)
+                        .clickable { onSelect(lang) }
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        lang,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = Color.White,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                        modifier = Modifier.weight(1f)
+                    )
+                    if (isSelected) {
+                        Icon(Icons.Rounded.Check, null, tint = Color.White, modifier = Modifier.size(20.dp))
                     }
                 }
             }
-            Spacer(modifier = Modifier.height(24.dp))
         }
     }
 }

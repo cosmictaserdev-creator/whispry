@@ -25,6 +25,8 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import androidx.compose.ui.graphics.graphicsLayer
 import com.example.whispry.features.expander.data.model.TextExpanderEntity
+import com.example.whispry.ui.components.HeaderActionButton
+import com.example.whispry.ui.components.ScreenHeader
 import com.example.whispry.ui.components.SheetPrimaryButton
 import com.example.whispry.ui.components.SheetTextField
 import com.example.whispry.ui.components.WhispryBottomSheet
@@ -64,51 +66,13 @@ fun TextExpanderScreen(
                 .padding(horizontal = 24.dp)
         ) {
             // Header Row
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 24.dp, bottom = 16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(
-                    onClick = { navController.popBackStack() },
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(Color.White.copy(alpha = 0.05f))
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.ArrowBack,
-                        contentDescription = "Back",
-                        tint = Color.White
-                    )
+            ScreenHeader(
+                title = "Text Expander",
+                onBack = { navController.popBackStack() },
+                actions = {
+                    HeaderActionButton(Icons.Rounded.Add, "Add shortcut") { showAddDialog = true }
                 }
-
-                Spacer(modifier = Modifier.width(16.dp))
-
-                Text(
-                    text = "Text Expander",
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White,
-                    modifier = Modifier.weight(1f)
-                )
-
-                IconButton(
-                    onClick = { showAddDialog = true },
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(androidx.compose.ui.graphics.Color.White.copy(alpha = 0.05f))
-                        .border(1.dp, androidx.compose.ui.graphics.Color.White.copy(alpha = 0.15f), RoundedCornerShape(12.dp))
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Add,
-                        contentDescription = "Add shortcut",
-                        tint = androidx.compose.ui.graphics.Color.White
-                    )
-                }
-            }
+            )
 
             Spacer(modifier = Modifier.height(8.dp))
 

@@ -25,6 +25,8 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.example.whispry.features.voicecommand.data.model.VoiceCommandEntity
 import com.example.whispry.features.voicecommand.domain.model.VoiceCommandAction
+import com.example.whispry.ui.components.HeaderActionButton
+import com.example.whispry.ui.components.ScreenHeader
 import com.example.whispry.ui.components.SheetPrimaryButton
 import com.example.whispry.ui.components.SheetTextField
 import com.example.whispry.ui.components.WhispryBottomSheet
@@ -52,23 +54,13 @@ fun VoiceCommandScreen(
                 }
                 .padding(horizontal = 24.dp)
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 24.dp, bottom = 16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(
-                    onClick = { navController.popBackStack() },
-                    modifier = Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(Color.White.copy(alpha = 0.05f))
-                ) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back", tint = Color.White) }
-                Spacer(modifier = Modifier.width(16.dp))
-                Text("Voice Commands", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.weight(1f))
-                IconButton(
-                    onClick = { editTarget = null; showDialog = true },
-                    modifier = Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(Color.White.copy(alpha = 0.05f)).border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(12.dp))
-                ) { Icon(Icons.Rounded.Add, "Add", tint = Color.White) }
-            }
+            ScreenHeader(
+                title = "Voice Commands",
+                onBack = { navController.popBackStack() },
+                actions = {
+                    HeaderActionButton(Icons.Rounded.Add, "Add") { editTarget = null; showDialog = true }
+                }
+            )
 
             Text(
                 text = "Say a trigger word, then your query — e.g. \"chrome best football player\" searches the web. Open-App launches an app and copies the rest for you to paste.",

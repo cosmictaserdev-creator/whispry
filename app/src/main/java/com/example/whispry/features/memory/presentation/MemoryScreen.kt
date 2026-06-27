@@ -23,6 +23,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ArrowBack
+import com.example.whispry.ui.components.HeaderActionButton
+import com.example.whispry.ui.components.ScreenHeader
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material.icons.rounded.VisibilityOff
@@ -86,51 +88,13 @@ fun MemoryScreen(
                 .padding(horizontal = 24.dp)
         ) {
             // Header Row
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 24.dp, bottom = 16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(
-                    onClick = { navController.popBackStack() },
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(Color.White.copy(alpha = 0.05f))
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.ArrowBack,
-                        contentDescription = "Back",
-                        tint = Color.White
-                    )
+            ScreenHeader(
+                title = "Memory Bank",
+                onBack = { navController.popBackStack() },
+                actions = {
+                    HeaderActionButton(Icons.Rounded.Add, "Add memory") { showAddDialog = true }
                 }
-
-                Spacer(modifier = Modifier.width(16.dp))
-
-                Text(
-                    text = "Memory Bank",
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White,
-                    modifier = Modifier.weight(1f)
-                )
-
-                IconButton(
-                    onClick = { showAddDialog = true },
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(androidx.compose.ui.graphics.Color.White.copy(alpha = 0.05f))
-                        .border(1.dp, androidx.compose.ui.graphics.Color.White.copy(alpha = 0.15f), RoundedCornerShape(12.dp))
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Add,
-                        contentDescription = "Add memory",
-                        tint = androidx.compose.ui.graphics.Color.White
-                    )
-                }
-            }
+            )
 
             Spacer(modifier = Modifier.height(8.dp))
 
