@@ -22,6 +22,7 @@ import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -155,6 +156,12 @@ fun HistoryScreen(
     var headerHeightPx by remember { mutableIntStateOf(0) }
     // Whether the user is actively filtering — drives showing the flat results list vs the sections.
     val searching = state.searchQuery.isNotBlank()
+    val listState = rememberLazyListState()
+    // When a new transcript appears (a trigger just finished), jump back to the top to show it.
+    val newestId = state.transcripts.firstOrNull()?.id
+    LaunchedEffect(newestId) {
+        if (newestId != null && !searching) listState.animateScrollToItem(0)
+    }
 
     var exportText by remember { mutableStateOf("") }
     var exportingTranscript by remember { mutableStateOf<Transcript?>(null) }
@@ -177,16 +184,10 @@ fun HistoryScreen(
         }
     }
 
-    // Unified animation progress with bouncy overshoot effect
+    // Smooth, jitter-free spring for both opening and closing (iOS-like, no overshoot wobble).
     val searchProgress by animateFloatAsState(
         targetValue = if (isSearchActive) 1f else 0f,
-        animationSpec = tween(
-            durationMillis = 450,
-            easing = if (isSearchActive) 
-                CubicBezierEasing(0.34f, 1.56f, 0.64f, 1f) // Bouncy Overshoot
-            else 
-                FastOutSlowInEasing
-        ),
+        animationSpec = spring(dampingRatio = 0.9f, stiffness = Spring.StiffnessMediumLow),
         label = "SearchProgress"
     )
 
@@ -224,6 +225,7 @@ fun HistoryScreen(
                 dimensionResource(R.dimen.library_header_top_offset)
             val topPadding = if (headerHeightPx > 0) with(density) { headerHeightPx.toDp() } + 12.dp else fallbackTop
             LazyColumn(
+                state = listState,
                 modifier = Modifier
                     .fillMaxSize()
                     .graphicsLayer {
@@ -457,8 +459,8 @@ fun RubberySearchBar(
     var localQuery by remember(query) { mutableStateOf(query) }
 
     val pressScale by animateFloatAsState(
-        targetValue = if (isPressed) 0.94f else 1f,
-        animationSpec = spring(dampingRatio = 0.5f, stiffness = Spring.StiffnessLow),
+        targetValue = if (isPressed) 0.97f else 1f,
+        animationSpec = spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessMedium),
         label = "SearchPressScale"
     )
 
@@ -472,7 +474,7 @@ fun RubberySearchBar(
                 .fillMaxHeight()
                 .graphicsLayer {
                     scaleX = pressScale
-                    scaleY = 1f / pressScale
+                    scaleY = pressScale
                 }
                 .shadow(4.dp, com.kyant.capsule.ContinuousRoundedRectangle(100.dp), spotColor = androidx.compose.ui.graphics.Color.Black)
                     .background(com.example.whispry.ui.theme.WhispryTokens.SurfaceElevated, com.kyant.capsule.ContinuousRoundedRectangle(100.dp))
@@ -491,8 +493,6 @@ fun RubberySearchBar(
         ) {
             Row(
                 modifier = Modifier.graphicsLayer {
-                    val s = 1f - (0.05f * (1f - pressScale))
-                    scaleX = s
                     alpha = 0.5f + (0.5f * progress)
                 },
                 verticalAlignment = Alignment.CenterVertically
@@ -605,31 +605,36 @@ fun LibraryTranscriptItemOptimized(
     val swipeOffset = remember(transcript.id) { Animatable(0f) }
 
     Box(modifier = modifier.fillMaxWidth()) {
-        // Reveal layer behind the card: star on the left, delete on the right.
+        // Reveal layer behind the card: yellow + star when swiping right (favorite),
+        // red + trash when swiping left (delete). Dark icons for contrast.
+        val darkIcon = Color(0xFF1C1C1E)
         Box(
             modifier = Modifier
                 .matchParentSize()
                 .clip(ContinuousRoundedRectangle(20.dp))
-                .background(Color.White.copy(alpha = 0.03f))
         ) {
-            Icon(
-                Icons.Rounded.Star, null,
-                tint = Color(0xFFFFD60A),
+            Box(
                 modifier = Modifier
-                    .align(Alignment.CenterStart)
-                    .padding(start = 24.dp)
-                    .size(24.dp)
+                    .matchParentSize()
                     .graphicsLayer { alpha = (swipeOffset.value / thresholdPx).coerceIn(0f, 1f) }
-            )
-            Icon(
-                Icons.Rounded.Delete, null,
-                tint = Color(0xFFFF6B6B),
+                    .background(Color(0xFFFFD60A))
+            ) {
+                Icon(
+                    Icons.Rounded.Star, null, tint = darkIcon,
+                    modifier = Modifier.align(Alignment.CenterStart).padding(start = 28.dp).size(24.dp)
+                )
+            }
+            Box(
                 modifier = Modifier
-                    .align(Alignment.CenterEnd)
-                    .padding(end = 24.dp)
-                    .size(24.dp)
+                    .matchParentSize()
                     .graphicsLayer { alpha = (-swipeOffset.value / thresholdPx).coerceIn(0f, 1f) }
-            )
+                    .background(Color(0xFFFF453A))
+            ) {
+                Icon(
+                    Icons.Rounded.Delete, null, tint = darkIcon,
+                    modifier = Modifier.align(Alignment.CenterEnd).padding(end = 28.dp).size(24.dp)
+                )
+            }
         }
 
         Box(
@@ -649,7 +654,8 @@ fun LibraryTranscriptItemOptimized(
                                         onDelete()
                                     }
                                     swipeOffset.value >= thresholdPx -> {
-                                        onTogglePin()
+                                        // Swipe right always favorites — never toggles back off.
+                                        if (!transcript.isPinned) onTogglePin()
                                         swipeOffset.animateTo(0f, spring(dampingRatio = 0.6f, stiffness = Spring.StiffnessLow))
                                     }
                                     else -> swipeOffset.animateTo(0f, spring(dampingRatio = 0.7f))
@@ -1054,70 +1060,57 @@ fun MetaItem(icon: ImageVector, text: String) {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PresetPickerBottomSheet(
     currentPreset: com.example.whispry.domain.model.OutputPreset,
     onPresetSelected: (com.example.whispry.domain.model.OutputPreset) -> Unit,
     onDismiss: () -> Unit
 ) {
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        containerColor = Color(0xFF0D0D14),
-        scrimColor = Color.Black.copy(alpha = 0.6f),
-        dragHandle = { BottomSheetDefaults.DragHandle(color = Color.White.copy(alpha = 0.2f)) }
+    WhispryBottomSheet(
+        title = "Change Format",
+        onDismiss = onDismiss,
+        heightFraction = 0.85f,
+        scrollableContent = false
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 24.dp, vertical = 16.dp)
+        Text(
+            "AI will re-process the raw text with a new format.",
+            style = MaterialTheme.typography.bodySmall,
+            color = Color.White.copy(alpha = 0.5f),
+            modifier = Modifier.padding(bottom = 12.dp)
+        )
+        LazyColumn(
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.fillMaxWidth().weight(1f),
+            contentPadding = PaddingValues(bottom = 24.dp)
         ) {
-            Text(
-                "Change Format",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                color = Color.White
-            )
-            Text(
-                "AI will re-process the raw text with a new format.",
-                style = MaterialTheme.typography.bodySmall,
-                color = Color.White.copy(alpha = 0.5f),
-                modifier = Modifier.padding(top = 4.dp, bottom = 24.dp)
-            )
-            
-            LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.padding(bottom = 32.dp)
-            ) {
-                items(com.example.whispry.domain.model.OutputPreset.entries) { preset ->
-                    val isSelected = preset == currentPreset
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(if (isSelected) androidx.compose.ui.graphics.Color.White.copy(alpha = 0.1f) else Color.Transparent)
-                            .clickable { onPresetSelected(preset) }
-                            .padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(preset.emoji, fontSize = 24.sp)
-                        Spacer(Modifier.width(16.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                preset.displayName,
-                                style = MaterialTheme.typography.bodyLarge,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                color = if (isSelected) androidx.compose.ui.graphics.Color.White else Color.White
-                            )
-                            Text(
-                                preset.description,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = Color.White.copy(alpha = 0.4f)
-                            )
-                        }
-                        if (isSelected) {
-                            Icon(Icons.Rounded.Check, null, tint = androidx.compose.ui.graphics.Color.White, modifier = Modifier.size(20.dp))
-                        }
+            items(com.example.whispry.domain.model.OutputPreset.entries) { preset ->
+                val isSelected = preset == currentPreset
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(ContinuousRoundedRectangle(16.dp))
+                        .background(if (isSelected) Color.White.copy(alpha = 0.1f) else Color.Transparent)
+                        .clickable { onPresetSelected(preset) }
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(preset.emoji, fontSize = 24.sp)
+                    Spacer(Modifier.width(16.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            preset.displayName,
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                            color = Color.White
+                        )
+                        Text(
+                            preset.description,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.White.copy(alpha = 0.4f)
+                        )
+                    }
+                    if (isSelected) {
+                        Icon(Icons.Rounded.Check, null, tint = Color.White, modifier = Modifier.size(20.dp))
                     }
                 }
             }
