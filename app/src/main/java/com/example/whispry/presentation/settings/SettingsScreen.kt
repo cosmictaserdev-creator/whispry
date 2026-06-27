@@ -346,6 +346,7 @@ private fun VoiceRecognitionSection(
             icon = Icons.Rounded.Language,
             title = "Language",
             value = state.language.uppercase(),
+            helpText = "Sets the spoken language Whispry expects when transcribing. \"Auto\" detects it for you — pick a specific language only if detection ever gets it wrong.",
             onClick = onShowLanguagePicker
         )
 
@@ -358,7 +359,8 @@ private fun VoiceRecognitionSection(
             valueRange = 0f..1f,
             backdrop = backdrop,
             startLabel = "Precise",
-            endLabel = "Creative"
+            endLabel = "Creative",
+            helpText = "Controls how creative the AI is when formatting your text. Lower is more literal and predictable; higher is more varied. Keep it low for accurate transcripts."
         )
     }
 }
@@ -409,7 +411,8 @@ private fun InterfaceSoundsSection(
             title = "Floating Widget",
             checked = state.floatingWidgetEnabled,
             onCheckedChange = { viewModel.onIntent(SettingsIntent.SetFloatingWidgetEnabled(it)) },
-            backdrop = backdrop
+            backdrop = backdrop,
+            helpText = "Shows a small draggable bubble on screen that you tap to start recording — handy when you'd rather not use the volume-key trigger."
         )
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -419,7 +422,8 @@ private fun InterfaceSoundsSection(
             title = "Glass Navbar",
             checked = state.glassNavbar,
             onCheckedChange = { viewModel.onIntent(SettingsIntent.SetGlassNavbar(it)) },
-            backdrop = backdrop
+            backdrop = backdrop,
+            helpText = "Gives the bottom navigation bar a frosted, see-through glass look. Turn it off for a plain solid bar that's slightly lighter on performance."
         )
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -436,7 +440,8 @@ private fun InterfaceSoundsSection(
             title = "Trigger Sounds",
             checked = state.soundEnabled,
             onCheckedChange = { viewModel.onIntent(SettingsIntent.SetSoundEnabled(it)) },
-            backdrop = backdrop
+            backdrop = backdrop,
+            helpText = "Plays a short sound when recording starts and stops, so you get audio confirmation that the trigger worked."
         )
 
         AnimatedVisibility(
@@ -472,7 +477,8 @@ private fun ProductivitySection(
             title = "Voice Commands & Shortcuts",
             checked = state.voiceCommandsEnabled,
             onCheckedChange = { viewModel.onIntent(SettingsIntent.SetVoiceCommandsEnabled(it)) },
-            backdrop = backdrop
+            backdrop = backdrop,
+            helpText = "Lets the first word you speak run an action instead of being transcribed — \"expand\" for snippets, \"insert\" for saved info, or your own app commands like \"chrome\". A miss just transcribes normally."
         )
         Text(
             "Enables \"expand\", \"insert\" and your app commands as the first spoken word.",
@@ -492,6 +498,7 @@ private fun ProductivitySection(
                     icon = Icons.Rounded.Bolt,
                     title = "Voice Commands",
                     value = "Word → open / search app",
+                    helpText = "Create trigger words that open apps or run searches. Say the word, then your query — e.g. \"chrome best laptops\" searches the web, \"note buy milk\" opens a notes app.",
                     onClick = onNavigateToVoiceCommands
                 )
 
@@ -501,6 +508,7 @@ private fun ProductivitySection(
                     icon = Icons.Rounded.Person,
                     title = "My Info",
                     value = "insert address, email…",
+                    helpText = "Save details like your address, email or phone once, then paste any of them by voice with \"insert <name>\" (e.g. \"insert address\").",
                     onClick = onNavigateToMyInfo
                 )
             }
@@ -512,6 +520,7 @@ private fun ProductivitySection(
             icon = Icons.Rounded.TextFields,
             title = "Text Expander",
             value = "expand shortcut → full text",
+            helpText = "Save short shortcuts that expand into longer text. Say \"expand <shortcut>\" while recording to paste the full snippet (e.g. \"expand sig\" → your email signature).",
             onClick = onNavigateToTextExpander
         )
 
@@ -522,7 +531,8 @@ private fun ProductivitySection(
             title = "App-Aware Tones",
             checked = state.appAwareToneEnabled,
             onCheckedChange = { viewModel.onIntent(SettingsIntent.SetAppAwareToneEnabled(it)) },
-            backdrop = backdrop
+            backdrop = backdrop,
+            helpText = "Automatically changes the formatting and tone based on the app you're typing in — e.g. professional in email, casual in chat. Configure the mappings below."
         )
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -531,6 +541,7 @@ private fun ProductivitySection(
             icon = Icons.Rounded.Memory,
             title = "Memory Bank",
             value = "Personalize your context",
+            helpText = "Store personal facts (names, projects, preferences) that the AI can use to make your transcripts more accurate and personalized.",
             onClick = onNavigateToMemory
         )
 
@@ -544,6 +555,7 @@ private fun ProductivitySection(
                     icon = Icons.Rounded.SettingsApplications,
                     title = "Configure App Tones",
                     value = "Map apps to presets",
+                    helpText = "Map specific apps to a preset, so transcripts are formatted that way whenever that app is in the foreground.",
                     onClick = onNavigateToAppTones
                 )
             }
@@ -563,6 +575,7 @@ private fun DataPrivacySection(
             icon = Icons.Rounded.History,
             title = "Retention Policy",
             value = state.retentionPolicy.displayName,
+            helpText = "How long Whispry keeps your saved transcripts before automatically deleting them. Everything stays on this device — nothing is uploaded.",
             onClick = onShowRetentionPicker
         )
 
@@ -610,7 +623,8 @@ private fun ServiceMaintenanceSection(
             title = "Auto-start on Boot",
             checked = state.autoStartBoot,
             onCheckedChange = { viewModel.onIntent(SettingsIntent.SetAutoStartBoot(it)) },
-            backdrop = backdrop
+            backdrop = backdrop,
+            helpText = "Restarts Whispry's background service automatically after you reboot your phone, so the trigger keeps working without opening the app first."
         )
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -619,6 +633,7 @@ private fun ServiceMaintenanceSection(
             icon = Icons.Rounded.HelpOutline,
             title = "Revisit Tutorial",
             value = "Show guide",
+            helpText = "Replays the first-time setup guide that explains how triggers and permissions work.",
             onClick = onRevisitTutorial
         )
     }
@@ -827,7 +842,8 @@ fun DuckingSection(
             title = "Lower music while recording",
             checked = enabled,
             onCheckedChange = onEnabledChanged,
-            backdrop = backdrop
+            backdrop = backdrop,
+            helpText = "Temporarily lowers other audio (music, video) while you're recording so your voice is captured clearly, then restores it afterwards."
         )
 
         AnimatedVisibility(
@@ -1119,7 +1135,8 @@ fun TriggerPickerSection(
                         title = "Smart Suppression",
                         checked = smartSuppression,
                         onCheckedChange = { onIntent(SettingsIntent.SetSmartTriggerSuppression(it)) },
-                        backdrop = backdrop
+                        backdrop = backdrop,
+                        helpText = "Ignores the trigger when it's likely accidental — e.g. while you're on a call or media is actively playing — to avoid false recordings."
                     )
                     Text(
                         "Prevents activation while music or calls are active",
@@ -1133,7 +1150,8 @@ fun TriggerPickerSection(
                         title = "Consume Volume Keys",
                         checked = state.consumeVolumeKeys,
                         onCheckedChange = { onIntent(SettingsIntent.SetConsumeVolumeKeys(it)) },
-                        backdrop = backdrop
+                        backdrop = backdrop,
+                        helpText = "When on, the trigger key press won't also change the volume (no volume dialog). Turn off if you'd rather the volume still adjusts normally."
                     )
                     Text(
                         "Suppresses system volume dialog while active",
@@ -1153,7 +1171,8 @@ fun TriggerPickerSection(
                                 title = "Single Press Trigger",
                                 checked = state.singlePressTrigger,
                                 onCheckedChange = { onIntent(SettingsIntent.SetSinglePressTrigger(it)) },
-                                backdrop = backdrop
+                                backdrop = backdrop,
+                                helpText = "Start recording with a single press of the volume key instead of a double press. Faster, but more prone to accidental triggers."
                             )
                             Text(
                                 "Use single long-press instead of double-press",
@@ -1244,6 +1263,7 @@ fun SettingsRow(
     title: String,
     value: String? = null,
     showChevron: Boolean = true,
+    helpText: String? = null,
     onClick: (() -> Unit)? = null
 ) {
     Row(
@@ -1259,6 +1279,7 @@ fun SettingsRow(
         if (value != null) {
             Text(value, style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.4f))
         }
+        if (helpText != null) HelpDot(title, helpText)
         if (showChevron) {
             Icon(Icons.Rounded.ChevronRight, null, tint = Color.White.copy(alpha = 0.2f))
         }
@@ -1271,7 +1292,8 @@ fun LiquidSettingsToggle(
     title: String,
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
-    backdrop: Backdrop
+    backdrop: Backdrop,
+    helpText: String? = null
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -1280,11 +1302,61 @@ fun LiquidSettingsToggle(
         Icon(icon, null, tint = Color.White.copy(alpha = 0.6f), modifier = Modifier.size(20.dp))
         Spacer(modifier = Modifier.width(16.dp))
         Text(title, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f), color = Color.White)
+        if (helpText != null) HelpDot(title, helpText)
         LiquidToggle(
             selected = { checked },
             onSelect = onCheckedChange,
             backdrop = backdrop
         )
+    }
+}
+
+/** Small "?" affordance that opens a plain-language explanation for a setting. */
+@Composable
+private fun HelpDot(title: String, text: String) {
+    var show by remember { mutableStateOf(false) }
+    IconButton(onClick = { show = true }, modifier = Modifier.size(28.dp)) {
+        Icon(Icons.Rounded.HelpOutline, "What is $title?", tint = Color.White.copy(alpha = 0.32f), modifier = Modifier.size(17.dp))
+    }
+    if (show) SettingHelpPopup(title, text) { show = false }
+}
+
+@Composable
+private fun SettingHelpPopup(title: String, text: String, onDismiss: () -> Unit) {
+    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(ContinuousRoundedRectangle(24.dp))
+                .background(com.example.whispry.ui.theme.WhispryTokens.SurfaceElevated, ContinuousRoundedRectangle(24.dp))
+                .border(1.dp, com.example.whispry.ui.theme.WhispryTokens.GlassBorder, ContinuousRoundedRectangle(24.dp))
+                .padding(24.dp)
+        ) {
+            Column {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(Color.White.copy(alpha = 0.1f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Rounded.HelpOutline, null, tint = Color.White, modifier = Modifier.size(20.dp))
+                    }
+                    Spacer(Modifier.width(14.dp))
+                    Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.weight(1f))
+                }
+                Spacer(Modifier.height(16.dp))
+                Text(text, style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = 0.75f), lineHeight = 22.sp)
+                Spacer(Modifier.height(20.dp))
+                Button(
+                    onClick = onDismiss,
+                    shape = ContinuousRoundedRectangle(14.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color.Black),
+                    modifier = Modifier.fillMaxWidth().height(48.dp)
+                ) { Text("Got it", fontWeight = FontWeight.Bold) }
+            }
+        }
     }
 }
 
@@ -1298,11 +1370,15 @@ fun LiquidSettingsSlider(
     backdrop: Backdrop,
     startLabel: String? = null,
     endLabel: String? = null,
-    valueLabel: String? = null
+    valueLabel: String? = null,
+    helpText: String? = null
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(title, style = MaterialTheme.typography.bodyMedium, color = Color.White)
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                Text(title, style = MaterialTheme.typography.bodyMedium, color = Color.White)
+                if (helpText != null) HelpDot(title, helpText)
+            }
             if (valueLabel != null) {
                 Text(valueLabel, style = MaterialTheme.typography.labelSmall, color = androidx.compose.ui.graphics.Color.White)
             }
