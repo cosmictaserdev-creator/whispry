@@ -11,6 +11,11 @@ sealed interface VoiceAppAction {
     data class PlayStoreSearch(val query: String) : VoiceAppAction
     /** Launch [packageName]; [clipboardPayload] (the query) is copied for manual paste. */
     data class OpenApp(val packageName: String, val label: String, val clipboardPayload: String) : VoiceAppAction
+    /**
+     * Open a notes app with [text] pre-filled as a new note (via ACTION_SEND).
+     * [packageName] pins a specific note app; blank shows the system chooser.
+     */
+    data class CreateNote(val text: String, val packageName: String, val label: String) : VoiceAppAction
 }
 
 /**

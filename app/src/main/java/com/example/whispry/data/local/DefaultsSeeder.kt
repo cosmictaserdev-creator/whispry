@@ -42,6 +42,8 @@ class DefaultsSeeder @Inject constructor(
         voiceCommandRepository.save("chrome", VoiceCommandAction.WEB_SEARCH.name, "", "")
         voiceCommandRepository.save("youtube", VoiceCommandAction.YOUTUBE_SEARCH.name, "", "")
         voiceCommandRepository.save("maps", VoiceCommandAction.MAPS_SEARCH.name, "", "")
+        // "note buy milk" -> opens a notes app with the idea pre-filled (no app pinned: uses chooser).
+        voiceCommandRepository.save("note", VoiceCommandAction.NEW_NOTE.name, "", "")
 
         settingsProvider.dataStore.edit { it[DataStoreKeys.DEFAULTS_SEEDED] = true }
     }

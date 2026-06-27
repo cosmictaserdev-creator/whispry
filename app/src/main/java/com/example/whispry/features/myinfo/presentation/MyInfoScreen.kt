@@ -17,11 +17,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.example.whispry.features.myinfo.data.model.MyInfoEntity
+import com.example.whispry.ui.components.SheetPrimaryButton
+import com.example.whispry.ui.components.SheetTextField
+import com.example.whispry.ui.components.WhispryBottomSheet
 import com.example.whispry.ui.theme.WhispryTokens
 import com.kyant.backdrop.backdrops.LayerBackdrop
 import com.kyant.capsule.ContinuousRoundedRectangle
@@ -36,11 +40,16 @@ fun MyInfoScreen(
     val items by viewModel.items.collectAsState()
     var editTarget by remember { mutableStateOf<MyInfoEntity?>(null) }
     var showDialog by remember { mutableStateOf(false) }
+    var sheetProgress by remember { mutableFloatStateOf(0f) }
 
     Box(modifier = modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .graphicsLayer {
+                    val s = if (showDialog) 1f - 0.08f * sheetProgress else 1f
+                    scaleX = s; scaleY = s
+                }
                 .padding(horizontal = 24.dp)
         ) {
             Row(
@@ -101,10 +110,11 @@ fun MyInfoScreen(
         }
 
         if (showDialog) {
-            MyInfoDialog(
+            MyInfoSheet(
                 existing = editTarget,
                 isReserved = viewModel::isReserved,
                 onDismiss = { showDialog = false },
+                onDragProgress = { sheetProgress = it },
                 onSave = { key, value ->
                     viewModel.save(key, value)
                     showDialog = false
@@ -166,71 +176,55 @@ private fun MyInfoCard(
 }
 
 @Composable
-private fun MyInfoDialog(
+private fun MyInfoSheet(
     existing: MyInfoEntity?,
     isReserved: (String) -> Boolean,
     onDismiss: () -> Unit,
+    onDragProgress: (Float) -> Unit,
     onSave: (key: String, value: String) -> Unit
 ) {
     var key by remember { mutableStateOf(existing?.key ?: "") }
     var value by remember { mutableStateOf(existing?.value ?: "") }
     var error by remember { mutableStateOf<String?>(null) }
-    val accent = Color.White
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(if (existing == null) "New Info" else "Edit Info", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp) },
-        text = {
-            Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
-                OutlinedTextField(
-                    value = key,
-                    onValueChange = { key = it.replace(" ", ""); error = null },
-                    label = { Text("Name (one word)") },
-                    placeholder = { Text("e.g. address") },
-                    singleLine = true,
-                    colors = dialogFieldColors(accent),
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                OutlinedTextField(
-                    value = value,
-                    onValueChange = { value = it; error = null },
-                    label = { Text("Value") },
-                    placeholder = { Text("e.g. 123 Main St, Springfield") },
-                    minLines = 3,
-                    colors = dialogFieldColors(accent),
-                    modifier = Modifier.fillMaxWidth()
-                )
-                error?.let {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(it, color = Color.Red, fontSize = 12.sp)
-                }
+    WhispryBottomSheet(
+        title = if (existing == null) "New Info" else "Edit Info",
+        onDismiss = onDismiss,
+        heightFraction = 0.82f,
+        onDragProgress = onDragProgress
+    ) {
+        Text(
+            text = "Paste this later by voice with \"insert ${key.ifBlank { "<name>" }}\".",
+            color = Color.White.copy(alpha = 0.6f),
+            fontSize = 13.sp,
+            modifier = Modifier.padding(bottom = 16.dp)
+        )
+        SheetTextField(
+            value = key,
+            onValueChange = { key = it.replace(" ", ""); error = null },
+            label = "Name (one word)",
+            placeholder = "e.g. address",
+            singleLine = true
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        SheetTextField(
+            value = value,
+            onValueChange = { value = it; error = null },
+            label = "Value",
+            placeholder = "e.g. 123 Main St, Springfield",
+            minLines = 4
+        )
+        error?.let {
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(it, color = Color.Red, fontSize = 13.sp)
+        }
+        Spacer(modifier = Modifier.height(24.dp))
+        SheetPrimaryButton {
+            when {
+                key.isBlank() -> error = "Name cannot be empty"
+                isReserved(key) -> error = "\"${key.lowercase()}\" is a reserved word"
+                else -> onSave(key, value)
             }
-        },
-        confirmButton = {
-            Button(
-                onClick = {
-                    when {
-                        key.isBlank() -> error = "Name cannot be empty"
-                        isReserved(key) -> error = "\"${key.lowercase()}\" is a reserved word"
-                        else -> onSave(key, value)
-                    }
-                },
-                colors = ButtonDefaults.buttonColors(containerColor = accent, contentColor = Color.Black)
-            ) { Text("Save", fontWeight = FontWeight.Bold) }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", color = Color.White.copy(alpha = 0.6f)) } },
-        containerColor = Color(0xFF12121A),
-        shape = RoundedCornerShape(20.dp)
-    )
+        }
+    }
 }
-
-@Composable
-private fun dialogFieldColors(accent: Color) = TextFieldDefaults.colors(
-    focusedTextColor = Color.White,
-    unfocusedTextColor = Color.White.copy(alpha = 0.8f),
-    focusedContainerColor = Color.White.copy(alpha = 0.05f),
-    unfocusedContainerColor = Color.White.copy(alpha = 0.05f),
-    focusedLabelColor = accent,
-    unfocusedLabelColor = Color.White.copy(alpha = 0.5f)
-)

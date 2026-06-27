@@ -25,6 +25,9 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import androidx.compose.ui.graphics.graphicsLayer
 import com.example.whispry.features.expander.data.model.TextExpanderEntity
+import com.example.whispry.ui.components.SheetPrimaryButton
+import com.example.whispry.ui.components.SheetTextField
+import com.example.whispry.ui.components.WhispryBottomSheet
 import com.example.whispry.ui.theme.WhispryTheme
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.backdrops.LayerBackdrop
@@ -44,6 +47,7 @@ fun TextExpanderScreen(
 ) {
     val expanders by viewModel.expanders.collectAsState()
     var showAddDialog by remember { mutableStateOf(false) }
+    var sheetProgress by remember { mutableFloatStateOf(0f) }
 
     Box(
         modifier = modifier
@@ -53,6 +57,10 @@ fun TextExpanderScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .graphicsLayer {
+                    val s = if (showAddDialog) 1f - 0.08f * sheetProgress else 1f
+                    scaleX = s; scaleY = s
+                }
                 .padding(horizontal = 24.dp)
         ) {
             // Header Row
@@ -156,10 +164,11 @@ fun TextExpanderScreen(
             }
         }
 
-        // Add Expander Popup Dialog
+        // Add Expander bottom sheet
         if (showAddDialog) {
-            AddExpanderDialog(
+            AddExpanderSheet(
                 onDismiss = { showAddDialog = false },
+                onDragProgress = { sheetProgress = it },
                 onSave = { shortcut, expansion ->
                     viewModel.saveExpander(shortcut, expansion)
                     showAddDialog = false
@@ -246,106 +255,53 @@ private fun ExpanderCard(
 }
 
 @Composable
-private fun AddExpanderDialog(
+private fun AddExpanderSheet(
     onDismiss: () -> Unit,
+    onDragProgress: (Float) -> Unit,
     onSave: (shortcut: String, expansion: String) -> Unit
 ) {
     var shortcut by remember { mutableStateOf("") }
     var expansion by remember { mutableStateOf("") }
     var errorText by remember { mutableStateOf<String?>(null) }
-    
-    val accentColor = androidx.compose.ui.graphics.Color.White
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Text(
-                text = "New Shortcut",
-                color = Color.White,
-                fontWeight = FontWeight.Bold,
-                fontSize = 18.sp
-            )
-        },
-        text = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 8.dp)
-            ) {
-                OutlinedTextField(
-                    value = shortcut,
-                    onValueChange = {
-                        shortcut = it.replace(" ", "") // No spaces in shortcuts
-                        if (shortcut.isNotEmpty()) errorText = null
-                    },
-                    label = { Text("Shortcut word") },
-                    placeholder = { Text("e.g. sig") },
-                    singleLine = true,
-                    colors = TextFieldDefaults.colors(
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White.copy(alpha = 0.8f),
-                        focusedContainerColor = Color.White.copy(alpha = 0.05f),
-                        unfocusedContainerColor = Color.White.copy(alpha = 0.05f),
-                        focusedLabelColor = accentColor,
-                        unfocusedLabelColor = Color.White.copy(alpha = 0.5f)
-                    ),
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                OutlinedTextField(
-                    value = expansion,
-                    onValueChange = {
-                        expansion = it
-                        if (expansion.isNotEmpty()) errorText = null
-                    },
-                    label = { Text("Expanded text") },
-                    placeholder = { Text("e.g. Best regards, Cosmic") },
-
-                    minLines = 3,
-                    colors = TextFieldDefaults.colors(
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White.copy(alpha = 0.8f),
-                        focusedContainerColor = Color.White.copy(alpha = 0.05f),
-                        unfocusedContainerColor = Color.White.copy(alpha = 0.05f),
-                        focusedLabelColor = accentColor,
-                        unfocusedLabelColor = Color.White.copy(alpha = 0.5f)
-                    ),
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                errorText?.let {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(text = it, color = Color.Red, fontSize = 12.sp)
-                }
+    WhispryBottomSheet(
+        title = "New Shortcut",
+        onDismiss = onDismiss,
+        heightFraction = 0.8f,
+        onDragProgress = onDragProgress
+    ) {
+        Text(
+            text = "Say the shortcut word during recording to paste the full text.",
+            color = Color.White.copy(alpha = 0.6f),
+            fontSize = 13.sp,
+            modifier = Modifier.padding(bottom = 16.dp)
+        )
+        SheetTextField(
+            value = shortcut,
+            onValueChange = { shortcut = it.replace(" ", ""); if (it.isNotEmpty()) errorText = null },
+            label = "Shortcut word",
+            placeholder = "e.g. sig",
+            singleLine = true
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        SheetTextField(
+            value = expansion,
+            onValueChange = { expansion = it; if (it.isNotEmpty()) errorText = null },
+            label = "Expanded text",
+            placeholder = "e.g. Best regards, Cosmic",
+            minLines = 4
+        )
+        errorText?.let {
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(text = it, color = Color.Red, fontSize = 13.sp)
+        }
+        Spacer(modifier = Modifier.height(24.dp))
+        SheetPrimaryButton {
+            when {
+                shortcut.isBlank() -> errorText = "Shortcut word cannot be empty"
+                expansion.isBlank() -> errorText = "Expanded text cannot be empty"
+                else -> onSave(shortcut, expansion)
             }
-        },
-        confirmButton = {
-            Button(
-                onClick = {
-                    if (shortcut.isBlank()) {
-                        errorText = "Shortcut word cannot be empty"
-                    } else if (expansion.isBlank()) {
-                        errorText = "Expanded text cannot be empty"
-                    } else {
-                        onSave(shortcut, expansion)
-                    }
-                },
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = accentColor,
-                    contentColor = Color.Black
-                )
-            ) {
-                Text("Save", fontWeight = FontWeight.Bold)
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel", color = Color.White.copy(alpha = 0.6f))
-            }
-        },
-        containerColor = Color(0xFF12121A),
-        shape = RoundedCornerShape(20.dp)
-    )
+        }
+    }
 }

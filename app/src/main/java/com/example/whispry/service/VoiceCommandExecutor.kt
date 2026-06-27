@@ -37,7 +37,30 @@ class VoiceCommandExecutor @Inject constructor(
         is VoiceAppAction.YoutubeSearch -> youtubeSearch(action.query)
         is VoiceAppAction.MapsSearch -> mapsSearch(action.query)
         is VoiceAppAction.PlayStoreSearch -> playStoreSearch(action.query)
+        is VoiceAppAction.CreateNote -> createNote(action)
         is VoiceAppAction.OpenApp -> openApp(action)
+    }
+
+    private fun createNote(action: VoiceAppAction.CreateNote): ExecResult {
+        // ACTION_SEND text/plain is the universal way to hand a new note to a notes app
+        // (Keep, Samsung Notes, OneNote, etc. all accept it and create a pre-filled note).
+        val send = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_TEXT, action.text)
+            putExtra(Intent.EXTRA_SUBJECT, "Note")
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+
+        // Pinned note app: send straight to it (if still installed).
+        if (action.packageName.isNotBlank() && isInstalled(action.packageName)) {
+            val direct = Intent(send).setPackage(action.packageName)
+            if (launch(direct)) return ExecResult.Launched("Saving note to ${action.label}…")
+        }
+
+        // Otherwise let the user pick a note app once (Android remembers the default).
+        val chooser = Intent.createChooser(send, "Save note to…").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        return if (launch(chooser)) ExecResult.Launched("Saving note…")
+        else ExecResult.Failed("No notes app found")
     }
 
     private fun webSearch(query: String): ExecResult {

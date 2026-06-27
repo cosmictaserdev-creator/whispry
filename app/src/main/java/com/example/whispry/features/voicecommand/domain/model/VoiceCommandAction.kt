@@ -12,7 +12,12 @@ enum class VoiceCommandAction(val label: String, val description: String) {
     YOUTUBE_SEARCH("YouTube Search", "Search on YouTube"),
     MAPS_SEARCH("Maps Search", "Search on Google Maps"),
     PLAYSTORE_SEARCH("Play Store Search", "Search on the Play Store"),
+    NEW_NOTE("New Note", "Open a notes app with your idea pre-filled"),
     OPEN_APP("Open App", "Launch an app, query copied to clipboard");
 
+    /** OPEN_APP must have a target app; NEW_NOTE can optionally pin one (else a chooser). */
     val needsTargetApp: Boolean get() = this == OPEN_APP
+
+    /** Whether the user may pick a specific app for this action (required or optional). */
+    val supportsTargetApp: Boolean get() = this == OPEN_APP || this == NEW_NOTE
 }

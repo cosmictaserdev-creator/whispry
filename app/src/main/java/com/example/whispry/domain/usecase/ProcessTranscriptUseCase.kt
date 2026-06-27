@@ -102,6 +102,7 @@ class ProcessTranscriptUseCase @Inject constructor(
             VoiceCommandAction.YOUTUBE_SEARCH -> VoiceAppAction.YoutubeSearch(query)
             VoiceCommandAction.MAPS_SEARCH -> VoiceAppAction.MapsSearch(query)
             VoiceCommandAction.PLAYSTORE_SEARCH -> VoiceAppAction.PlayStoreSearch(query)
+            VoiceCommandAction.NEW_NOTE -> VoiceAppAction.CreateNote(query, targetPackage, targetLabel.ifBlank { "Notes" })
             VoiceCommandAction.OPEN_APP -> {
                 if (targetPackage.isBlank()) null
                 else VoiceAppAction.OpenApp(targetPackage, targetLabel.ifBlank { targetPackage }, query)

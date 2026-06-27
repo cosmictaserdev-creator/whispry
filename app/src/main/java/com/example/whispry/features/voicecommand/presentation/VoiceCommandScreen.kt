@@ -18,12 +18,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.example.whispry.features.voicecommand.data.model.VoiceCommandEntity
 import com.example.whispry.features.voicecommand.domain.model.VoiceCommandAction
+import com.example.whispry.ui.components.SheetPrimaryButton
+import com.example.whispry.ui.components.SheetTextField
+import com.example.whispry.ui.components.WhispryBottomSheet
 import com.example.whispry.ui.theme.WhispryTokens
 import com.kyant.capsule.ContinuousRoundedRectangle
 
@@ -36,9 +40,18 @@ fun VoiceCommandScreen(
     val commands by viewModel.commands.collectAsState()
     var editTarget by remember { mutableStateOf<VoiceCommandEntity?>(null) }
     var showDialog by remember { mutableStateOf(false) }
+    var sheetProgress by remember { mutableFloatStateOf(0f) }
 
     Box(modifier = modifier.fillMaxSize()) {
-        Column(modifier = Modifier.fillMaxSize().padding(horizontal = 24.dp)) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer {
+                    val s = if (showDialog) 1f - 0.08f * sheetProgress else 1f
+                    scaleX = s; scaleY = s
+                }
+                .padding(horizontal = 24.dp)
+        ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -80,10 +93,11 @@ fun VoiceCommandScreen(
         }
 
         if (showDialog) {
-            VoiceCommandDialog(
+            VoiceCommandSheet(
                 existing = editTarget,
                 viewModel = viewModel,
                 onDismiss = { showDialog = false },
+                onDragProgress = { sheetProgress = it },
                 onSave = { trigger, action, pkg, label ->
                     viewModel.save(trigger, action, pkg, label)
                     showDialog = false
@@ -139,10 +153,11 @@ private fun VoiceCommandCard(
 }
 
 @Composable
-private fun VoiceCommandDialog(
+private fun VoiceCommandSheet(
     existing: VoiceCommandEntity?,
     viewModel: VoiceCommandViewModel,
     onDismiss: () -> Unit,
+    onDragProgress: (Float) -> Unit,
     onSave: (trigger: String, action: VoiceCommandAction, pkg: String, label: String) -> Unit
 ) {
     var trigger by remember { mutableStateOf(existing?.triggerWord ?: "") }
@@ -151,96 +166,84 @@ private fun VoiceCommandDialog(
     var label by remember { mutableStateOf(existing?.targetAppLabel ?: "") }
     var error by remember { mutableStateOf<String?>(null) }
     var showAppPicker by remember { mutableStateOf(false) }
-    val accent = Color.White
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(if (existing == null) "New Command" else "Edit Command", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp) },
-        text = {
-            Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
-                OutlinedTextField(
-                    value = trigger,
-                    onValueChange = { trigger = it.replace(" ", ""); error = null },
-                    label = { Text("Trigger word") },
-                    placeholder = { Text("e.g. chrome") },
-                    singleLine = true,
-                    colors = TextFieldDefaults.colors(
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White.copy(alpha = 0.8f),
-                        focusedContainerColor = Color.White.copy(alpha = 0.05f),
-                        unfocusedContainerColor = Color.White.copy(alpha = 0.05f),
-                        focusedLabelColor = accent,
-                        unfocusedLabelColor = Color.White.copy(alpha = 0.5f)
-                    ),
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                Text("Action", color = Color.White.copy(alpha = 0.7f), fontSize = 13.sp, modifier = Modifier.padding(bottom = 8.dp))
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    VoiceCommandAction.entries.forEach { opt ->
-                        val selected = opt == action
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(if (selected) Color.White.copy(alpha = 0.08f) else Color.Transparent)
-                                .border(1.dp, if (selected) Color.White.copy(alpha = 0.3f) else Color.White.copy(alpha = 0.08f), RoundedCornerShape(12.dp))
-                                .clickable { action = opt; error = null }
-                                .padding(horizontal = 12.dp, vertical = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(opt.label, color = Color.White, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium, fontSize = 14.sp)
-                                Text(opt.description, color = Color.White.copy(alpha = 0.4f), fontSize = 11.sp)
-                            }
-                            if (selected) Icon(Icons.Rounded.Check, null, tint = Color.White, modifier = Modifier.size(18.dp))
-                        }
+    WhispryBottomSheet(
+        title = if (existing == null) "New Command" else "Edit Command",
+        onDismiss = onDismiss,
+        heightFraction = 0.9f,
+        onDragProgress = onDragProgress
+    ) {
+        SheetTextField(
+            value = trigger,
+            onValueChange = { trigger = it.replace(" ", ""); error = null },
+            label = "Trigger word",
+            placeholder = "e.g. chrome",
+            singleLine = true
+        )
+        Spacer(modifier = Modifier.height(20.dp))
+        Text("Action", color = Color.White.copy(alpha = 0.7f), fontSize = 13.sp, modifier = Modifier.padding(bottom = 10.dp))
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            VoiceCommandAction.entries.forEach { opt ->
+                val selected = opt == action
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(ContinuousRoundedRectangle(14.dp))
+                        .background(if (selected) Color.White.copy(alpha = 0.08f) else Color.Transparent)
+                        .border(1.dp, if (selected) Color.White.copy(alpha = 0.3f) else Color.White.copy(alpha = 0.08f), ContinuousRoundedRectangle(14.dp))
+                        .clickable { action = opt; error = null }
+                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(opt.label, color = Color.White, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium, fontSize = 15.sp)
+                        Text(opt.description, color = Color.White.copy(alpha = 0.4f), fontSize = 12.sp)
                     }
-                }
-                if (action.needsTargetApp) {
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(Color.White.copy(alpha = 0.05f))
-                            .clickable { viewModel.loadInstalledApps(); showAppPicker = true }
-                            .padding(horizontal = 12.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            if (label.isBlank()) "Choose an app…" else label,
-                            color = if (label.isBlank()) Color.White.copy(alpha = 0.4f) else Color.White,
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-                }
-                error?.let {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(it, color = Color.Red, fontSize = 12.sp)
+                    if (selected) Icon(Icons.Rounded.Check, null, tint = Color.White, modifier = Modifier.size(18.dp))
                 }
             }
-        },
-        confirmButton = {
-            Button(
-                onClick = {
-                    when {
-                        trigger.isBlank() -> error = "Trigger word cannot be empty"
-                        viewModel.isReserved(trigger) -> error = "\"${trigger.lowercase()}\" is reserved"
-                        action.needsTargetApp && pkg.isBlank() -> error = "Choose an app to open"
-                        else -> onSave(trigger, action, pkg, label)
-                    }
-                },
-                colors = ButtonDefaults.buttonColors(containerColor = accent, contentColor = Color.Black)
-            ) { Text("Save", fontWeight = FontWeight.Bold) }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", color = Color.White.copy(alpha = 0.6f)) } },
-        containerColor = Color(0xFF12121A),
-        shape = RoundedCornerShape(20.dp)
-    )
+        }
+        if (action.supportsTargetApp) {
+            Spacer(modifier = Modifier.height(14.dp))
+            val placeholderText = if (action.needsTargetApp) "Choose an app…" else "Choose a note app (optional)"
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(ContinuousRoundedRectangle(14.dp))
+                    .background(Color.White.copy(alpha = 0.05f))
+                    .border(1.dp, Color.White.copy(alpha = 0.1f), ContinuousRoundedRectangle(14.dp))
+                    .clickable { viewModel.loadInstalledApps(); showAppPicker = true }
+                    .padding(horizontal = 14.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    if (label.isBlank()) placeholderText else label,
+                    color = if (label.isBlank()) Color.White.copy(alpha = 0.4f) else Color.White,
+                    modifier = Modifier.weight(1f)
+                )
+                if (label.isNotBlank() && !action.needsTargetApp) {
+                    Text("Clear", color = Color.White.copy(alpha = 0.5f), fontSize = 13.sp,
+                        modifier = Modifier.clickable { pkg = ""; label = "" })
+                }
+            }
+        }
+        error?.let {
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(it, color = Color.Red, fontSize = 13.sp)
+        }
+        Spacer(modifier = Modifier.height(24.dp))
+        SheetPrimaryButton {
+            when {
+                trigger.isBlank() -> error = "Trigger word cannot be empty"
+                viewModel.isReserved(trigger) -> error = "\"${trigger.lowercase()}\" is reserved"
+                action.needsTargetApp && pkg.isBlank() -> error = "Choose an app to open"
+                else -> onSave(trigger, action, pkg, label)
+            }
+        }
+    }
 
     if (showAppPicker) {
-        AppPickerDialog(
+        AppPickerSheet(
             viewModel = viewModel,
             onDismiss = { showAppPicker = false },
             onPick = { app -> pkg = app.packageName; label = app.label; showAppPicker = false }
@@ -249,7 +252,7 @@ private fun VoiceCommandDialog(
 }
 
 @Composable
-private fun AppPickerDialog(
+private fun AppPickerSheet(
     viewModel: VoiceCommandViewModel,
     onDismiss: () -> Unit,
     onPick: (InstalledApp) -> Unit
@@ -260,48 +263,40 @@ private fun AppPickerDialog(
         if (query.isBlank()) apps else apps.filter { it.label.contains(query, ignoreCase = true) }
     }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Choose App", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp) },
-        text = {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                OutlinedTextField(
-                    value = query,
-                    onValueChange = { query = it },
-                    placeholder = { Text("Search apps") },
-                    singleLine = true,
-                    colors = TextFieldDefaults.colors(
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White.copy(alpha = 0.8f),
-                        focusedContainerColor = Color.White.copy(alpha = 0.05f),
-                        unfocusedContainerColor = Color.White.copy(alpha = 0.05f)
-                    ),
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-                if (apps.isEmpty()) {
-                    Text("Loading apps…", color = Color.White.copy(alpha = 0.5f), modifier = Modifier.padding(16.dp))
-                } else {
-                    LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 360.dp)) {
-                        items(filtered, key = { it.packageName }) { app ->
-                            Text(
-                                app.label,
-                                color = Color.White,
-                                fontSize = 15.sp,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .clickable { onPick(app) }
-                                    .padding(horizontal = 12.dp, vertical = 14.dp)
-                            )
-                        }
-                    }
+    WhispryBottomSheet(
+        title = "Choose App",
+        onDismiss = onDismiss,
+        heightFraction = 0.85f,
+        scrollableContent = false
+    ) {
+        SheetTextField(
+            value = query,
+            onValueChange = { query = it },
+            label = "Search apps",
+            placeholder = "Search apps",
+            singleLine = true
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        if (apps.isEmpty()) {
+            Text("Loading apps…", color = Color.White.copy(alpha = 0.5f), modifier = Modifier.padding(16.dp))
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxWidth().weight(1f),
+                contentPadding = PaddingValues(bottom = 24.dp)
+            ) {
+                items(filtered, key = { it.packageName }) { app ->
+                    Text(
+                        app.label,
+                        color = Color.White,
+                        fontSize = 16.sp,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(ContinuousRoundedRectangle(12.dp))
+                            .clickable { onPick(app) }
+                            .padding(horizontal = 12.dp, vertical = 16.dp)
+                    )
                 }
             }
-        },
-        confirmButton = {},
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Close", color = Color.White.copy(alpha = 0.6f)) } },
-        containerColor = Color(0xFF12121A),
-        shape = RoundedCornerShape(20.dp)
-    )
+        }
+    }
 }
