@@ -76,6 +76,7 @@ class SettingsViewModel @Inject constructor(
         settingsProvider.smartTriggerSuppression.onEach { v -> _state.update { it.copy(smartTriggerSuppression = v) } }.launchIn(viewModelScope)
         settingsProvider.dataStore.data.map { it[DataStoreKeys.CONSUME_VOLUME_KEYS] ?: true }.onEach { v -> _state.update { it.copy(consumeVolumeKeys = v) } }.launchIn(viewModelScope)
         settingsProvider.dataStore.data.map { it[DataStoreKeys.SINGLE_PRESS_TRIGGER] ?: false }.onEach { v -> _state.update { it.copy(singlePressTrigger = v) } }.launchIn(viewModelScope)
+        settingsProvider.handsFreeMode.onEach { v -> _state.update { it.copy(handsFreeMode = v) } }.launchIn(viewModelScope)
         settingsProvider.dataStore.data.map { it[DataStoreKeys.FLOATING_WIDGET_ENABLED] ?: true }.onEach { v -> _state.update { it.copy(floatingWidgetEnabled = v) } }.launchIn(viewModelScope)
         settingsProvider.dataStore.data.map { it[DataStoreKeys.GLASS_NAVBAR] ?: true }.onEach { v -> _state.update { it.copy(glassNavbar = v) } }.launchIn(viewModelScope)
         settingsProvider.dataStore.data.map { it[DataStoreKeys.GLASS_LIQUID_BACKDROP] ?: true }.onEach { v -> _state.update { it.copy(glassLiquidBackdrop = v) } }.launchIn(viewModelScope)
@@ -145,6 +146,7 @@ class SettingsViewModel @Inject constructor(
                 is SettingsIntent.SetSmartTriggerSuppression -> settingsProvider.setSmartTriggerSuppression(intent.enabled)
                 is SettingsIntent.SetConsumeVolumeKeys -> settingsProvider.dataStore.edit { it[DataStoreKeys.CONSUME_VOLUME_KEYS] = intent.enabled }
                 is SettingsIntent.SetSinglePressTrigger -> settingsProvider.dataStore.edit { it[DataStoreKeys.SINGLE_PRESS_TRIGGER] = intent.enabled }
+                is SettingsIntent.SetHandsFreeMode -> settingsProvider.setHandsFreeMode(intent.enabled)
                 is SettingsIntent.SetFloatingWidgetEnabled -> settingsProvider.dataStore.edit { it[DataStoreKeys.FLOATING_WIDGET_ENABLED] = intent.enabled }
                 is SettingsIntent.SetGlassNavbar -> settingsProvider.dataStore.edit { it[DataStoreKeys.GLASS_NAVBAR] = intent.enabled }
                 is SettingsIntent.SetGlassLiquidBackdrop -> settingsProvider.dataStore.edit { it[DataStoreKeys.GLASS_LIQUID_BACKDROP] = intent.enabled }

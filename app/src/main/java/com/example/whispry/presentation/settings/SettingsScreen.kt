@@ -395,6 +395,44 @@ private fun TriggerMethodSection(
                 onKeySelected = { viewModel.onIntent(SettingsIntent.SetTriggerVolumeKey(it)) },
                 backdrop = backdrop
             )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            LiquidSettingsToggle(
+                icon = Icons.Rounded.PanTool,
+                title = "Hands-free",
+                checked = state.handsFreeMode,
+                onCheckedChange = { viewModel.onIntent(SettingsIntent.SetHandsFreeMode(it)) },
+                backdrop = backdrop,
+                helpText = "No need to hold the key down. Trigger once to start recording, speak as long as you like, then trigger again to stop. Respects your single/double-press choice — single mode toggles on one press, double mode on a quick double press (to start and to stop)."
+            )
+            Text(
+                "Trigger to start, trigger again to stop — no holding.",
+                style = MaterialTheme.typography.labelSmall,
+                color = Color.White.copy(alpha = 0.4f),
+                modifier = Modifier.padding(start = 36.dp, top = 4.dp)
+            )
+
+            AnimatedVisibility(
+                visible = !state.singlePressTrigger,
+                enter = expandVertically() + fadeIn(),
+                exit = shrinkVertically() + fadeOut()
+            ) {
+                Column(modifier = Modifier.padding(top = 16.dp)) {
+                    LiquidSettingsSlider(
+                        title = "Double-press speed",
+                        value = state.doublePressInterval.toFloat(),
+                        onValueChange = { viewModel.onIntent(SettingsIntent.SetDoublePressInterval(it.toLong())) },
+                        valueRange = 200f..600f,
+                        steps = 7,
+                        backdrop = backdrop,
+                        startLabel = "Fast",
+                        endLabel = "Relaxed",
+                        valueLabel = "${state.doublePressInterval} ms",
+                        helpText = "How quickly the two presses of a double-press must follow each other. Lower is snappier but easier to miss; higher gives you more time between presses."
+                    )
+                }
+            }
         }
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -514,15 +552,19 @@ private fun PressActionPicker(
             onClick = { onSelect(PressAction.Normal) }
         )
 
-        Spacer(modifier = Modifier.height(20.dp))
-        PressActionGroupLabel("Format with a preset")
-        OutputPreset.entries.filter { it != OutputPreset.NONE }.forEach { preset ->
-            PressActionOptionRow(
-                title = "${preset.emoji}  ${preset.displayName}",
-                subtitle = preset.description,
-                selected = current is PressAction.Preset && current.preset == preset,
-                onClick = { onSelect(PressAction.Preset(preset)) }
-            )
+        OutputPreset.byGroup().forEach { (group, presets) ->
+            val items = presets.filter { it != OutputPreset.NONE }
+            if (items.isEmpty()) return@forEach
+            Spacer(modifier = Modifier.height(20.dp))
+            PressActionGroupLabel(group.displayName)
+            items.forEach { preset ->
+                PressActionOptionRow(
+                    title = "${preset.emoji}  ${preset.displayName}",
+                    subtitle = preset.description,
+                    selected = current is PressAction.Preset && current.preset == preset,
+                    onClick = { onSelect(PressAction.Preset(preset)) }
+                )
+            }
         }
 
         Spacer(modifier = Modifier.height(20.dp))

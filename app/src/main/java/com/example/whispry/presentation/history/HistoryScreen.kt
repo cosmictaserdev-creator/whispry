@@ -1147,34 +1147,45 @@ fun PresetPickerBottomSheet(
             modifier = Modifier.fillMaxWidth().weight(1f),
             contentPadding = PaddingValues(bottom = 24.dp)
         ) {
-            items(com.example.whispry.domain.model.OutputPreset.entries) { preset ->
-                val isSelected = preset == currentPreset
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(ContinuousRoundedRectangle(16.dp))
-                        .background(if (isSelected) Color.White.copy(alpha = 0.1f) else Color.Transparent)
-                        .clickable { onPresetSelected(preset) }
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(preset.emoji, fontSize = 24.sp)
-                    Spacer(Modifier.width(16.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            preset.displayName,
-                            style = MaterialTheme.typography.bodyLarge,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                            color = Color.White
-                        )
-                        Text(
-                            preset.description,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Color.White.copy(alpha = 0.4f)
-                        )
-                    }
-                    if (isSelected) {
-                        Icon(Icons.Rounded.Check, null, tint = Color.White, modifier = Modifier.size(20.dp))
+            com.example.whispry.domain.model.OutputPreset.byGroup().forEach { (group, presets) ->
+                item(key = "header_${group.name}") {
+                    Text(
+                        group.displayName,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color.White.copy(alpha = 0.4f),
+                        modifier = Modifier.padding(start = 4.dp, top = 8.dp, bottom = 2.dp)
+                    )
+                }
+                items(presets, key = { it.name }) { preset ->
+                    val isSelected = preset == currentPreset
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(ContinuousRoundedRectangle(16.dp))
+                            .background(if (isSelected) Color.White.copy(alpha = 0.1f) else Color.Transparent)
+                            .clickable { onPresetSelected(preset) }
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(preset.emoji, fontSize = 24.sp)
+                        Spacer(Modifier.width(16.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                preset.displayName,
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                color = Color.White
+                            )
+                            Text(
+                                preset.description,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color.White.copy(alpha = 0.4f)
+                            )
+                        }
+                        if (isSelected) {
+                            Icon(Icons.Rounded.Check, null, tint = Color.White, modifier = Modifier.size(20.dp))
+                        }
                     }
                 }
             }

@@ -26,6 +26,7 @@ data class SettingsState(
     val smartTriggerSuppression: Boolean = true,
     val consumeVolumeKeys: Boolean = true,
     val singlePressTrigger: Boolean = false,
+    val handsFreeMode: Boolean = false,
     val triggerVolumeKey: String = "VOLUME_DOWN",
 
     // Interface
@@ -87,7 +88,8 @@ sealed class SettingsIntent {
     data class SetSmartTriggerSuppression(val enabled: Boolean) : SettingsIntent()
     data class SetConsumeVolumeKeys(val enabled: Boolean) : SettingsIntent()
     data class SetSinglePressTrigger(val enabled: Boolean) : SettingsIntent()
-    
+    data class SetHandsFreeMode(val enabled: Boolean) : SettingsIntent()
+
     // Feature 1
     data class SetFloatingWidgetEnabled(val enabled: Boolean) : SettingsIntent()
     data class SetGlassNavbar(val enabled: Boolean) : SettingsIntent()

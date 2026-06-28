@@ -55,12 +55,19 @@ class TriggerService : AccessibilityService() {
     private var currentTriggerMode: TriggerMode = TriggerMode.VolumeButton
     private var activeKeyCode: Int = KeyEvent.KEYCODE_VOLUME_DOWN
 
+    // Hands-free trigger (opt-in). Press to start, press again to stop — no holding. Honors the
+    // single-vs-double press preference: single mode toggles on one press, double mode on a quick
+    // double press (to start AND to stop).
+    private var handsFreeEnabled = false
+
     // Universal Press Actions (opt-in). When enabled, the volume key becomes a tap-to-toggle
     // trigger: single press fires [singlePressAction], double press fires [doublePressAction].
     private var pressActionsEnabled = false
     private var singlePressActionStr = "NORMAL"
     private var doublePressActionStr = "NORMAL"
-    private enum class PressState { IDLE, WAITING_SECOND, RECORDING }
+    // Shared tap-to-toggle state for hands-free and press-actions. WAITING_STOP is the brief window
+    // after the first of a stopping double-press in hands-free double mode.
+    private enum class PressState { IDLE, WAITING_SECOND, RECORDING, WAITING_STOP }
     private var pressState = PressState.IDLE
 
     // ------------------------------------------------------------------
@@ -125,8 +132,9 @@ class TriggerService : AccessibilityService() {
             settingsProvider.dataStore.data.collect { prefs ->
                 consumeVolumeKeys = prefs[DataStoreKeys.CONSUME_VOLUME_KEYS] ?: true
                 isSinglePressEnabled = prefs[DataStoreKeys.SINGLE_PRESS_TRIGGER] ?: false
+                handsFreeEnabled = prefs[DataStoreKeys.HANDS_FREE_MODE] ?: false
                 pressActionsEnabled = prefs[DataStoreKeys.PRESS_ACTIONS_ENABLED] ?: false
-                if (!pressActionsEnabled) pressState = PressState.IDLE
+                if (!pressActionsEnabled && !handsFreeEnabled) pressState = PressState.IDLE
                 singlePressActionStr = prefs[DataStoreKeys.SINGLE_PRESS_ACTION] ?: "NORMAL"
                 doublePressActionStr = prefs[DataStoreKeys.DOUBLE_PRESS_ACTION] ?: "NORMAL"
             }
@@ -183,6 +191,12 @@ class TriggerService : AccessibilityService() {
         // Universal Press Actions take over the volume key entirely when enabled.
         if (pressActionsEnabled) {
             handlePressActionEvent(event)
+            return true
+        }
+
+        // Hands-free tap-to-toggle (no holding) when enabled.
+        if (handsFreeEnabled) {
+            handleHandsFreeEvent(event)
             return true
         }
 
@@ -403,6 +417,7 @@ class TriggerService : AccessibilityService() {
                     startPressRecording(doublePressActionStr)
                 }
             }
+            PressState.WAITING_STOP -> {}
         }
     }
 
@@ -437,6 +452,58 @@ class TriggerService : AccessibilityService() {
         }
         startService(intent)
         serviceBridge.emit(ServiceBridge.TriggerEvent.RecordingStopped)
+    }
+
+    // ------------------------------------------------------------------
+    // Hands-free: tap-to-toggle the normal transcribe flow (no holding)
+    // ------------------------------------------------------------------
+
+    private fun handleHandsFreeEvent(event: KeyEvent) {
+        if (event.action != KeyEvent.ACTION_DOWN) return
+
+        if (isSinglePressEnabled) {
+            // One press starts, the next press stops.
+            if (pressState == PressState.RECORDING) stopHandsFree()
+            else startPressRecording("NORMAL")
+            return
+        }
+
+        // Double-press to start, double-press to stop.
+        when (pressState) {
+            PressState.IDLE -> {
+                pressState = PressState.WAITING_SECOND
+                firstPressTime = System.currentTimeMillis()
+                handler.postDelayed({
+                    if (pressState == PressState.WAITING_SECOND) pressState = PressState.IDLE
+                }, doublePressWindowMs)
+            }
+            PressState.WAITING_SECOND -> {
+                if (System.currentTimeMillis() - firstPressTime < doublePressWindowMs) {
+                    handler.removeCallbacksAndMessages(null)
+                    startPressRecording("NORMAL")
+                }
+            }
+            PressState.RECORDING -> {
+                pressState = PressState.WAITING_STOP
+                firstPressTime = System.currentTimeMillis()
+                handler.postDelayed({
+                    if (pressState == PressState.WAITING_STOP) pressState = PressState.RECORDING
+                }, doublePressWindowMs)
+            }
+            PressState.WAITING_STOP -> {
+                if (System.currentTimeMillis() - firstPressTime < doublePressWindowMs) {
+                    handler.removeCallbacksAndMessages(null)
+                    stopHandsFree()
+                }
+            }
+        }
+    }
+
+    private fun stopHandsFree() {
+        pressState = PressState.IDLE
+        handler.removeCallbacksAndMessages(null)
+        soundManager.play(SoundEvent.TRIGGER_STOP)
+        sendStopRecording()
     }
 
     private fun resetToIdle() {

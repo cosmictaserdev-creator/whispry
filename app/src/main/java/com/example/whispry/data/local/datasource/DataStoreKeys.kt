@@ -31,6 +31,9 @@ object DataStoreKeys {
     val CONSUME_VOLUME_KEYS = booleanPreferencesKey("consume_volume_keys")
     val SINGLE_PRESS_TRIGGER = booleanPreferencesKey("single_press_trigger")
 
+    // Hands-free trigger: press to start, press again to stop (no hold).
+    val HANDS_FREE_MODE = booleanPreferencesKey("hands_free_mode")
+
     // Feature 5: Sound System
     val SOUND_ENABLED = booleanPreferencesKey("sound_enabled")
     val SOUND_START = stringPreferencesKey("sound_start")

@@ -105,13 +105,24 @@ fun PresetsScreen(
             ),
             modifier = Modifier.fillMaxSize()
         ) {
-            items(OutputPreset.entries) { preset ->
-                PresetCard(
-                    preset = preset,
-                    isSelected = selectedPreset == preset,
-                    accentColor = themeAccent,
-                    onClick = { viewModel.selectPreset(preset) }
-                )
+            OutputPreset.byGroup().forEach { (group, presets) ->
+                item(span = { GridItemSpan(2) }, key = "header_${group.name}") {
+                    Text(
+                        text = group.displayName,
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color.White.copy(alpha = 0.5f),
+                        modifier = Modifier.padding(start = 4.dp, top = 8.dp)
+                    )
+                }
+                items(presets, key = { it.name }) { preset ->
+                    PresetCard(
+                        preset = preset,
+                        isSelected = selectedPreset == preset,
+                        accentColor = themeAccent,
+                        onClick = { viewModel.selectPreset(preset) }
+                    )
+                }
             }
 
             if (selectedPreset == OutputPreset.CUSTOM) {

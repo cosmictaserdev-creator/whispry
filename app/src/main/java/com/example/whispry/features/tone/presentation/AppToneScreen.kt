@@ -405,19 +405,28 @@ private fun AddAppToneDialog(
                             .fillMaxWidth(0.8f)
                             .background(Color(0xFF1F1F2E))
                     ) {
-                        OutputPreset.values().forEach { preset ->
-                            DropdownMenuItem(
-                                text = {
-                                    Column {
-                                        Text("${preset.emoji} ${preset.displayName}", color = Color.White, fontWeight = FontWeight.SemiBold)
-                                        Text(preset.description, color = Color.White.copy(alpha = 0.5f), fontSize = 11.sp)
-                                    }
-                                },
-                                onClick = {
-                                    selectedPreset = preset
-                                    expandedPresetMenu = false
-                                }
+                        OutputPreset.byGroup().forEach { (group, presets) ->
+                            Text(
+                                text = group.displayName,
+                                color = Color.White.copy(alpha = 0.4f),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.padding(start = 16.dp, top = 10.dp, bottom = 4.dp)
                             )
+                            presets.forEach { preset ->
+                                DropdownMenuItem(
+                                    text = {
+                                        Column {
+                                            Text("${preset.emoji} ${preset.displayName}", color = Color.White, fontWeight = FontWeight.SemiBold)
+                                            Text(preset.description, color = Color.White.copy(alpha = 0.5f), fontSize = 11.sp)
+                                        }
+                                    },
+                                    onClick = {
+                                        selectedPreset = preset
+                                        expandedPresetMenu = false
+                                    }
+                                )
+                            }
                         }
                     }
                 }
