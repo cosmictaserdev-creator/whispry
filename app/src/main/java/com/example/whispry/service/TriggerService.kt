@@ -134,7 +134,17 @@ class TriggerService : AccessibilityService() {
                 isSinglePressEnabled = prefs[DataStoreKeys.SINGLE_PRESS_TRIGGER] ?: false
                 handsFreeEnabled = prefs[DataStoreKeys.HANDS_FREE_MODE] ?: false
                 pressActionsEnabled = prefs[DataStoreKeys.PRESS_ACTIONS_ENABLED] ?: false
-                if (!pressActionsEnabled && !handsFreeEnabled) pressState = PressState.IDLE
+                // If both tap-to-toggle modes are off, clear any lingering state. When a recording
+                // is still mid-flight (mode turned off while recording), stop it now — otherwise it
+                // keeps running and the user has to trigger again to end it.
+                if (!pressActionsEnabled && !handsFreeEnabled && pressState != PressState.IDLE) {
+                    if (pressState == PressState.RECORDING || pressState == PressState.WAITING_STOP) {
+                        handler.removeCallbacksAndMessages(null)
+                        soundManager.play(SoundEvent.TRIGGER_STOP)
+                        sendStopRecording()
+                    }
+                    pressState = PressState.IDLE
+                }
                 singlePressActionStr = prefs[DataStoreKeys.SINGLE_PRESS_ACTION] ?: "NORMAL"
                 doublePressActionStr = prefs[DataStoreKeys.DOUBLE_PRESS_ACTION] ?: "NORMAL"
             }
