@@ -250,6 +250,8 @@ class BubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedState
     private var duckingEnabled = true
     private var duckPercent = 70
     private var defaultOutputPreset = OutputPreset.NONE
+    // Press Action carried on the START intent (Normal unless a custom single/double press fired).
+    private var pendingPressAction: com.example.whispry.domain.model.PressAction = com.example.whispry.domain.model.PressAction.Normal
 
     private val bubbleState = mutableStateOf<BubbleState>(BubbleState.Idle)
     private val amplitude = mutableStateOf(0f)
@@ -288,6 +290,7 @@ class BubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedState
     companion object {
         const val ACTION_START_RECORDING = "com.example.whispry.action.START_RECORDING"
         const val ACTION_STOP_RECORDING = "com.example.whispry.action.STOP_RECORDING"
+        const val EXTRA_PRESS_ACTION = "extra_press_action"
         private const val NOTIFICATION_ID = 1
         private const val CHANNEL_ID = "bubble_service_channel"
         private const val SUCCESS_DISMISS_DELAY_MS = 2200L
@@ -325,7 +328,10 @@ class BubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedState
         createNotificationChannel()
         updateForegroundStatus()
         when (intent?.action) {
-            ACTION_START_RECORDING -> onRecordingStarted()
+            ACTION_START_RECORDING -> {
+                pendingPressAction = com.example.whispry.domain.model.PressAction.parse(intent.getStringExtra(EXTRA_PRESS_ACTION))
+                onRecordingStarted()
+            }
             ACTION_STOP_RECORDING -> onRecordingStopped()
         }
         lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_START)
@@ -514,7 +520,13 @@ class BubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedState
             }
             try {
                 val language = settingsProvider.language.first()
-                val preset = defaultOutputPreset
+                // A custom press action can override the preset, or redirect to opening an app.
+                val pressAction = pendingPressAction
+                pendingPressAction = com.example.whispry.domain.model.PressAction.Normal
+                val preset = when (pressAction) {
+                    is com.example.whispry.domain.model.PressAction.Preset -> pressAction.preset
+                    else -> defaultOutputPreset
+                }
                 val processed: Processed = withContext(Dispatchers.IO) {
                     val rawResult = audioRepository.transcribeAudio(
                         audioFilePath = filePath,
@@ -523,6 +535,16 @@ class BubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedState
                     when (rawResult) {
                         is com.example.whispry.domain.util.Result.Success -> {
                             val rawText = rawResult.data
+                            // Open-app press action: skip routing, open the app and copy the text.
+                            if (pressAction is com.example.whispry.domain.model.PressAction.OpenApp && rawText.isNotBlank()) {
+                                transcriptRepository.saveTranscript(rawText, rawText, durationMs, language ?: "en", OutputPreset.NONE.name)
+                                return@withContext Processed.Command(
+                                    com.example.whispry.domain.model.VoiceAppAction.OpenApp(
+                                        pressAction.packageName, pressAction.label, rawText
+                                    ),
+                                    rawText
+                                )
+                            }
                             if (preset != OutputPreset.NONE) {
                                 withContext(Dispatchers.Main) { bubbleState.value = BubbleState.Formatting(preset) }
                             }

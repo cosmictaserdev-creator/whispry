@@ -44,9 +44,15 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.whispry.domain.model.OutputPreset
+import com.example.whispry.domain.model.PressAction
 import com.example.whispry.domain.model.RetentionPolicy
 import com.example.whispry.domain.model.TriggerMode
 import com.example.whispry.service.TriggerSound
+import com.example.whispry.ui.components.WhispryBottomSheet
+import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import com.example.whispry.ui.theme.AccentPreset
 import com.example.whispry.ui.theme.WhispryTheme
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -167,6 +173,7 @@ fun SettingsScreen(
                 }
                 item { VoiceRecognitionSection(state, viewModel, backdrop, onShowLanguagePicker) }
                 item { TriggerMethodSection(state, viewModel, backdrop) }
+                item { PressActionsSection(state, viewModel, backdrop) }
                 item { InterfaceSoundsSection(state, viewModel, backdrop) }
                 item {
                     ProductivitySection(
@@ -309,7 +316,10 @@ private fun SettingsDetailPane(
                 SettingsCategory.Voice ->
                     VoiceRecognitionSection(state, viewModel, backdrop, onShowLanguagePicker)
                 SettingsCategory.Trigger ->
-                    TriggerMethodSection(state, viewModel, backdrop)
+                    Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
+                        TriggerMethodSection(state, viewModel, backdrop)
+                        PressActionsSection(state, viewModel, backdrop)
+                    }
                 SettingsCategory.Interface ->
                     InterfaceSoundsSection(state, viewModel, backdrop)
                 SettingsCategory.Productivity ->
@@ -396,6 +406,193 @@ private fun TriggerMethodSection(
             onPercentChanged = { viewModel.onIntent(SettingsIntent.SetDuckingPercent(it)) },
             backdrop = backdrop
         )
+    }
+}
+
+/**
+ * Universal Press Actions (opt-in). Lets the user assign what a single press and a double press
+ * of the trigger key each do — normal transcribe-and-paste, format with a chosen preset, or open
+ * an app and copy the text to the clipboard. Off by default so the proven hold-to-record trigger is
+ * untouched until the user opts in.
+ */
+@Composable
+private fun PressActionsSection(
+    state: SettingsState,
+    viewModel: SettingsViewModel,
+    backdrop: LayerBackdrop
+) {
+    // null = closed, "single"/"double" = which slot's picker is open.
+    var openPicker by remember { mutableStateOf<String?>(null) }
+
+    SettingsSectionOptimized(title = "Press Actions", backdrop = backdrop) {
+        LiquidSettingsToggle(
+            icon = Icons.Rounded.Tune,
+            title = "Custom Press Actions",
+            checked = state.pressActionsEnabled,
+            onCheckedChange = { viewModel.onIntent(SettingsIntent.SetPressActionsEnabled(it)) },
+            backdrop = backdrop,
+            helpText = "Take over the trigger key with your own actions. Assign a single press and a double press separately — each can transcribe-and-paste, format with a preset, or open an app with your spoken text copied to the clipboard. Recording becomes tap-to-toggle (press once to start, again to stop), so it's fully hands-free. Turn this off to restore the normal double-press-and-hold trigger."
+        )
+
+        AnimatedVisibility(
+            visible = state.pressActionsEnabled,
+            enter = expandVertically() + fadeIn(),
+            exit = shrinkVertically() + fadeOut()
+        ) {
+            Column(modifier = Modifier.padding(top = 16.dp)) {
+                SettingsRow(
+                    icon = Icons.Rounded.TouchApp,
+                    title = "Single press",
+                    value = PressAction.parse(state.singlePressAction).displayLabel(),
+                    onClick = { openPicker = "single" }
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                SettingsRow(
+                    icon = Icons.Rounded.Bolt,
+                    title = "Double press",
+                    value = PressAction.parse(state.doublePressAction).displayLabel(),
+                    onClick = { openPicker = "double" }
+                )
+            }
+        }
+    }
+
+    openPicker?.let { slot ->
+        val current = PressAction.parse(
+            if (slot == "single") state.singlePressAction else state.doublePressAction
+        )
+        PressActionPicker(
+            title = if (slot == "single") "Single press" else "Double press",
+            current = current,
+            onSelect = { action ->
+                val intent = if (slot == "single")
+                    SettingsIntent.SetSinglePressAction(action.serialize())
+                else
+                    SettingsIntent.SetDoublePressAction(action.serialize())
+                viewModel.onIntent(intent)
+                openPicker = null
+            },
+            onDismiss = { openPicker = null }
+        )
+    }
+}
+
+/** Bottom-sheet picker for a single press-action slot: Normal / a preset / open an installed app. */
+@Composable
+private fun PressActionPicker(
+    title: String,
+    current: PressAction,
+    onSelect: (PressAction) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val context = LocalContext.current
+    // Launchable apps for the "open app" options, loaded off the main thread while the sheet is open.
+    var apps by remember { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
+    LaunchedEffect(Unit) {
+        apps = withContext(Dispatchers.IO) {
+            val pm = context.packageManager
+            val intent = android.content.Intent(android.content.Intent.ACTION_MAIN)
+                .addCategory(android.content.Intent.CATEGORY_LAUNCHER)
+            pm.queryIntentActivities(intent, 0)
+                .mapNotNull { ri ->
+                    val pkg = ri.activityInfo?.packageName ?: return@mapNotNull null
+                    ri.loadLabel(pm).toString() to pkg
+                }
+                .distinctBy { it.second }
+                .sortedBy { it.first.lowercase() }
+        }
+    }
+
+    WhispryBottomSheet(title = title, onDismiss = onDismiss) {
+        PressActionGroupLabel("Transcribe")
+        PressActionOptionRow(
+            title = "Transcribe & paste",
+            subtitle = "Normal — clean up and paste the text",
+            selected = current is PressAction.Normal,
+            onClick = { onSelect(PressAction.Normal) }
+        )
+
+        Spacer(modifier = Modifier.height(20.dp))
+        PressActionGroupLabel("Format with a preset")
+        OutputPreset.entries.filter { it != OutputPreset.NONE }.forEach { preset ->
+            PressActionOptionRow(
+                title = "${preset.emoji}  ${preset.displayName}",
+                subtitle = preset.description,
+                selected = current is PressAction.Preset && current.preset == preset,
+                onClick = { onSelect(PressAction.Preset(preset)) }
+            )
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+        PressActionGroupLabel("Open an app + copy to clipboard")
+        if (apps.isEmpty()) {
+            Text(
+                "Loading apps…",
+                style = MaterialTheme.typography.bodySmall,
+                color = Color.White.copy(alpha = 0.4f),
+                modifier = Modifier.padding(vertical = 12.dp)
+            )
+        } else {
+            apps.forEach { (label, pkg) ->
+                PressActionOptionRow(
+                    title = label,
+                    subtitle = null,
+                    selected = current is PressAction.OpenApp && current.packageName == pkg,
+                    onClick = { onSelect(PressAction.OpenApp(pkg, label)) }
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(24.dp))
+    }
+}
+
+@Composable
+private fun PressActionGroupLabel(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.labelSmall,
+        color = Color.White.copy(alpha = 0.4f),
+        fontWeight = FontWeight.SemiBold,
+        modifier = Modifier.padding(bottom = 8.dp)
+    )
+}
+
+@Composable
+private fun PressActionOptionRow(
+    title: String,
+    subtitle: String?,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(if (selected) Color.White.copy(alpha = 0.08f) else Color.Transparent)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                title,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                color = Color.White
+            )
+            if (subtitle != null) {
+                Text(
+                    subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.White.copy(alpha = 0.4f)
+                )
+            }
+        }
+        if (selected) {
+            Icon(Icons.Rounded.Check, null, tint = Color.White, modifier = Modifier.size(20.dp))
+        }
     }
 }
 

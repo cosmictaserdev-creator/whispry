@@ -36,6 +36,11 @@ class SettingsProvider @Inject constructor(
     val translateTargetLanguage: Flow<String> = dataStore.data.map { it[DataStoreKeys.TRANSLATE_TARGET_LANGUAGE] ?: "English" }
     val voiceCommandsEnabled: Flow<Boolean> = dataStore.data.map { it[DataStoreKeys.VOICE_COMMANDS_ENABLED] ?: true }
 
+    // Universal Press Actions (opt-in).
+    val pressActionsEnabled: Flow<Boolean> = dataStore.data.map { it[DataStoreKeys.PRESS_ACTIONS_ENABLED] ?: false }
+    val singlePressAction: Flow<String> = dataStore.data.map { it[DataStoreKeys.SINGLE_PRESS_ACTION] ?: "NORMAL" }
+    val doublePressAction: Flow<String> = dataStore.data.map { it[DataStoreKeys.DOUBLE_PRESS_ACTION] ?: "NORMAL" }
+
     // Bug 1
     val smartTriggerSuppression: Flow<Boolean> = dataStore.data.map { it[DataStoreKeys.SMART_TRIGGER_SUPPRESSION] ?: true }
 
@@ -57,6 +62,9 @@ class SettingsProvider @Inject constructor(
     suspend fun setAppAwareToneEnabled(value: Boolean) = dataStore.edit { it[DataStoreKeys.APP_AWARE_TONE_ENABLED] = value }
     suspend fun setTranslateTargetLanguage(value: String) = dataStore.edit { it[DataStoreKeys.TRANSLATE_TARGET_LANGUAGE] = value }
     suspend fun setVoiceCommandsEnabled(value: Boolean) = dataStore.edit { it[DataStoreKeys.VOICE_COMMANDS_ENABLED] = value }
+    suspend fun setPressActionsEnabled(value: Boolean) = dataStore.edit { it[DataStoreKeys.PRESS_ACTIONS_ENABLED] = value }
+    suspend fun setSinglePressAction(value: String) = dataStore.edit { it[DataStoreKeys.SINGLE_PRESS_ACTION] = value }
+    suspend fun setDoublePressAction(value: String) = dataStore.edit { it[DataStoreKeys.DOUBLE_PRESS_ACTION] = value }
 
     suspend fun <T> setPreference(key: Preferences.Key<T>, value: T) {
         dataStore.edit { it[key] = value }

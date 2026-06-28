@@ -48,7 +48,12 @@ data class SettingsState(
     val appAwareToneEnabled: Boolean = false,
 
     // Voice Commands + expand/insert first-word router
-    val voiceCommandsEnabled: Boolean = true
+    val voiceCommandsEnabled: Boolean = true,
+
+    // Universal Press Actions (opt-in)
+    val pressActionsEnabled: Boolean = false,
+    val singlePressAction: String = "NORMAL",
+    val doublePressAction: String = "NORMAL"
 )
 
 sealed class SettingsIntent {
@@ -97,4 +102,9 @@ sealed class SettingsIntent {
 
     // Voice Commands
     data class SetVoiceCommandsEnabled(val enabled: Boolean) : SettingsIntent()
+
+    // Universal Press Actions
+    data class SetPressActionsEnabled(val enabled: Boolean) : SettingsIntent()
+    data class SetSinglePressAction(val action: String) : SettingsIntent()
+    data class SetDoublePressAction(val action: String) : SettingsIntent()
 }

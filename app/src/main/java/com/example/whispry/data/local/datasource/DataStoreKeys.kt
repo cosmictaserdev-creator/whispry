@@ -69,4 +69,9 @@ object DataStoreKeys {
 
     // One-time seeding of default expanders / commands / my-info rows
     val DEFAULTS_SEEDED = booleanPreferencesKey("defaults_seeded")
+
+    // Universal Press Actions: assign single/double volume-key press to an action (opt-in).
+    val PRESS_ACTIONS_ENABLED = booleanPreferencesKey("press_actions_enabled")
+    val SINGLE_PRESS_ACTION = stringPreferencesKey("single_press_action")
+    val DOUBLE_PRESS_ACTION = stringPreferencesKey("double_press_action")
 }

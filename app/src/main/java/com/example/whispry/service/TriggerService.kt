@@ -55,6 +55,14 @@ class TriggerService : AccessibilityService() {
     private var currentTriggerMode: TriggerMode = TriggerMode.VolumeButton
     private var activeKeyCode: Int = KeyEvent.KEYCODE_VOLUME_DOWN
 
+    // Universal Press Actions (opt-in). When enabled, the volume key becomes a tap-to-toggle
+    // trigger: single press fires [singlePressAction], double press fires [doublePressAction].
+    private var pressActionsEnabled = false
+    private var singlePressActionStr = "NORMAL"
+    private var doublePressActionStr = "NORMAL"
+    private enum class PressState { IDLE, WAITING_SECOND, RECORDING }
+    private var pressState = PressState.IDLE
+
     // ------------------------------------------------------------------
     // State machine
     // ------------------------------------------------------------------
@@ -117,6 +125,10 @@ class TriggerService : AccessibilityService() {
             settingsProvider.dataStore.data.collect { prefs ->
                 consumeVolumeKeys = prefs[DataStoreKeys.CONSUME_VOLUME_KEYS] ?: true
                 isSinglePressEnabled = prefs[DataStoreKeys.SINGLE_PRESS_TRIGGER] ?: false
+                pressActionsEnabled = prefs[DataStoreKeys.PRESS_ACTIONS_ENABLED] ?: false
+                if (!pressActionsEnabled) pressState = PressState.IDLE
+                singlePressActionStr = prefs[DataStoreKeys.SINGLE_PRESS_ACTION] ?: "NORMAL"
+                doublePressActionStr = prefs[DataStoreKeys.DOUBLE_PRESS_ACTION] ?: "NORMAL"
             }
         }
     }
@@ -167,6 +179,12 @@ class TriggerService : AccessibilityService() {
 
     private fun handleVolumeKeyEvent(event: KeyEvent): Boolean {
         if (event.keyCode != activeKeyCode) return false
+
+        // Universal Press Actions take over the volume key entirely when enabled.
+        if (pressActionsEnabled) {
+            handlePressActionEvent(event)
+            return true
+        }
 
         val consumed = if (consumeVolumeKeys && isSinglePressEnabled) {
             handleSinglePressLogic(event)
@@ -353,6 +371,72 @@ class TriggerService : AccessibilityService() {
             serviceBridge.emit(ServiceBridge.TriggerEvent.RecordingStopped)
         }
         return true
+    }
+
+    // ------------------------------------------------------------------
+    // Universal Press Actions: tap-to-toggle, single vs double press
+    // ------------------------------------------------------------------
+
+    private fun handlePressActionEvent(event: KeyEvent) {
+        if (event.action != KeyEvent.ACTION_DOWN) return
+        when (pressState) {
+            PressState.RECORDING -> {
+                // Any press while recording stops it (hands-free toggle).
+                pressState = PressState.IDLE
+                handler.removeCallbacksAndMessages(null)
+                soundManager.play(SoundEvent.TRIGGER_STOP)
+                sendStopRecording()
+            }
+            PressState.IDLE -> {
+                pressState = PressState.WAITING_SECOND
+                firstPressTime = System.currentTimeMillis()
+                handler.postDelayed({
+                    if (pressState == PressState.WAITING_SECOND) {
+                        startPressRecording(singlePressActionStr)
+                    }
+                }, doublePressWindowMs)
+            }
+            PressState.WAITING_SECOND -> {
+                val gap = System.currentTimeMillis() - firstPressTime
+                if (gap < doublePressWindowMs) {
+                    handler.removeCallbacksAndMessages(null)
+                    startPressRecording(doublePressActionStr)
+                }
+            }
+        }
+    }
+
+    private fun startPressRecording(actionStr: String) {
+        if (useSmartSuppression && shouldSuppressTrigger()) {
+            pressState = PressState.IDLE
+            return
+        }
+        pressState = PressState.RECORDING
+        if (useHaptics) hapticHelper.vibrateShort()
+        soundManager.play(SoundEvent.TRIGGER_START)
+        try {
+            val intent = android.content.Intent(this, BubbleService::class.java).apply {
+                action = BubbleService.ACTION_START_RECORDING
+                putExtra(BubbleService.EXTRA_PRESS_ACTION, actionStr)
+            }
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                startForegroundService(intent)
+            } else {
+                startService(intent)
+            }
+            serviceBridge.emit(ServiceBridge.TriggerEvent.RecordingStarted)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to start BubbleService (press action)", e)
+            pressState = PressState.IDLE
+        }
+    }
+
+    private fun sendStopRecording() {
+        val intent = android.content.Intent(this, BubbleService::class.java).apply {
+            action = BubbleService.ACTION_STOP_RECORDING
+        }
+        startService(intent)
+        serviceBridge.emit(ServiceBridge.TriggerEvent.RecordingStopped)
     }
 
     private fun resetToIdle() {

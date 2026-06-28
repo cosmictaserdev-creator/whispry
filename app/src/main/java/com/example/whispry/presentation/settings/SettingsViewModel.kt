@@ -95,6 +95,9 @@ class SettingsViewModel @Inject constructor(
         
         settingsProvider.appAwareToneEnabled.onEach { v -> _state.update { it.copy(appAwareToneEnabled = v) } }.launchIn(viewModelScope)
         settingsProvider.voiceCommandsEnabled.onEach { v -> _state.update { it.copy(voiceCommandsEnabled = v) } }.launchIn(viewModelScope)
+        settingsProvider.pressActionsEnabled.onEach { v -> _state.update { it.copy(pressActionsEnabled = v) } }.launchIn(viewModelScope)
+        settingsProvider.singlePressAction.onEach { v -> _state.update { it.copy(singlePressAction = v) } }.launchIn(viewModelScope)
+        settingsProvider.doublePressAction.onEach { v -> _state.update { it.copy(doublePressAction = v) } }.launchIn(viewModelScope)
     }
 
     fun onIntent(intent: SettingsIntent) {
@@ -155,6 +158,9 @@ class SettingsViewModel @Inject constructor(
                 }
                 is SettingsIntent.SetAppAwareToneEnabled -> settingsProvider.setAppAwareToneEnabled(intent.enabled)
                 is SettingsIntent.SetVoiceCommandsEnabled -> settingsProvider.setVoiceCommandsEnabled(intent.enabled)
+                is SettingsIntent.SetPressActionsEnabled -> settingsProvider.setPressActionsEnabled(intent.enabled)
+                is SettingsIntent.SetSinglePressAction -> settingsProvider.setSinglePressAction(intent.action)
+                is SettingsIntent.SetDoublePressAction -> settingsProvider.setDoublePressAction(intent.action)
                 is SettingsIntent.SetTriggerVolumeKey -> settingsProvider.dataStore.edit { it[DataStoreKeys.TRIGGER_VOLUME_KEY] = intent.key }
                 is SettingsIntent.SetDuckingEnabled -> settingsProvider.dataStore.edit { it[DataStoreKeys.DUCKING_ENABLED] = intent.enabled }
                 is SettingsIntent.SetDuckingPercent -> settingsProvider.dataStore.edit { it[DataStoreKeys.DUCKING_PERCENT] = intent.percent }
