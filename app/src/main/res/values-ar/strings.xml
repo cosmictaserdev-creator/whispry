@@ -1,0 +1,32 @@
+<resources>
+    <string name="accessibility_service_description">يستخدم Whispry ميزة إمكانية الوصول لاكتشاف إيماءة الضغط المزدوج والاستمرار على زر مستوى الصوت لبدء تسجيل الصوت. لا يقرأ محتوى الشاشة ولا يجمع أي بيانات شخصية.</string>
+
+    <string name="nav_home">الرئيسية</string>
+    <string name="nav_library">المكتبة</string>
+    <string name="nav_presets">الإعدادات المسبقة</string>
+    <string name="nav_settings">الإعدادات</string>
+    <string name="nav_about">حول</string>
+
+    <string name="settings_category_voice">التعرف على الصوت</string>
+    <string name="settings_category_trigger">طريقة التشغيل</string>
+    <string name="settings_category_interface">الواجهة والأصوات</string>
+    <string name="settings_category_productivity">الإنتاجية</string>
+    <string name="settings_category_data">البيانات والخصوصية</string>
+    <string name="settings_category_service">الخدمة والصيانة</string>
+
+    <string name="settings_title">الإعدادات</string>
+    <string name="section_app_language">لغة التطبيق</string>
+    <string name="section_ai_providers">مزودو الذكاء الاصطناعي</string>
+    <string name="section_press_actions">إجراءات الضغط</string>
+    <string name="section_floating_switch">المفتاح العائم</string>
+
+    <string name="app_language_display_language">لغة العرض</string>
+    <string name="app_language_sheet_title">لغة العرض</string>
+    <string name="app_language_follow_device">اتباع الجهاز</string>
+    <string name="app_language_help">يغيّر اللغة التي تُعرض بها شاشات وقوائم Whispry نفسها — بشكل منفصل عن لغة النسخ أعلاه، التي تتحكم في اللغة التي يُتعرّف بها على كلامك.</string>
+
+    <string name="trigger_hands_free">الوضع الحر</string>
+    <string name="trigger_hands_free_help">لا حاجة لإبقاء المفتاح مضغوطًا. فعّله مرة واحدة لبدء التسجيل، تحدث بقدر ما تشاء، ثم فعّله مرة أخرى للتوقف. يحترم اختيارك للضغطة الواحدة/المزدوجة — الوضع الفردي يبدأ بضغطة واحدة؛ الوضع المزدوج يحتاج ضغطة مزدوجة سريعة للبدء، لكن ضغطة واحدة فقط للتوقف.</string>
+    <string name="trigger_hands_free_subtitle">فعّل للبدء، فعّل مرة أخرى للتوقف — دون الحاجة للإبقاء مضغوطًا.</string>
+    <string name="trigger_press_actions_override">إجراءات الضغط (أدناه) استحوذت على مفتاح التشغيل — الوضع الحر وإعدادات الإبقاء/الضغط المزدوج هنا لن تُطبَّق حتى تقوم بإيقافها.</string>
+</resources>

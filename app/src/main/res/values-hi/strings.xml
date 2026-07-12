@@ -1,0 +1,32 @@
+<resources>
+    <string name="accessibility_service_description">वॉयस रिकॉर्डिंग शुरू करने के लिए वॉल्यूम बटन को दो बार दबाकर दबाए रखने वाले जेस्चर का पता लगाने के लिए Whispry एक्सेसिबिलिटी का उपयोग करता है। यह स्क्रीन की सामग्री नहीं पढ़ता और न ही कोई व्यक्तिगत डेटा एकत्र करता है।</string>
+
+    <string name="nav_home">होम</string>
+    <string name="nav_library">लाइब्रेरी</string>
+    <string name="nav_presets">प्रीसेट</string>
+    <string name="nav_settings">सेटिंग्स</string>
+    <string name="nav_about">के बारे में</string>
+
+    <string name="settings_category_voice">वॉयस रिकग्निशन</string>
+    <string name="settings_category_trigger">ट्रिगर मेथड</string>
+    <string name="settings_category_interface">इंटरफ़ेस और साउंड</string>
+    <string name="settings_category_productivity">प्रोडक्टिविटी</string>
+    <string name="settings_category_data">डेटा और प्राइवेसी</string>
+    <string name="settings_category_service">सर्विस और मेंटेनेंस</string>
+
+    <string name="settings_title">सेटिंग्स</string>
+    <string name="section_app_language">ऐप की भाषा</string>
+    <string name="section_ai_providers">AI प्रोवाइडर</string>
+    <string name="section_press_actions">प्रेस एक्शन</string>
+    <string name="section_floating_switch">फ़्लोटिंग स्विच</string>
+
+    <string name="app_language_display_language">डिस्प्ले भाषा</string>
+    <string name="app_language_sheet_title">डिस्प्ले भाषा</string>
+    <string name="app_language_follow_device">डिवाइस जैसी रखें</string>
+    <string name="app_language_help">यह Whispry की अपनी स्क्रीन और मेन्यू किस भाषा में दिखेंगे, यह बदलता है — ऊपर वाली ट्रांसक्रिप्शन भाषा से अलग, जो तय करती है कि आपकी आवाज़ किस भाषा में पहचानी जाए।</string>
+
+    <string name="trigger_hands_free">हैंड्स-फ़्री</string>
+    <string name="trigger_hands_free_help">बटन दबाए रखने की ज़रूरत नहीं। एक बार ट्रिगर करें रिकॉर्डिंग शुरू करने के लिए, जितना चाहें बोलें, फिर रोकने के लिए दोबारा ट्रिगर करें। आपकी सिंगल/डबल-प्रेस पसंद का पालन करता है — सिंगल मोड एक प्रेस पर शुरू होता है; डबल मोड शुरू करने के लिए जल्दी डबल-प्रेस चाहता है, पर रोकने के लिए बस एक प्रेस।</string>
+    <string name="trigger_hands_free_subtitle">शुरू करने के लिए ट्रिगर करें, रोकने के लिए दोबारा ट्रिगर करें — दबाए रखने की ज़रूरत नहीं।</string>
+    <string name="trigger_press_actions_override">प्रेस एक्शन (नीचे) ने ट्रिगर की को अपने कब्जे में ले लिया है — जब तक आप इसे बंद नहीं करते, तब तक हैंड्स-फ़्री और यहाँ के होल्ड/डबल-प्रेस सेटिंग्स लागू नहीं होंगे।</string>
+</resources>

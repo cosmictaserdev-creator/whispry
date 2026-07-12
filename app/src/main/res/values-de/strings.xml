@@ -1,0 +1,32 @@
+<resources>
+    <string name="accessibility_service_description">Whispry nutzt die Bedienungshilfen, um die Geste „Lautstärketaste doppelt drücken und halten“ zum Starten der Sprachaufnahme zu erkennen. Es werden keine Bildschirminhalte gelesen oder persönliche Daten erfasst.</string>
+
+    <string name="nav_home">Start</string>
+    <string name="nav_library">Bibliothek</string>
+    <string name="nav_presets">Voreinstellungen</string>
+    <string name="nav_settings">Einstellungen</string>
+    <string name="nav_about">Info</string>
+
+    <string name="settings_category_voice">Spracherkennung</string>
+    <string name="settings_category_trigger">Auslösemethode</string>
+    <string name="settings_category_interface">Oberfläche &amp; Sounds</string>
+    <string name="settings_category_productivity">Produktivität</string>
+    <string name="settings_category_data">Daten &amp; Datenschutz</string>
+    <string name="settings_category_service">Dienst &amp; Wartung</string>
+
+    <string name="settings_title">Einstellungen</string>
+    <string name="section_app_language">App-Sprache</string>
+    <string name="section_ai_providers">KI-Anbieter</string>
+    <string name="section_press_actions">Tastenaktionen</string>
+    <string name="section_floating_switch">Schwebender Schalter</string>
+
+    <string name="app_language_display_language">Anzeigesprache</string>
+    <string name="app_language_sheet_title">Anzeigesprache</string>
+    <string name="app_language_follow_device">Gerätesprache verwenden</string>
+    <string name="app_language_help">Ändert die Sprache, in der Whisprys eigene Bildschirme und Menüs angezeigt werden — getrennt von der Transkriptionssprache oben, die bestimmt, in welcher Sprache deine Stimme erkannt wird.</string>
+
+    <string name="trigger_hands_free">Freisprechen</string>
+    <string name="trigger_hands_free_help">Die Taste muss nicht gehalten werden. Einmal auslösen, um die Aufnahme zu starten, so lange sprechen wie gewünscht, dann erneut auslösen zum Stoppen. Berücksichtigt deine Einfach-/Doppeldruck-Wahl — im Einfachmodus reicht ein Druck zum Start; im Doppelmodus ist ein schneller Doppeldruck zum Start nötig, aber nur ein Druck zum Stoppen.</string>
+    <string name="trigger_hands_free_subtitle">Zum Starten auslösen, zum Stoppen erneut auslösen — kein Halten nötig.</string>
+    <string name="trigger_press_actions_override">Tastenaktionen (unten) haben die Auslösetaste übernommen — Freisprechen sowie die Halte-/Doppeldruck-Einstellungen hier gelten erst wieder, wenn du sie deaktivierst.</string>
+</resources>

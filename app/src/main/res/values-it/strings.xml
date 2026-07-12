@@ -1,0 +1,32 @@
+<resources>
+    <string name="accessibility_service_description">Whispry usa l\'accessibilità per rilevare il gesto di doppia pressione e pressione prolungata del tasto volume per avviare la registrazione vocale. Non legge il contenuto dello schermo né raccoglie dati personali.</string>
+
+    <string name="nav_home">Home</string>
+    <string name="nav_library">Libreria</string>
+    <string name="nav_presets">Preimpostazioni</string>
+    <string name="nav_settings">Impostazioni</string>
+    <string name="nav_about">Informazioni</string>
+
+    <string name="settings_category_voice">Riconoscimento vocale</string>
+    <string name="settings_category_trigger">Metodo di attivazione</string>
+    <string name="settings_category_interface">Interfaccia e suoni</string>
+    <string name="settings_category_productivity">Produttività</string>
+    <string name="settings_category_data">Dati e privacy</string>
+    <string name="settings_category_service">Servizio e manutenzione</string>
+
+    <string name="settings_title">Impostazioni</string>
+    <string name="section_app_language">Lingua dell\'app</string>
+    <string name="section_ai_providers">Fornitori IA</string>
+    <string name="section_press_actions">Azioni di pressione</string>
+    <string name="section_floating_switch">Interruttore fluttuante</string>
+
+    <string name="app_language_display_language">Lingua di visualizzazione</string>
+    <string name="app_language_sheet_title">Lingua di Visualizzazione</string>
+    <string name="app_language_follow_device">Segui dispositivo</string>
+    <string name="app_language_help">Cambia la lingua in cui vengono mostrate le schermate e i menu di Whispry — separata dalla lingua di trascrizione qui sopra, che controlla in quale lingua viene riconosciuta la tua voce.</string>
+
+    <string name="trigger_hands_free">Mani libere</string>
+    <string name="trigger_hands_free_help">Non serve tenere premuto il tasto. Attiva una volta per iniziare la registrazione, parla quanto vuoi, poi attiva di nuovo per fermarla. Rispetta la tua scelta pressione singola/doppia — la modalità singola si attiva con una pressione; la modalità doppia richiede una doppia pressione rapida per iniziare, ma una sola pressione per fermarsi.</string>
+    <string name="trigger_hands_free_subtitle">Attiva per iniziare, attiva di nuovo per fermare — senza tenere premuto.</string>
+    <string name="trigger_press_actions_override">Azioni di pressione (sotto) ha preso il controllo del tasto di attivazione — Mani libere e le impostazioni di attesa/doppia pressione qui non si applicano finché non la disattivi.</string>
+</resources>

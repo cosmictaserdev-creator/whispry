@@ -27,6 +27,8 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.*
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
@@ -63,11 +65,13 @@ import com.example.whispry.ui.components.WhispryHero
 import com.example.whispry.ui.components.WhispryHeroKeys
 import com.example.whispry.ui.components.heroSharedBounds
 import android.Manifest
+import android.app.Activity
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import com.example.whispry.ui.theme.AccentPreset
@@ -93,13 +97,13 @@ import kotlinx.coroutines.launch
  * the selected category's section rendered on the right. On phones every section is shown
  * inline in one scroll and the category is implicit.
  */
-enum class SettingsCategory(val title: String, val icon: ImageVector) {
-    Voice("Voice Recognition", Icons.Rounded.Language),
-    Trigger("Trigger Method", Icons.Rounded.TouchApp),
-    Interface("Interface & Sounds", Icons.Rounded.Palette),
-    Productivity("Productivity", Icons.Rounded.AutoAwesome),
-    Data("Data & Privacy", Icons.Rounded.Security),
-    Service("Service & Maintenance", Icons.Rounded.Build),
+enum class SettingsCategory(@androidx.annotation.StringRes val titleRes: Int, val icon: ImageVector) {
+    Voice(R.string.settings_category_voice, Icons.Rounded.Language),
+    Trigger(R.string.settings_category_trigger, Icons.Rounded.TouchApp),
+    Interface(R.string.settings_category_interface, Icons.Rounded.Palette),
+    Productivity(R.string.settings_category_productivity, Icons.Rounded.AutoAwesome),
+    Data(R.string.settings_category_data, Icons.Rounded.Security),
+    Service(R.string.settings_category_service, Icons.Rounded.Build),
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -185,12 +189,13 @@ fun SettingsScreen(
             ) {
                 item {
                     Text(
-                        text = "Settings",
+                        text = stringResource(R.string.settings_title),
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold,
                         color = Color.White
                     )
                 }
+                item { AppLanguageSection(state, viewModel, backdrop) }
                 item { VoiceRecognitionSection(state, viewModel, backdrop, onShowLanguagePicker) }
                 item { AiProviderSection(state, viewModel, backdrop) }
                 item { TriggerMethodSection(state, viewModel, backdrop) }
@@ -307,17 +312,20 @@ private fun SettingsCategoryRow(
         )
         Spacer(modifier = Modifier.width(16.dp))
         Text(
-            category.title,
+            stringResource(category.titleRes),
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
             color = if (selected) Color.White else Color.White.copy(alpha = 0.8f),
             modifier = Modifier.weight(1f)
         )
+        val isRtl = LocalLayoutDirection.current == LayoutDirection.Rtl
         Icon(
             Icons.Rounded.ChevronRight,
             null,
             tint = Color.White.copy(alpha = if (selected) 0.4f else 0.15f),
-            modifier = Modifier.size(18.dp)
+            modifier = Modifier
+                .size(18.dp)
+                .graphicsLayer { scaleX = if (isRtl) -1f else 1f }
         )
     }
 }
@@ -353,6 +361,7 @@ private fun SettingsDetailPane(
             when (category) {
                 SettingsCategory.Voice ->
                     Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
+                        AppLanguageSection(state, viewModel, backdrop)
                         VoiceRecognitionSection(state, viewModel, backdrop, onShowLanguagePicker)
                         AiProviderSection(state, viewModel, backdrop)
                     }
@@ -382,6 +391,78 @@ private fun SettingsDetailPane(
     }
 }
 
+/** UI display language — distinct from the transcription language in [VoiceRecognitionSection]. */
+private val APP_LANGUAGES = listOf(
+    "system" to "Follow device",
+    "en" to "English",
+    "es" to "Español",
+    "fr" to "Français",
+    "de" to "Deutsch",
+    "pt" to "Português",
+    "it" to "Italiano",
+    "hi" to "हिन्दी",
+    "zh" to "中文",
+    "ja" to "日本語",
+    "ko" to "한국어",
+    "ar" to "العربية",
+    "ur" to "اردو",
+    "ru" to "Русский"
+)
+
+@Composable
+private fun AppLanguageSection(
+    state: SettingsState,
+    viewModel: SettingsViewModel,
+    backdrop: LayerBackdrop
+) {
+    val context = LocalContext.current
+    var showPicker by remember { mutableStateOf(false) }
+    val followDeviceLabel = stringResource(R.string.app_language_follow_device)
+    val currentLabel = APP_LANGUAGES.firstOrNull { it.first == state.appLanguageTag }?.second ?: followDeviceLabel
+
+    SettingsSectionOptimized(title = stringResource(R.string.section_app_language), backdrop = backdrop) {
+        SettingsRow(
+            icon = Icons.Rounded.Translate,
+            title = stringResource(R.string.app_language_display_language),
+            value = currentLabel,
+            helpText = stringResource(R.string.app_language_help),
+            onClick = { showPicker = true }
+        )
+    }
+
+    if (showPicker) {
+        WhispryBottomSheet(
+            title = stringResource(R.string.app_language_sheet_title),
+            onDismiss = { showPicker = false },
+            heightFraction = 0.7f
+        ) {
+            APP_LANGUAGES.forEach { (tag, label) ->
+                val selected = tag == state.appLanguageTag
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable {
+                            viewModel.onIntent(SettingsIntent.SetAppLanguage(tag))
+                            showPicker = false
+                            (context as? Activity)?.recreate()
+                        }
+                        .padding(vertical = 14.dp, horizontal = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        label,
+                        color = Color.White,
+                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                        modifier = Modifier.weight(1f)
+                    )
+                    if (selected) Icon(Icons.Rounded.Check, null, tint = Color.White)
+                }
+            }
+        }
+    }
+}
+
 @Composable
 private fun VoiceRecognitionSection(
     state: SettingsState,
@@ -389,7 +470,7 @@ private fun VoiceRecognitionSection(
     backdrop: LayerBackdrop,
     onShowLanguagePicker: () -> Unit
 ) {
-    SettingsSectionOptimized(title = "Voice Recognition", backdrop = backdrop) {
+    SettingsSectionOptimized(title = stringResource(R.string.settings_category_voice), backdrop = backdrop) {
         ApiKeyField(
             apiKey = state.apiKey,
             onValueChange = { viewModel.onIntent(SettingsIntent.UpdateApiKey(it)) }
@@ -440,7 +521,7 @@ private fun AiProviderSection(
     viewModel: SettingsViewModel,
     backdrop: LayerBackdrop
 ) {
-    SettingsSectionOptimized(title = "AI Providers", backdrop = backdrop) {
+    SettingsSectionOptimized(title = stringResource(R.string.section_ai_providers), backdrop = backdrop) {
         Text(
             text = "Choose which AI handles transcription and formatting, independently. Defaults to Groq — change only if you want a different provider.",
             style = MaterialTheme.typography.labelSmall,
@@ -609,7 +690,7 @@ private fun TriggerMethodSection(
     viewModel: SettingsViewModel,
     backdrop: LayerBackdrop
 ) {
-    SettingsSectionOptimized(title = "Trigger Method", backdrop = backdrop) {
+    SettingsSectionOptimized(title = stringResource(R.string.settings_category_trigger), backdrop = backdrop) {
         TriggerPickerSection(
             state = state,
             onIntent = { viewModel.onIntent(it) },
@@ -628,21 +709,21 @@ private fun TriggerMethodSection(
 
             if (state.pressActionsEnabled) {
                 Text(
-                    "Press Actions (below) has taken over the trigger key — Hands-free and the hold/double-press settings here don't apply until you turn it off.",
+                    stringResource(R.string.trigger_press_actions_override),
                     style = MaterialTheme.typography.labelSmall,
                     color = Color.White.copy(alpha = 0.5f)
                 )
             } else {
                 LiquidSettingsToggle(
                     icon = Icons.Rounded.PanTool,
-                    title = "Hands-free",
+                    title = stringResource(R.string.trigger_hands_free),
                     checked = state.handsFreeMode,
                     onCheckedChange = { viewModel.onIntent(SettingsIntent.SetHandsFreeMode(it)) },
                     backdrop = backdrop,
-                    helpText = "No need to hold the key down. Trigger once to start recording, speak as long as you like, then trigger again to stop. Respects your single/double-press choice — single mode toggles on one press; double mode needs a quick double press to start, but just one press to stop."
+                    helpText = stringResource(R.string.trigger_hands_free_help)
                 )
                 Text(
-                    "Trigger to start, trigger again to stop — no holding.",
+                    stringResource(R.string.trigger_hands_free_subtitle),
                     style = MaterialTheme.typography.labelSmall,
                     color = Color.White.copy(alpha = 0.4f),
                     modifier = Modifier.padding(start = 36.dp, top = 4.dp)
@@ -740,7 +821,7 @@ private fun PressActionsSection(
     // null = closed, "single"/"double" = which slot's picker is open.
     var openPicker by remember { mutableStateOf<String?>(null) }
 
-    SettingsSectionOptimized(title = "Press Actions", backdrop = backdrop) {
+    SettingsSectionOptimized(title = stringResource(R.string.section_press_actions), backdrop = backdrop) {
         LiquidSettingsToggle(
             icon = Icons.Rounded.Tune,
             title = "Custom Press Actions",
@@ -952,7 +1033,7 @@ private fun FloatingWidgetSection(
     val context = LocalContext.current
     val cfg = state.widgetConfig
 
-    SettingsSectionOptimized(title = "Floating Switch", backdrop = backdrop) {
+    SettingsSectionOptimized(title = stringResource(R.string.section_floating_switch), backdrop = backdrop) {
         LiquidSettingsToggle(
             icon = Icons.Rounded.OpenInNew,
             title = "Floating Switch",
@@ -2077,7 +2158,13 @@ fun SettingsRow(
         }
         if (helpText != null) HelpDot(title, helpText)
         if (showChevron) {
-            Icon(Icons.Rounded.ChevronRight, null, tint = Color.White.copy(alpha = 0.2f))
+            val isRtl = LocalLayoutDirection.current == LayoutDirection.Rtl
+            Icon(
+                Icons.Rounded.ChevronRight,
+                null,
+                tint = Color.White.copy(alpha = 0.2f),
+                modifier = Modifier.graphicsLayer { scaleX = if (isRtl) -1f else 1f }
+            )
         }
     }
 }

@@ -1,0 +1,32 @@
+<resources>
+    <string name="accessibility_service_description">Whispry utilise l\'accessibilité pour détecter le geste d\'appui double et maintenu sur le bouton de volume afin de démarrer l\'enregistrement vocal. Elle ne lit pas le contenu de l\'écran et ne collecte aucune donnée personnelle.</string>
+
+    <string name="nav_home">Accueil</string>
+    <string name="nav_library">Bibliothèque</string>
+    <string name="nav_presets">Préréglages</string>
+    <string name="nav_settings">Réglages</string>
+    <string name="nav_about">À propos</string>
+
+    <string name="settings_category_voice">Reconnaissance vocale</string>
+    <string name="settings_category_trigger">Méthode de déclenchement</string>
+    <string name="settings_category_interface">Interface et sons</string>
+    <string name="settings_category_productivity">Productivité</string>
+    <string name="settings_category_data">Données et confidentialité</string>
+    <string name="settings_category_service">Service et maintenance</string>
+
+    <string name="settings_title">Réglages</string>
+    <string name="section_app_language">Langue de l\'app</string>
+    <string name="section_ai_providers">Fournisseurs d\'IA</string>
+    <string name="section_press_actions">Actions de pression</string>
+    <string name="section_floating_switch">Interrupteur flottant</string>
+
+    <string name="app_language_display_language">Langue d\'affichage</string>
+    <string name="app_language_sheet_title">Langue d\'affichage</string>
+    <string name="app_language_follow_device">Suivre l\'appareil</string>
+    <string name="app_language_help">Change la langue d\'affichage des écrans et menus de Whispry — distincte de la langue de transcription ci-dessus, qui détermine la langue dans laquelle votre voix est reconnue.</string>
+
+    <string name="trigger_hands_free">Mains libres</string>
+    <string name="trigger_hands_free_help">Pas besoin de maintenir la touche enfoncée. Déclenchez une fois pour démarrer l\'enregistrement, parlez aussi longtemps que vous voulez, puis déclenchez à nouveau pour arrêter. Respecte votre choix simple/double pression : le mode simple s\'active en une pression ; le mode double nécessite une double pression rapide pour démarrer, mais une seule pression pour arrêter.</string>
+    <string name="trigger_hands_free_subtitle">Déclenchez pour démarrer, déclenchez à nouveau pour arrêter — sans maintenir.</string>
+    <string name="trigger_press_actions_override">Actions de pression (ci-dessous) a pris le contrôle de la touche de déclenchement — Mains libres et les réglages de maintien/double pression ici ne s\'appliquent pas tant que vous ne la désactivez pas.</string>
+</resources>

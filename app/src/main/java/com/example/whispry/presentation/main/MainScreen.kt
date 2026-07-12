@@ -11,6 +11,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.dimensionResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -247,7 +248,7 @@ private fun TabLayout(
                             },
                             icon = item.icon,
                             filledIcon = item.filledIcon,
-                            label = item.label
+                            label = stringResource(item.labelRes)
                         )
                     }
                 }
@@ -349,7 +350,7 @@ private fun RailLayout(
                 selectedIndex = targetTabIndex,
                 items = mainNavigationItems.map { item ->
                     RailNavigationItem(
-                        label = item.label,
+                        label = stringResource(item.labelRes),
                         icon = item.icon,
                         filledIcon = item.filledIcon
                     )

@@ -1,0 +1,32 @@
+<resources>
+    <string name="accessibility_service_description">Whispry usa la accesibilidad para detectar el gesto de doble pulsación y mantener presionado el botón de volumen para iniciar la grabación de voz. No lee el contenido de la pantalla ni recopila datos personales.</string>
+
+    <string name="nav_home">Inicio</string>
+    <string name="nav_library">Biblioteca</string>
+    <string name="nav_presets">Preajustes</string>
+    <string name="nav_settings">Ajustes</string>
+    <string name="nav_about">Acerca de</string>
+
+    <string name="settings_category_voice">Reconocimiento de voz</string>
+    <string name="settings_category_trigger">Método de activación</string>
+    <string name="settings_category_interface">Interfaz y sonidos</string>
+    <string name="settings_category_productivity">Productividad</string>
+    <string name="settings_category_data">Datos y privacidad</string>
+    <string name="settings_category_service">Servicio y mantenimiento</string>
+
+    <string name="settings_title">Ajustes</string>
+    <string name="section_app_language">Idioma de la app</string>
+    <string name="section_ai_providers">Proveedores de IA</string>
+    <string name="section_press_actions">Acciones de pulsación</string>
+    <string name="section_floating_switch">Interruptor flotante</string>
+
+    <string name="app_language_display_language">Idioma de visualización</string>
+    <string name="app_language_sheet_title">Idioma de visualización</string>
+    <string name="app_language_follow_device">Seguir al dispositivo</string>
+    <string name="app_language_help">Cambia el idioma en que se muestran las pantallas y menús de Whispry, independiente del idioma de transcripción de arriba, que controla en qué idioma se reconoce tu voz.</string>
+
+    <string name="trigger_hands_free">Manos libres</string>
+    <string name="trigger_hands_free_help">No hace falta mantener pulsada la tecla. Actívala una vez para empezar a grabar, habla todo lo que quieras y actívala de nuevo para detener. Respeta tu elección de pulsación simple/doble: el modo simple se activa con una pulsación; el modo doble necesita una doble pulsación rápida para empezar, pero solo una pulsación para detener.</string>
+    <string name="trigger_hands_free_subtitle">Actívala para empezar, actívala de nuevo para detener — sin mantener pulsado.</string>
+    <string name="trigger_press_actions_override">Acciones de pulsación (abajo) ha tomado el control de la tecla de activación — Manos libres y los ajustes de espera/doble pulsación de aquí no se aplican hasta que lo desactives.</string>
+</resources>

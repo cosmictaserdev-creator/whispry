@@ -1,0 +1,32 @@
+<resources>
+    <string name="accessibility_service_description">Whispry ایکسیسبیلٹی کا استعمال کرتا ہے تاکہ وائس ریکارڈنگ شروع کرنے کے لیے والیوم بٹن کو دو بار دبا کر دبائے رکھنے کے اشارے کا پتہ لگا سکے۔ یہ اسکرین کا مواد نہیں پڑھتا اور نہ ہی کوئی ذاتی ڈیٹا اکٹھا کرتا ہے۔</string>
+
+    <string name="nav_home">ہوم</string>
+    <string name="nav_library">لائبریری</string>
+    <string name="nav_presets">پری سیٹس</string>
+    <string name="nav_settings">سیٹنگز</string>
+    <string name="nav_about">کے بارے میں</string>
+
+    <string name="settings_category_voice">وائس ریکگنیشن</string>
+    <string name="settings_category_trigger">ٹرگر کا طریقہ</string>
+    <string name="settings_category_interface">انٹرفیس اور آوازیں</string>
+    <string name="settings_category_productivity">پروڈکٹیویٹی</string>
+    <string name="settings_category_data">ڈیٹا اور پرائیویسی</string>
+    <string name="settings_category_service">سروس اور مینٹیننس</string>
+
+    <string name="settings_title">سیٹنگز</string>
+    <string name="section_app_language">ایپ کی زبان</string>
+    <string name="section_ai_providers">AI فراہم کنندگان</string>
+    <string name="section_press_actions">پریس ایکشنز</string>
+    <string name="section_floating_switch">فلوٹنگ سوئچ</string>
+
+    <string name="app_language_display_language">ڈسپلے زبان</string>
+    <string name="app_language_sheet_title">ڈسپلے زبان</string>
+    <string name="app_language_follow_device">ڈیوائس کی پیروی کریں</string>
+    <string name="app_language_help">یہ تبدیل کرتا ہے کہ Whispry کی اپنی اسکرینیں اور مینیو کس زبان میں دکھائے جائیں — اوپر دی گئی ٹرانسکرپشن زبان سے الگ، جو یہ طے کرتی ہے کہ آپ کی آواز کس زبان میں پہچانی جائے۔</string>
+
+    <string name="trigger_hands_free">ہینڈز فری</string>
+    <string name="trigger_hands_free_help">بٹن دبائے رکھنے کی ضرورت نہیں۔ ریکارڈنگ شروع کرنے کے لیے ایک بار ٹرگر کریں، جتنا چاہیں بولیں، پھر روکنے کے لیے دوبارہ ٹرگر کریں۔ آپ کی سنگل/ڈبل پریس پسند کا خیال رکھتا ہے — سنگل موڈ ایک پریس پر شروع ہوتا ہے؛ ڈبل موڈ شروع کرنے کے لیے تیز ڈبل پریس چاہتا ہے، مگر رکنے کے لیے صرف ایک پریس۔</string>
+    <string name="trigger_hands_free_subtitle">شروع کرنے کے لیے ٹرگر کریں، رکنے کے لیے دوبارہ ٹرگر کریں — دبائے رکھنے کی ضرورت نہیں۔</string>
+    <string name="trigger_press_actions_override">نیچے دیے گئے پریس ایکشنز نے ٹرگر کی کو اپنے قبضے میں لے لیا ہے — جب تک آپ اسے بند نہیں کرتے، ہینڈز فری اور یہاں کی ہولڈ/ڈبل پریس سیٹنگز لاگو نہیں ہوں گی۔</string>
+</resources>

@@ -72,7 +72,11 @@ data class SettingsState(
     val formattingApiKey: String = "",
 
     // Hinglish output: romanizes a "hi" transcript instead of leaving it in Devanagari.
-    val hinglishOutputEnabled: Boolean = false
+    val hinglishOutputEnabled: Boolean = false,
+
+    // App UI language (distinct from the transcription language above). "system" follows
+    // the device language; anything else is a BCP-47 tag ("es", "hi", "ar", ...).
+    val appLanguageTag: String = "system"
 )
 
 sealed class SettingsIntent {
@@ -152,4 +156,7 @@ sealed class SettingsIntent {
     data class SetFormattingCustomModel(val model: String) : SettingsIntent()
     data class SetFormattingApiKey(val apiKey: String) : SettingsIntent()
     data class SetHinglishOutputEnabled(val enabled: Boolean) : SettingsIntent()
+
+    // App UI language
+    data class SetAppLanguage(val languageTag: String) : SettingsIntent()
 }

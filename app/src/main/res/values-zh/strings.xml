@@ -1,0 +1,32 @@
+<resources>
+    <string name="accessibility_service_description">Whispry 使用无障碍功能来检测连按两次并按住音量键以开始语音录制的手势。它不会读取屏幕内容,也不会收集任何个人数据。</string>
+
+    <string name="nav_home">主页</string>
+    <string name="nav_library">素材库</string>
+    <string name="nav_presets">预设</string>
+    <string name="nav_settings">设置</string>
+    <string name="nav_about">关于</string>
+
+    <string name="settings_category_voice">语音识别</string>
+    <string name="settings_category_trigger">触发方式</string>
+    <string name="settings_category_interface">界面与声音</string>
+    <string name="settings_category_productivity">效率工具</string>
+    <string name="settings_category_data">数据与隐私</string>
+    <string name="settings_category_service">服务与维护</string>
+
+    <string name="settings_title">设置</string>
+    <string name="section_app_language">应用语言</string>
+    <string name="section_ai_providers">AI 提供商</string>
+    <string name="section_press_actions">按键操作</string>
+    <string name="section_floating_switch">悬浮开关</string>
+
+    <string name="app_language_display_language">显示语言</string>
+    <string name="app_language_sheet_title">显示语言</string>
+    <string name="app_language_follow_device">跟随设备</string>
+    <string name="app_language_help">更改 Whispry 自身界面和菜单的显示语言——与上面的转录语言不同,后者控制的是识别你说话所用的语言。</string>
+
+    <string name="trigger_hands_free">免提模式</string>
+    <string name="trigger_hands_free_help">无需按住按键。触发一次开始录音,想说多久就说多久,再次触发即可停止。遵循你的单击/双击选择——单击模式一次按键即可开始;双击模式需要快速双击才能开始,但只需单击一次即可停止。</string>
+    <string name="trigger_hands_free_subtitle">触发开始,再次触发停止——无需按住。</string>
+    <string name="trigger_press_actions_override">下方的“按键操作”已接管触发键——在你关闭它之前,免提模式以及此处的按住/双击设置都不会生效。</string>
+</resources>

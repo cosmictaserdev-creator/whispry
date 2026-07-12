@@ -3,6 +3,8 @@ package com.example.whispry.presentation.settings
 import android.content.Context
 import android.content.Intent
 import android.provider.Settings
+import androidx.appcompat.app.AppCompatDelegate
+import androidx.core.os.LocaleListCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.datastore.preferences.core.edit
@@ -41,7 +43,8 @@ class SettingsViewModel @Inject constructor(
             availableTriggerModes = triggerRepository.getAvailableTriggerModes(),
             isActionButtonSupported = checkActionButtonSupport(),
             transcriptionApiKey = apiKeyProvider.getRawTranscriptionApiKey(),
-            formattingApiKey = apiKeyProvider.getRawFormattingApiKey()
+            formattingApiKey = apiKeyProvider.getRawFormattingApiKey(),
+            appLanguageTag = AppCompatDelegate.getApplicationLocales().toLanguageTags().ifBlank { "system" }
         ) }
         observeSettings()
         refreshStatus()
@@ -220,6 +223,15 @@ class SettingsViewModel @Inject constructor(
                     _state.update { it.copy(formattingApiKey = intent.apiKey) }
                 }
                 is SettingsIntent.SetHinglishOutputEnabled -> settingsProvider.dataStore.edit { it[DataStoreKeys.HINGLISH_OUTPUT_ENABLED] = intent.enabled }
+                is SettingsIntent.SetAppLanguage -> {
+                    val locales = if (intent.languageTag == "system") {
+                        LocaleListCompat.getEmptyLocaleList()
+                    } else {
+                        LocaleListCompat.forLanguageTags(intent.languageTag)
+                    }
+                    AppCompatDelegate.setApplicationLocales(locales)
+                    _state.update { it.copy(appLanguageTag = intent.languageTag) }
+                }
                 is SettingsIntent.EnterWidgetEditMode -> {
                     floatingWidgetManager.enterEditMode()
                     // Positioning happens on a live home-screen preview.

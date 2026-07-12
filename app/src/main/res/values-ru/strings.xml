@@ -1,0 +1,32 @@
+<resources>
+    <string name="accessibility_service_description">Whispry использует специальные возможности для распознавания жеста двойного нажатия и удержания кнопки громкости для начала записи голоса. Приложение не считывает содержимое экрана и не собирает личные данные.</string>
+
+    <string name="nav_home">Главная</string>
+    <string name="nav_library">Библиотека</string>
+    <string name="nav_presets">Пресеты</string>
+    <string name="nav_settings">Настройки</string>
+    <string name="nav_about">О приложении</string>
+
+    <string name="settings_category_voice">Распознавание речи</string>
+    <string name="settings_category_trigger">Способ активации</string>
+    <string name="settings_category_interface">Интерфейс и звуки</string>
+    <string name="settings_category_productivity">Продуктивность</string>
+    <string name="settings_category_data">Данные и конфиденциальность</string>
+    <string name="settings_category_service">Служба и обслуживание</string>
+
+    <string name="settings_title">Настройки</string>
+    <string name="section_app_language">Язык приложения</string>
+    <string name="section_ai_providers">Провайдеры ИИ</string>
+    <string name="section_press_actions">Действия по нажатию</string>
+    <string name="section_floating_switch">Плавающий переключатель</string>
+
+    <string name="app_language_display_language">Язык интерфейса</string>
+    <string name="app_language_sheet_title">Язык интерфейса</string>
+    <string name="app_language_follow_device">Как на устройстве</string>
+    <string name="app_language_help">Изменяет язык, на котором отображаются собственные экраны и меню Whispry — отдельно от языка транскрипции выше, который определяет, на каком языке распознаётся ваша речь.</string>
+
+    <string name="trigger_hands_free">Свободные руки</string>
+    <string name="trigger_hands_free_help">Не нужно удерживать клавишу. Активируйте один раз, чтобы начать запись, говорите сколько угодно, затем активируйте снова, чтобы остановить. Учитывает ваш выбор одинарного/двойного нажатия — в режиме одинарного нажатия включение происходит одним нажатием; в режиме двойного нажатия для начала нужно быстрое двойное нажатие, но для остановки — только одно.</string>
+    <string name="trigger_hands_free_subtitle">Активируйте, чтобы начать, активируйте снова, чтобы остановить — без удержания.</string>
+    <string name="trigger_press_actions_override">«Действия по нажатию» (ниже) взяли на себя управление клавишей активации — режим «Свободные руки» и настройки удержания/двойного нажатия здесь не действуют, пока вы их не отключите.</string>
+</resources>

@@ -1,0 +1,32 @@
+<resources>
+    <string name="accessibility_service_description">Whispryはユーザー補助機能を使用して、音声録音を開始するための音量ボタンの2回押し長押しジェスチャーを検出します。画面の内容を読み取ったり、個人データを収集したりすることはありません。</string>
+
+    <string name="nav_home">ホーム</string>
+    <string name="nav_library">ライブラリ</string>
+    <string name="nav_presets">プリセット</string>
+    <string name="nav_settings">設定</string>
+    <string name="nav_about">について</string>
+
+    <string name="settings_category_voice">音声認識</string>
+    <string name="settings_category_trigger">トリガー方法</string>
+    <string name="settings_category_interface">インターフェースと音</string>
+    <string name="settings_category_productivity">生産性</string>
+    <string name="settings_category_data">データとプライバシー</string>
+    <string name="settings_category_service">サービスとメンテナンス</string>
+
+    <string name="settings_title">設定</string>
+    <string name="section_app_language">アプリの言語</string>
+    <string name="section_ai_providers">AIプロバイダー</string>
+    <string name="section_press_actions">押下アクション</string>
+    <string name="section_floating_switch">フローティングスイッチ</string>
+
+    <string name="app_language_display_language">表示言語</string>
+    <string name="app_language_sheet_title">表示言語</string>
+    <string name="app_language_follow_device">デバイスに従う</string>
+    <string name="app_language_help">Whispry自体の画面やメニューが表示される言語を変更します。上の文字起こし言語(あなたの声がどの言語として認識されるかを制御します)とは別の設定です。</string>
+
+    <string name="trigger_hands_free">ハンズフリー</string>
+    <string name="trigger_hands_free_help">キーを押し続ける必要はありません。一度トリガーすると録音が始まり、好きなだけ話した後、もう一度トリガーすると停止します。シングル/ダブルプレスの設定に従います——シングルモードは1回押すと切り替わり、ダブルモードは開始にすばやい2回押しが必要ですが、停止は1回押すだけです。</string>
+    <string name="trigger_hands_free_subtitle">トリガーで開始、もう一度トリガーで停止——押し続ける必要はありません。</string>
+    <string name="trigger_press_actions_override">下の「押下アクション」がトリガーキーを制御しています——オフにするまで、ハンズフリーやここでの保持/ダブルプレス設定は適用されません。</string>
+</resources>

@@ -1,0 +1,32 @@
+<resources>
+    <string name="accessibility_service_description">O Whispry usa a acessibilidade para detectar o gesto de pressionar duas vezes e manter pressionado o botão de volume para iniciar a gravação de voz. Ele não lê o conteúdo da tela nem coleta dados pessoais.</string>
+
+    <string name="nav_home">Início</string>
+    <string name="nav_library">Biblioteca</string>
+    <string name="nav_presets">Predefinições</string>
+    <string name="nav_settings">Configurações</string>
+    <string name="nav_about">Sobre</string>
+
+    <string name="settings_category_voice">Reconhecimento de voz</string>
+    <string name="settings_category_trigger">Método de ativação</string>
+    <string name="settings_category_interface">Interface e sons</string>
+    <string name="settings_category_productivity">Produtividade</string>
+    <string name="settings_category_data">Dados e privacidade</string>
+    <string name="settings_category_service">Serviço e manutenção</string>
+
+    <string name="settings_title">Configurações</string>
+    <string name="section_app_language">Idioma do app</string>
+    <string name="section_ai_providers">Provedores de IA</string>
+    <string name="section_press_actions">Ações de pressionar</string>
+    <string name="section_floating_switch">Interruptor flutuante</string>
+
+    <string name="app_language_display_language">Idioma de exibição</string>
+    <string name="app_language_sheet_title">Idioma de Exibição</string>
+    <string name="app_language_follow_device">Seguir o dispositivo</string>
+    <string name="app_language_help">Muda o idioma em que as próprias telas e menus do Whispry são exibidos — diferente do idioma de transcrição acima, que controla em qual idioma sua fala é reconhecida.</string>
+
+    <string name="trigger_hands_free">Mãos livres</string>
+    <string name="trigger_hands_free_help">Não precisa manter a tecla pressionada. Acione uma vez para começar a gravar, fale o quanto quiser e acione de novo para parar. Respeita sua escolha de pressionar simples/duplo — o modo simples ativa com um toque; o modo duplo precisa de um toque duplo rápido para começar, mas só um toque para parar.</string>
+    <string name="trigger_hands_free_subtitle">Acione para começar, acione de novo para parar — sem segurar.</string>
+    <string name="trigger_press_actions_override">Ações de pressionar (abaixo) assumiu o controle da tecla de ativação — Mãos livres e as configurações de espera/toque duplo aqui não se aplicam até você desativá-la.</string>
+</resources>

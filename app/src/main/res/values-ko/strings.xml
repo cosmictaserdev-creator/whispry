@@ -1,0 +1,32 @@
+<resources>
+    <string name="accessibility_service_description">Whispry는 음성 녹음을 시작하기 위해 볼륨 버튼을 두 번 눌러 길게 누르는 제스처를 감지하는 데 접근성 기능을 사용합니다. 화면 내용을 읽거나 개인 데이터를 수집하지 않습니다.</string>
+
+    <string name="nav_home">홈</string>
+    <string name="nav_library">라이브러리</string>
+    <string name="nav_presets">프리셋</string>
+    <string name="nav_settings">설정</string>
+    <string name="nav_about">정보</string>
+
+    <string name="settings_category_voice">음성 인식</string>
+    <string name="settings_category_trigger">트리거 방식</string>
+    <string name="settings_category_interface">인터페이스 및 소리</string>
+    <string name="settings_category_productivity">생산성</string>
+    <string name="settings_category_data">데이터 및 개인정보</string>
+    <string name="settings_category_service">서비스 및 유지 관리</string>
+
+    <string name="settings_title">설정</string>
+    <string name="section_app_language">앱 언어</string>
+    <string name="section_ai_providers">AI 제공업체</string>
+    <string name="section_press_actions">누름 동작</string>
+    <string name="section_floating_switch">플로팅 스위치</string>
+
+    <string name="app_language_display_language">표시 언어</string>
+    <string name="app_language_sheet_title">표시 언어</string>
+    <string name="app_language_follow_device">기기 설정 따르기</string>
+    <string name="app_language_help">Whispry 자체 화면과 메뉴가 표시되는 언어를 변경합니다 — 위의 전사 언어와는 별개이며, 전사 언어는 사용자의 음성이 어떤 언어로 인식되는지를 제어합니다.</string>
+
+    <string name="trigger_hands_free">핸즈프리</string>
+    <string name="trigger_hands_free_help">키를 누르고 있을 필요가 없습니다. 한 번 트리거하면 녹음이 시작되고, 원하는 만큼 말한 후 다시 트리거하면 중지됩니다. 싱글/더블 프레스 선택을 따릅니다 — 싱글 모드는 한 번 눌러서 전환되고, 더블 모드는 시작하려면 빠른 더블 프레스가 필요하지만 중지하려면 한 번만 누르면 됩니다.</string>
+    <string name="trigger_hands_free_subtitle">트리거하여 시작, 다시 트리거하여 중지 — 누르고 있을 필요 없음.</string>
+    <string name="trigger_press_actions_override">아래의 누름 동작이 트리거 키를 차지했습니다 — 끄기 전까지 핸즈프리와 여기의 홀드/더블 프레스 설정은 적용되지 않습니다.</string>
+</resources>
