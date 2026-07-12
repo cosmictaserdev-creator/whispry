@@ -49,7 +49,7 @@ class TriggerService : AccessibilityService() {
     // cached settings
     private var doublePressWindowMs = 400L
     private var useHaptics = true
-    private var useSmartSuppression = true
+    private var useSmartSuppression = false
     private var consumeVolumeKeys = true
     private var isSinglePressEnabled = false
     private var currentTriggerMode: TriggerMode = TriggerMode.VolumeButton
@@ -59,15 +59,20 @@ class TriggerService : AccessibilityService() {
     // single-vs-double press preference: single mode toggles on one press, double mode on a quick
     // double press (to start AND to stop).
     private var handsFreeEnabled = false
+    private var handsFreeArmingDelayMs = DataStoreKeys.DEFAULT_HANDS_FREE_ARMING_DELAY_MS
+    // Plain press-and-hold arming delay (hands-free off) — separate slider from the one above.
+    private var singlePressHoldDelayMs = DataStoreKeys.DEFAULT_SINGLE_PRESS_HOLD_DELAY_MS
+    // Pre-recording arm/idle tracking for hands-free single-press mode only; once a recording
+    // starts, pressState (below) is the source of truth, same as every other trigger path.
+    private var handsFreeArmingState = HandsFreePressState()
 
     // Universal Press Actions (opt-in). When enabled, the volume key becomes a tap-to-toggle
     // trigger: single press fires [singlePressAction], double press fires [doublePressAction].
     private var pressActionsEnabled = false
     private var singlePressActionStr = "NORMAL"
     private var doublePressActionStr = "NORMAL"
-    // Shared tap-to-toggle state for hands-free and press-actions. WAITING_STOP is the brief window
-    // after the first of a stopping double-press in hands-free double mode.
-    private enum class PressState { IDLE, WAITING_SECOND, RECORDING, WAITING_STOP }
+    // Shared tap-to-toggle state for hands-free and press-actions.
+    private enum class PressState { IDLE, WAITING_SECOND, RECORDING }
     private var pressState = PressState.IDLE
 
     // ------------------------------------------------------------------
@@ -131,22 +136,49 @@ class TriggerService : AccessibilityService() {
         serviceScope.launch {
             settingsProvider.dataStore.data.collect { prefs ->
                 consumeVolumeKeys = prefs[DataStoreKeys.CONSUME_VOLUME_KEYS] ?: true
-                isSinglePressEnabled = prefs[DataStoreKeys.SINGLE_PRESS_TRIGGER] ?: false
-                handsFreeEnabled = prefs[DataStoreKeys.HANDS_FREE_MODE] ?: false
-                pressActionsEnabled = prefs[DataStoreKeys.PRESS_ACTIONS_ENABLED] ?: false
-                // If both tap-to-toggle modes are off, clear any lingering state. When a recording
-                // is still mid-flight (mode turned off while recording), stop it now — otherwise it
-                // keeps running and the user has to trigger again to end it.
-                if (!pressActionsEnabled && !handsFreeEnabled && pressState != PressState.IDLE) {
-                    if (pressState == PressState.RECORDING || pressState == PressState.WAITING_STOP) {
-                        handler.removeCallbacksAndMessages(null)
-                        soundManager.play(SoundEvent.TRIGGER_STOP)
-                        sendStopRecording()
-                    }
+                handsFreeArmingDelayMs = prefs[DataStoreKeys.HANDS_FREE_ARMING_DELAY_MS]
+                    ?: DataStoreKeys.DEFAULT_HANDS_FREE_ARMING_DELAY_MS
+                singlePressHoldDelayMs = prefs[DataStoreKeys.SINGLE_PRESS_HOLD_DELAY_MS]
+                    ?: DataStoreKeys.DEFAULT_SINGLE_PRESS_HOLD_DELAY_MS
+                val newSinglePress = prefs[DataStoreKeys.SINGLE_PRESS_TRIGGER] ?: DataStoreKeys.DEFAULT_SINGLE_PRESS_TRIGGER
+                val newHandsFree = prefs[DataStoreKeys.HANDS_FREE_MODE] ?: false
+                val newPressActions = prefs[DataStoreKeys.PRESS_ACTIONS_ENABLED] ?: false
+
+                // Did any flag that changes how a press is interpreted change this emission?
+                val triggerBehaviorChanged =
+                    newSinglePress != isSinglePressEnabled ||
+                    newHandsFree != handsFreeEnabled ||
+                    newPressActions != pressActionsEnabled
+
+                isSinglePressEnabled = newSinglePress
+                handsFreeEnabled = newHandsFree
+                pressActionsEnabled = newPressActions
+
+                // A tap-to-toggle (hands-free / press-action) recording is owned by the mode that
+                // started it. If the user changes the trigger behavior mid-recording — e.g. turns
+                // hands-free off, or flips single/double — finalize the in-flight recording now.
+                // Otherwise it keeps running under the old semantics and the user has to trigger
+                // again to stop it (the reported bug). This no longer requires *both* modes to be
+                // off; any behavior change that orphans the recording ends it cleanly.
+                if (triggerBehaviorChanged && pressState == PressState.RECORDING) {
+                    handler.removeCallbacksAndMessages(null)
+                    soundManager.play(SoundEvent.TRIGGER_STOP)
+                    sendStopRecording()
                     pressState = PressState.IDLE
+                } else if (!pressActionsEnabled && !handsFreeEnabled && pressState != PressState.IDLE) {
+                    // Both tap-to-toggle modes off: clear any lingering non-recording state.
+                    pressState = PressState.IDLE
+                }
+                if (triggerBehaviorChanged) {
+                    // Mid-arm (key held, not yet recording) when the behavior underneath it changes:
+                    // drop the pending arming timeout rather than let it fire under stale semantics.
+                    handler.removeCallbacksAndMessages(null)
+                    handsFreeArmingState = HandsFreePressState()
                 }
                 singlePressActionStr = prefs[DataStoreKeys.SINGLE_PRESS_ACTION] ?: "NORMAL"
                 doublePressActionStr = prefs[DataStoreKeys.DOUBLE_PRESS_ACTION] ?: "NORMAL"
+                Log.d(TAG, "settings: consumeVolumeKeys=$consumeVolumeKeys isSinglePressEnabled=$isSinglePressEnabled " +
+                        "handsFreeEnabled=$handsFreeEnabled pressActionsEnabled=$pressActionsEnabled")
             }
         }
     }
@@ -198,6 +230,11 @@ class TriggerService : AccessibilityService() {
     private fun handleVolumeKeyEvent(event: KeyEvent): Boolean {
         if (event.keyCode != activeKeyCode) return false
 
+        Log.d(TAG, "key ${if (event.action == KeyEvent.ACTION_DOWN) "DOWN" else "UP"} " +
+                "pressActionsEnabled=$pressActionsEnabled handsFreeEnabled=$handsFreeEnabled " +
+                "isSinglePressEnabled=$isSinglePressEnabled consumeVolumeKeys=$consumeVolumeKeys " +
+                "triggerState=$triggerState pressState=$pressState")
+
         // Universal Press Actions take over the volume key entirely when enabled.
         if (pressActionsEnabled) {
             handlePressActionEvent(event)
@@ -206,8 +243,7 @@ class TriggerService : AccessibilityService() {
 
         // Hands-free tap-to-toggle (no holding) when enabled.
         if (handsFreeEnabled) {
-            handleHandsFreeEvent(event)
-            return true
+            return handleHandsFreeEvent(event)
         }
 
         val consumed = if (consumeVolumeKeys && isSinglePressEnabled) {
@@ -233,7 +269,7 @@ class TriggerService : AccessibilityService() {
                         if (triggerState == TriggerState.SINGLE_PRESS_DELAY) {
                             startRecordingProcess()
                         }
-                    }, 450) // Pre-delay to prevent accidental short press
+                    }, singlePressHoldDelayMs) // Pre-delay to prevent accidental short press
                     true
                 } else false
             }
@@ -427,7 +463,6 @@ class TriggerService : AccessibilityService() {
                     startPressRecording(doublePressActionStr)
                 }
             }
-            PressState.WAITING_STOP -> {}
         }
     }
 
@@ -468,15 +503,19 @@ class TriggerService : AccessibilityService() {
     // Hands-free: tap-to-toggle the normal transcribe flow (no holding)
     // ------------------------------------------------------------------
 
-    private fun handleHandsFreeEvent(event: KeyEvent) {
-        if (event.action != KeyEvent.ACTION_DOWN) return
-
+    private fun handleHandsFreeEvent(event: KeyEvent): Boolean {
         if (isSinglePressEnabled) {
-            // One press starts, the next press stops.
-            if (pressState == PressState.RECORDING) stopHandsFree()
-            else startPressRecording("NORMAL")
-            return
+            // Already recording: any press stops it immediately (unchanged).
+            if (pressState == PressState.RECORDING) {
+                if (event.action == KeyEvent.ACTION_DOWN) stopHandsFree()
+                return true
+            }
+            // Not yet recording: press-and-hold must clear the arming delay before it starts,
+            // so a quick tap can act as a normal key press instead.
+            return handleHandsFreeArmingEvent(event)
         }
+
+        if (event.action != KeyEvent.ACTION_DOWN) return true
 
         // Double-press to start, double-press to stop.
         when (pressState) {
@@ -493,19 +532,56 @@ class TriggerService : AccessibilityService() {
                     startPressRecording("NORMAL")
                 }
             }
-            PressState.RECORDING -> {
-                pressState = PressState.WAITING_STOP
-                firstPressTime = System.currentTimeMillis()
-                handler.postDelayed({
-                    if (pressState == PressState.WAITING_STOP) pressState = PressState.RECORDING
-                }, doublePressWindowMs)
-            }
-            PressState.WAITING_STOP -> {
-                if (System.currentTimeMillis() - firstPressTime < doublePressWindowMs) {
+            PressState.RECORDING -> stopHandsFree()
+        }
+        return true
+    }
+
+    /** Pre-recording arming for hands-free single-press mode: hold past [handsFreeArmingDelayMs]
+     *  to start, release earlier to pass through as a normal key press. */
+    private fun handleHandsFreeArmingEvent(event: KeyEvent): Boolean {
+        val resolverEvent = when (event.action) {
+            KeyEvent.ACTION_DOWN -> HandsFreePressEvent.KeyDown
+            KeyEvent.ACTION_UP -> HandsFreePressEvent.KeyUp
+            else -> return true
+        }
+        val resolver = HandsFreePressResolver(
+            HandsFreePressConfig(armingDelayMs = handsFreeArmingDelayMs, consumeVolumeKeys = consumeVolumeKeys)
+        )
+        val transition = resolver.reduce(handsFreeArmingState, resolverEvent)
+        // pressState (via startPressRecording, checked at the top of handleHandsFreeEvent) is the
+        // sole source of truth once recording actually starts — this tracker only ever needs to
+        // hold IDLE/ARMING, so it's reset regardless of whether startPressRecording itself
+        // actually started a recording or was suppressed (e.g. smart suppression).
+        handsFreeArmingState = if (transition.effects.contains(HandsFreePressEffect.StartRecording)) {
+            HandsFreePressState()
+        } else {
+            transition.state
+        }
+        transition.effects.forEach { effect ->
+            when (effect) {
+                HandsFreePressEffect.ScheduleArmingTimeout -> {
                     handler.removeCallbacksAndMessages(null)
-                    stopHandsFree()
+                    handler.postDelayed({ onHandsFreeArmingTimeout() }, handsFreeArmingDelayMs)
                 }
+                HandsFreePressEffect.CancelArmingTimeout -> handler.removeCallbacksAndMessages(null)
+                HandsFreePressEffect.StartRecording -> startPressRecording("NORMAL")
             }
+        }
+        return transition.consumed
+    }
+
+    private fun onHandsFreeArmingTimeout() {
+        if (handsFreeArmingState.phase != HandsFreePressPhase.ARMING) return
+        val resolver = HandsFreePressResolver(
+            HandsFreePressConfig(armingDelayMs = handsFreeArmingDelayMs, consumeVolumeKeys = consumeVolumeKeys)
+        )
+        val transition = resolver.reduce(handsFreeArmingState, HandsFreePressEvent.ArmingTimeout)
+        // Same reasoning as handleHandsFreeArmingEvent: pressState takes over once recording
+        // actually starts (or fails to, if suppressed), so this tracker resets to IDLE either way.
+        handsFreeArmingState = HandsFreePressState()
+        transition.effects.forEach { effect ->
+            if (effect == HandsFreePressEffect.StartRecording) startPressRecording("NORMAL")
         }
     }
 

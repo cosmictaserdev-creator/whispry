@@ -9,6 +9,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.TouchApp
 import androidx.compose.material3.*
@@ -39,6 +40,8 @@ fun TutorialScreen(
     state: OnboardingState,
     onStart: () -> Unit,
     onContinue: () -> Unit,
+    onRetry: () -> Unit,
+    onSkip: () -> Unit,
     backdrop: Backdrop
 ) {
     LaunchedEffect(Unit) {
@@ -101,6 +104,12 @@ fun TutorialScreen(
                                     Text("Double Press", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(0.8f))
                                 }
                             }
+                            TutorialStep.HoldMe -> {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Icon(Icons.Rounded.TouchApp, null, tint = androidx.compose.ui.graphics.Color.White, modifier = Modifier.size(48.dp))
+                                    Text("Hold", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(0.8f))
+                                }
+                            }
                             TutorialStep.Recording -> {
                                 Box(contentAlignment = Alignment.Center) {
                                     CircularProgressIndicator(color = androidx.compose.ui.graphics.Color.White, strokeWidth = 2.5.dp, modifier = Modifier.size(56.dp))
@@ -109,6 +118,9 @@ fun TutorialScreen(
                             }
                             TutorialStep.Success -> {
                                 Icon(Icons.Rounded.CheckCircle, null, tint = WhispryTokens.SuccessGreen, modifier = Modifier.size(64.dp))
+                            }
+                            TutorialStep.Failed -> {
+                                Icon(Icons.Rounded.ErrorOutline, null, tint = Color(0xFFFF5252), modifier = Modifier.size(64.dp))
                             }
                             else -> {}
                         }
@@ -122,10 +134,11 @@ fun TutorialScreen(
                 key(state.tutorialStep) {
                     StaggeredTextReveal(
                         text = when(state.tutorialStep) {
-                            TutorialStep.DoublePressMe -> "Double Press Volume Down"
-                            TutorialStep.HoldMe -> "Now Hold it!"
+                            TutorialStep.DoublePressMe -> "Double Press ${state.triggerKeyLabel}"
+                            TutorialStep.HoldMe -> if (state.isHoldGesture) "Hold ${state.triggerKeyLabel}" else "Now Hold it!"
                             TutorialStep.Recording -> "Recording... Say something!"
                             TutorialStep.Success -> "Perfect!"
+                            TutorialStep.Failed -> "Hmm, that didn't go through"
                             else -> "Get Ready"
                         },
                         style = MaterialTheme.typography.headlineSmall.copy(
@@ -138,10 +151,11 @@ fun TutorialScreen(
                     )
                     StaggeredTextReveal(
                         text = when(state.tutorialStep) {
-                            TutorialStep.DoublePressMe -> "Press the volume down button twice quickly to prepare."
-                            TutorialStep.HoldMe -> "Keep holding the button while you speak."
+                            TutorialStep.DoublePressMe -> "Press the ${state.triggerKeyLabel.lowercase()} button twice quickly, then hold."
+                            TutorialStep.HoldMe -> if (state.isHoldGesture) "Press and hold the ${state.triggerKeyLabel.lowercase()} button while you speak." else "Keep holding the button while you speak."
                             TutorialStep.Recording -> "Release the button when you're finished."
                             TutorialStep.Success -> "You've mastered the physical gesture!"
+                            TutorialStep.Failed -> "We couldn't transcribe that — usually a weak connection. You can try again or skip and explore the app."
                             else -> "Follow the guide above."
                         },
                         style = MaterialTheme.typography.bodyMedium.copy(
@@ -194,7 +208,52 @@ fun TutorialScreen(
                     }
                 }
             }
-            
+
+            // Graceful failure: retry the live practice or skip into the app.
+            AnimatedVisibility(
+                visible = state.tutorialStep == TutorialStep.Failed,
+                enter = expandVertically() + fadeIn()
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    LiquidButton(
+                        onClick = onRetry,
+                        backdrop = backdrop,
+                        modifier = Modifier.fillMaxWidth().height(60.dp)
+                    ) {
+                        Text(
+                            "Try Again",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 18.sp,
+                            color = androidx.compose.ui.graphics.Color.White
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+                    TextButton(onClick = onSkip) {
+                        Text(
+                            "Skip for now",
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 16.sp,
+                            color = WhispryTokens.TextSecondary
+                        )
+                    }
+                }
+            }
+
+            // Always let the user out of the live practice so a stuck gesture never traps them.
+            AnimatedVisibility(
+                visible = state.tutorialStep != TutorialStep.Success && state.tutorialStep != TutorialStep.Failed,
+                enter = fadeIn()
+            ) {
+                TextButton(onClick = onSkip) {
+                    Text(
+                        "Skip for now",
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 16.sp,
+                        color = WhispryTokens.TextTertiary
+                    )
+                }
+            }
+
             Spacer(modifier = Modifier.height(32.dp))
         }
     }

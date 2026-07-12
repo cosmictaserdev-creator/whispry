@@ -19,6 +19,12 @@ object DataStoreKeys {
     // Feature 1: Floating Widget
     val FLOATING_WIDGET_ENABLED = booleanPreferencesKey("floating_widget_enabled")
 
+    /**
+     * Default for [FLOATING_WIDGET_ENABLED]. Off by default: the volume-key trigger (accessibility)
+     * is the primary path, so the widget is opt-in and never appears on screen uninvited.
+     */
+    const val DEFAULT_FLOATING_WIDGET_ENABLED = false
+
     // Feature 2 & 6: Wake Word
     val WAKE_WORD_ENABLED = booleanPreferencesKey("wake_word_enabled")
     val WAKE_WORD_PHRASE = stringPreferencesKey("wake_word_phrase")
@@ -31,8 +37,26 @@ object DataStoreKeys {
     val CONSUME_VOLUME_KEYS = booleanPreferencesKey("consume_volume_keys")
     val SINGLE_PRESS_TRIGGER = booleanPreferencesKey("single_press_trigger")
 
+    /**
+     * Default for [SINGLE_PRESS_TRIGGER]. `true` = press-and-hold (hold the key while speaking) is
+     * the default gesture; double-press-then-hold remains available by toggling this off in Settings.
+     */
+    const val DEFAULT_SINGLE_PRESS_TRIGGER = true
+
+    // Plain press-and-hold arming delay (hands-free OFF): how long the key must be held before
+    // recording starts, so a quick tap still passes through as a normal volume press. Separate
+    // from HANDS_FREE_ARMING_DELAY_MS below, which only applies when hands-free is on.
+    val SINGLE_PRESS_HOLD_DELAY_MS = longPreferencesKey("single_press_hold_delay_ms")
+    const val DEFAULT_SINGLE_PRESS_HOLD_DELAY_MS = 450L
+
     // Hands-free trigger: press to start, press again to stop (no hold).
     val HANDS_FREE_MODE = booleanPreferencesKey("hands_free_mode")
+
+    // Hands-free single-press arming delay: how long a press must be held before it starts a
+    // recording, so a quick tap can act as a normal key press instead. Matches the legacy
+    // single-press hold logic's own delay by default.
+    val HANDS_FREE_ARMING_DELAY_MS = longPreferencesKey("hands_free_arming_delay_ms")
+    const val DEFAULT_HANDS_FREE_ARMING_DELAY_MS = 450L
 
     // Feature 5: Sound System
     val SOUND_ENABLED = booleanPreferencesKey("sound_enabled")
@@ -77,4 +101,45 @@ object DataStoreKeys {
     val PRESS_ACTIONS_ENABLED = booleanPreferencesKey("press_actions_enabled")
     val SINGLE_PRESS_ACTION = stringPreferencesKey("single_press_action")
     val DOUBLE_PRESS_ACTION = stringPreferencesKey("double_press_action")
+
+    // First-visit coach-marks that have already been shown (stored by CoachMark.name).
+    val COACH_MARKS_SEEN = stringSetPreferencesKey("coach_marks_seen")
+
+    // ------------------------------------------------------------------
+    // Floating widget (physical switch). Own position keys — deliberately
+    // NOT shared with the recording pill's BUBBLE_POSITION_X/Y.
+    // ------------------------------------------------------------------
+    val WIDGET_POSITION_X = intPreferencesKey("widget_position_x")
+    val WIDGET_POSITION_Y = intPreferencesKey("widget_position_y")
+    val WIDGET_SHAPE_MODE = stringPreferencesKey("widget_shape_mode")           // RAMP | CORNER
+    val WIDGET_BASE_HEIGHT_DP = intPreferencesKey("widget_base_height_dp")     // inner-face height
+    val WIDGET_PROTRUSION_DP = intPreferencesKey("widget_protrusion_dp")       // visible width off the edge
+    val WIDGET_ARCH_DP = intPreferencesKey("widget_arch_dp")                   // corner-mode arch radius
+    val WIDGET_IDLE_OPACITY_PCT = intPreferencesKey("widget_idle_opacity_pct")
+    val WIDGET_FADE_DELAY_MS = longPreferencesKey("widget_fade_delay_ms")
+    val WIDGET_ARMING_DELAY_MS = longPreferencesKey("widget_arming_delay_ms")  // anti-accident slider
+    val WIDGET_CUSTOM_TRIGGERS = booleanPreferencesKey("widget_custom_triggers") // false = "same as default"
+    val WIDGET_SINGLE_TAP_ACTION = stringPreferencesKey("widget_single_tap_action")
+    val WIDGET_DOUBLE_TAP_ACTION = stringPreferencesKey("widget_double_tap_action")
+    val WIDGET_SOUND_MUTED = booleanPreferencesKey("widget_sound_muted")
+    val WIDGET_REDUCED_MOTION = stringPreferencesKey("widget_reduced_motion")  // AUTO | ON | OFF
+
+    /** One-shot migration of the retired TriggerMode.FloatingWidget (see FloatingWidgetManager). */
+    val WIDGET_TRIGGER_MODE_MIGRATED = booleanPreferencesKey("widget_trigger_mode_migrated")
+
+    // ------------------------------------------------------------------
+    // Multi-provider AI support: transcription and formatting each resolve independently.
+    // Empty preset = GROQ (today's default, unchanged behavior for existing users).
+    // ------------------------------------------------------------------
+    val TRANSCRIPTION_PROVIDER_PRESET = stringPreferencesKey("transcription_provider_preset")
+    val TRANSCRIPTION_CUSTOM_BASE_URL = stringPreferencesKey("transcription_custom_base_url")
+    val TRANSCRIPTION_CUSTOM_MODEL = stringPreferencesKey("transcription_custom_model")
+
+    val FORMATTING_PROVIDER_PRESET = stringPreferencesKey("formatting_provider_preset")
+    val FORMATTING_CUSTOM_BASE_URL = stringPreferencesKey("formatting_custom_base_url")
+    val FORMATTING_CUSTOM_MODEL = stringPreferencesKey("formatting_custom_model")
+
+    // Hinglish output: romanizes a Hindi ("hi") transcript via the formatting LLM instead of
+    // leaving it in Devanagari script. Whisper itself has no transliteration mode.
+    val HINGLISH_OUTPUT_ENABLED = booleanPreferencesKey("hinglish_output_enabled")
 }

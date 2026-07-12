@@ -4,7 +4,10 @@ sealed class TriggerMode {
     object VolumeButton : TriggerMode()
     object ActionButton : TriggerMode()   // OEM-specific physical button
     object WakeWord : TriggerMode()
-    object FloatingWidget : TriggerMode() // tap the widget to record
+    // Retired as a trigger MODE: the floating widget is now an always-available surface with
+    // its own enable toggle. Kept only so legacy code paths still compile; never offered or
+    // resolved from storage anymore.
+    object FloatingWidget : TriggerMode()
     object Manual : TriggerMode()         // only tap in-app button
     
     fun toStringId(): String = when(this) {
@@ -20,7 +23,7 @@ sealed class TriggerMode {
             "volume_button" -> VolumeButton
             "action_button" -> ActionButton
             "wake_word" -> WakeWord
-            "floating_widget" -> FloatingWidget
+            "floating_widget" -> Manual // legacy: widget is no longer a trigger mode
             "manual" -> Manual
             else -> VolumeButton
         }

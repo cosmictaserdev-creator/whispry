@@ -57,9 +57,10 @@ object AppModule {
     @Singleton
     fun provideAudioRepository(
         remoteDataSource: GroqRemoteDataSource,
-        apiKeyProvider: ApiKeyProvider
+        apiKeyProvider: ApiKeyProvider,
+        settingsProvider: com.example.whispry.data.local.datasource.SettingsProvider
     ): AudioRepository {
-        return AudioRepositoryImpl(remoteDataSource, apiKeyProvider)
+        return AudioRepositoryImpl(remoteDataSource, apiKeyProvider, settingsProvider)
     }
 
     @Provides
@@ -74,9 +75,10 @@ object AppModule {
     @Singleton
     fun provideGroqFormatterRepository(
         apiService: com.example.whispry.data.remote.api.GroqChatApiService,
-        apiKeyProvider: ApiKeyProvider
+        apiKeyProvider: ApiKeyProvider,
+        settingsProvider: com.example.whispry.data.local.datasource.SettingsProvider
     ): GroqFormatterRepository {
-        return GroqFormatterRepositoryImpl(apiService, apiKeyProvider)
+        return GroqFormatterRepositoryImpl(apiService, apiKeyProvider, settingsProvider)
     }
 
     @Provides

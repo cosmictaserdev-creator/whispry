@@ -26,10 +26,14 @@ import androidx.navigation.NavController
 import com.example.whispry.features.voicecommand.data.model.VoiceCommandEntity
 import com.example.whispry.features.voicecommand.domain.model.VoiceCommandAction
 import com.example.whispry.ui.components.HeaderActionButton
-import com.example.whispry.ui.components.ScreenHeader
 import com.example.whispry.ui.components.SheetPrimaryButton
 import com.example.whispry.ui.components.SheetTextField
 import com.example.whispry.ui.components.WhispryBottomSheet
+import com.example.whispry.ui.components.WhispryCard
+import com.example.whispry.ui.components.WhispryDetailScaffold
+import com.example.whispry.ui.components.WhispryHero
+import com.example.whispry.ui.components.WhispryHeroKeys
+import com.example.whispry.ui.components.WhispryPill
 import com.example.whispry.ui.theme.WhispryTokens
 import com.kyant.capsule.ContinuousRoundedRectangle
 
@@ -37,55 +41,44 @@ import com.kyant.capsule.ContinuousRoundedRectangle
 fun VoiceCommandScreen(
     viewModel: VoiceCommandViewModel,
     navController: NavController,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    hero: WhispryHero? = null
 ) {
     val commands by viewModel.commands.collectAsState()
     var editTarget by remember { mutableStateOf<VoiceCommandEntity?>(null) }
     var showDialog by remember { mutableStateOf(false) }
     var sheetProgress by remember { mutableFloatStateOf(0f) }
 
-    Box(modifier = modifier.fillMaxSize()) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .graphicsLayer {
-                    val s = if (showDialog) 1f - 0.08f * sheetProgress else 1f
-                    scaleX = s; scaleY = s
-                }
-                .padding(horizontal = 24.dp)
+    WhispryDetailScaffold(
+        title = "Voice Commands",
+        onBack = { navController.popBackStack() },
+        subtitle = "Say a trigger word, then your query — e.g. \"chrome best football player\" searches the web. Open-App launches an app and copies the rest for you to paste.",
+        pushBackProgress = if (showDialog) sheetProgress else 0f,
+        hero = hero,
+        heroKey = WhispryHeroKeys.VoiceCommands,
+        modifier = modifier,
+        headerActions = {
+            HeaderActionButton(Icons.Rounded.Add, "Add") { editTarget = null; showDialog = true }
+        }
+    ) {
+        LazyColumn(
+            modifier = Modifier.weight(1f).fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+            contentPadding = PaddingValues(bottom = 120.dp)
         ) {
-            ScreenHeader(
-                title = "Voice Commands",
-                onBack = { navController.popBackStack() },
-                actions = {
-                    HeaderActionButton(Icons.Rounded.Add, "Add") { editTarget = null; showDialog = true }
-                }
-            )
-
-            Text(
-                text = "Say a trigger word, then your query — e.g. \"chrome best football player\" searches the web. Open-App launches an app and copies the rest for you to paste.",
-                color = Color.White.copy(alpha = 0.6f),
-                fontSize = 14.sp,
-                modifier = Modifier.padding(bottom = 24.dp)
-            )
-
-            LazyColumn(
-                modifier = Modifier.weight(1f).fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-                contentPadding = PaddingValues(bottom = 120.dp)
-            ) {
-                items(commands, key = { it.id }) { cmd ->
-                    VoiceCommandCard(
-                        command = cmd,
-                        onEdit = { editTarget = cmd; showDialog = true },
-                        onDelete = { viewModel.delete(cmd) }
-                    )
-                }
+            items(commands, key = { it.id }) { cmd ->
+                VoiceCommandCard(
+                    modifier = Modifier.animateItem(),
+                    command = cmd,
+                    onEdit = { editTarget = cmd; showDialog = true },
+                    onDelete = { viewModel.delete(cmd) }
+                )
             }
         }
+    }
 
-        if (showDialog) {
-            VoiceCommandSheet(
+    if (showDialog) {
+        VoiceCommandSheet(
                 existing = editTarget,
                 viewModel = viewModel,
                 onDismiss = { showDialog = false },
@@ -95,7 +88,6 @@ fun VoiceCommandScreen(
                     showDialog = false
                 }
             )
-        }
     }
 }
 
@@ -106,29 +98,14 @@ private fun actionOf(name: String): VoiceCommandAction =
 private fun VoiceCommandCard(
     command: VoiceCommandEntity,
     onEdit: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val action = actionOf(command.action)
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(ContinuousRoundedRectangle(16.dp))
-            .background(WhispryTokens.SurfaceElevated, ContinuousRoundedRectangle(16.dp))
-            .border(1.dp, WhispryTokens.GlassBorder, ContinuousRoundedRectangle(16.dp))
-            .clickable(onClick = onEdit)
-            .padding(16.dp)
-    ) {
+    WhispryCard(modifier = modifier, onClick = onEdit) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.weight(1f)) {
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(Color.White.copy(alpha = 0.1f))
-                        .border(0.5.dp, Color.White.copy(alpha = 0.25f), RoundedCornerShape(8.dp))
-                        .padding(horizontal = 10.dp, vertical = 4.dp)
-                ) {
-                    Text(command.triggerWord, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                }
+                WhispryPill(command.triggerWord)
                 Spacer(modifier = Modifier.height(10.dp))
                 val subtitle = if (action == VoiceCommandAction.OPEN_APP && command.targetAppLabel.isNotBlank())
                     "Open ${command.targetAppLabel}" else action.label

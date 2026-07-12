@@ -38,6 +38,14 @@ class SettingsProvider @Inject constructor(
 
     // Hands-free trigger (press to start, press again to stop).
     val handsFreeMode: Flow<Boolean> = dataStore.data.map { it[DataStoreKeys.HANDS_FREE_MODE] ?: false }
+    val handsFreeArmingDelayMs: Flow<Long> = dataStore.data.map {
+        it[DataStoreKeys.HANDS_FREE_ARMING_DELAY_MS] ?: DataStoreKeys.DEFAULT_HANDS_FREE_ARMING_DELAY_MS
+    }
+
+    // Plain press-and-hold arming delay (hands-free off).
+    val singlePressHoldDelayMs: Flow<Long> = dataStore.data.map {
+        it[DataStoreKeys.SINGLE_PRESS_HOLD_DELAY_MS] ?: DataStoreKeys.DEFAULT_SINGLE_PRESS_HOLD_DELAY_MS
+    }
 
     // Universal Press Actions (opt-in).
     val pressActionsEnabled: Flow<Boolean> = dataStore.data.map { it[DataStoreKeys.PRESS_ACTIONS_ENABLED] ?: false }
@@ -45,7 +53,37 @@ class SettingsProvider @Inject constructor(
     val doublePressAction: Flow<String> = dataStore.data.map { it[DataStoreKeys.DOUBLE_PRESS_ACTION] ?: "NORMAL" }
 
     // Bug 1
-    val smartTriggerSuppression: Flow<Boolean> = dataStore.data.map { it[DataStoreKeys.SMART_TRIGGER_SUPPRESSION] ?: true }
+    // Default false: the call-suppression half of this feature needs READ_PHONE_STATE, which is
+    // only ever requested from the Settings toggle itself (just-in-time). Defaulting true here
+    // made the toggle look enabled on a fresh install despite that permission never having been
+    // granted or asked for — the toggle now honestly reflects "off until you turn it on".
+    val smartTriggerSuppression: Flow<Boolean> = dataStore.data.map { it[DataStoreKeys.SMART_TRIGGER_SUPPRESSION] ?: false }
+
+    // Multi-provider AI support: transcription and formatting resolve independently.
+    val transcriptionProviderPreset: Flow<com.example.whispry.domain.model.TranscriptionProviderPreset> =
+        dataStore.data.map {
+            com.example.whispry.domain.model.TranscriptionProviderPreset.fromName(
+                it[DataStoreKeys.TRANSCRIPTION_PROVIDER_PRESET]
+            )
+        }
+    val transcriptionCustomBaseUrl: Flow<String> =
+        dataStore.data.map { it[DataStoreKeys.TRANSCRIPTION_CUSTOM_BASE_URL] ?: "" }
+    val transcriptionCustomModel: Flow<String> =
+        dataStore.data.map { it[DataStoreKeys.TRANSCRIPTION_CUSTOM_MODEL] ?: "" }
+
+    val formattingProviderPreset: Flow<com.example.whispry.domain.model.FormattingProviderPreset> =
+        dataStore.data.map {
+            com.example.whispry.domain.model.FormattingProviderPreset.fromName(
+                it[DataStoreKeys.FORMATTING_PROVIDER_PRESET]
+            )
+        }
+    val formattingCustomBaseUrl: Flow<String> =
+        dataStore.data.map { it[DataStoreKeys.FORMATTING_CUSTOM_BASE_URL] ?: "" }
+    val formattingCustomModel: Flow<String> =
+        dataStore.data.map { it[DataStoreKeys.FORMATTING_CUSTOM_MODEL] ?: "" }
+
+    val hinglishOutputEnabled: Flow<Boolean> =
+        dataStore.data.map { it[DataStoreKeys.HINGLISH_OUTPUT_ENABLED] ?: false }
 
     // ------------------------------------------------------------------
     // Setters

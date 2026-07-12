@@ -14,6 +14,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -64,6 +65,11 @@ fun LiquidSlider(
         contentAlignment = Alignment.CenterStart
     ) {
         val trackWidth = constraints.maxWidth.toFloat()
+        // BoxWithConstraints reports 0 on the very first layout pass, then the real width —
+        // remembering below on trackWidth would tear down and rebuild the drag animation on
+        // that jump, snapping the thumb (the "jiggle then settle"). rememberUpdatedState keeps
+        // the drag/tap closures reading the live width without recreating the animation object.
+        val currentTrackWidth = rememberUpdatedState(trackWidth)
 
         val isLtr = LocalLayoutDirection.current == LayoutDirection.Ltr
         val animationScope = rememberCoroutineScope()
@@ -79,7 +85,7 @@ fun LiquidSlider(
 
         var dragOffset by remember { mutableStateOf(0f) }
 
-        val dampedDragAnimation = remember(animationScope, trackWidth) {
+        val dampedDragAnimation = remember(animationScope) {
             DampedDragAnimation(
                 animationScope = animationScope,
                 initialValue = snapValue(value()),
@@ -88,7 +94,7 @@ fun LiquidSlider(
                 initialScale = 1f,
                 pressedScale = 1.35f,
                 onDragStarted = {
-                    dragOffset = progress * trackWidth
+                    dragOffset = progress * currentTrackWidth.value
                 },
                 onDragStopped = {
                     if (didDrag) {
@@ -100,16 +106,17 @@ fun LiquidSlider(
                 },
                 onDrag = { _, dragAmount ->
                     didDrag = true
-                    dragOffset = (dragOffset + (if (isLtr) dragAmount.x else -dragAmount.x)).coerceIn(0f, trackWidth)
-                    
+                    val width = currentTrackWidth.value
+                    dragOffset = (dragOffset + (if (isLtr) dragAmount.x else -dragAmount.x)).coerceIn(0f, width)
+
                     val rangeWidth = valueRange.endInclusive - valueRange.start
-                    val newValue = valueRange.start + (dragOffset / trackWidth) * rangeWidth
-                    
+                    val newValue = valueRange.start + (dragOffset / width) * rangeWidth
+
                     val snapped = snapValue(newValue)
-                    
+
                     // Update visual immediately and smoothly
                     snapToValue(if (steps > 0) snapped else newValue)
-                    
+
                     if (snapped != value()) {
                         onValueChange(snapped)
                     }
@@ -131,7 +138,7 @@ fun LiquidSlider(
                     .background(trackColor)
                     .pointerInput(animationScope) {
                         detectTapGestures { position ->
-                            val delta = (valueRange.endInclusive - valueRange.start) * (position.x / trackWidth)
+                            val delta = (valueRange.endInclusive - valueRange.start) * (position.x / currentTrackWidth.value)
                             val rawValue = (if (isLtr) valueRange.start + delta else valueRange.endInclusive - delta)
                             val targetValue = snapValue(rawValue)
                             dampedDragAnimation.animateToValue(targetValue)

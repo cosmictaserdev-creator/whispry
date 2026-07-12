@@ -3,41 +3,35 @@ package com.example.whispry.service
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/**
+ * Coordinates the two overlay windows. The floating widget is a persistent surface —
+ * visible whenever enabled, including while a recording runs — and the recording pill
+ * layers on top of it as a second, independent overlay. (The old behavior of swapping
+ * one overlay for the other is retired.)
+ */
 @Singleton
 class WindowOverlayCoordinator @Inject constructor() {
-    
-    sealed class OverlayType {
-        object None : OverlayType()
-        object Bubble : OverlayType()
-        object Widget : OverlayType()
-    }
 
-    private val _visibleOverlay = MutableStateFlow<OverlayType>(OverlayType.None)
-    val visibleOverlay: StateFlow<OverlayType> = _visibleOverlay.asStateFlow()
+    private val _widgetEnabled = MutableStateFlow(false)
+    val widgetEnabled: StateFlow<Boolean> = _widgetEnabled.asStateFlow()
 
-    private var widgetEnabled = true
+    /** True from recording start until the pill fully dismisses — the widget's "session active" signal. */
+    private val _bubbleVisible = MutableStateFlow(false)
+    val bubbleVisible: StateFlow<Boolean> = _bubbleVisible.asStateFlow()
 
     fun setWidgetEnabled(enabled: Boolean) {
-        widgetEnabled = enabled
-        if (!enabled && _visibleOverlay.value == OverlayType.Widget) {
-            _visibleOverlay.value = OverlayType.None
-        } else if (enabled && _visibleOverlay.value == OverlayType.None) {
-            _visibleOverlay.value = OverlayType.Widget
-        }
+        _widgetEnabled.value = enabled
     }
 
     fun showBubble() {
-        _visibleOverlay.value = OverlayType.Bubble
+        _bubbleVisible.value = true
     }
 
     fun hideBubble() {
-        if (widgetEnabled) {
-            _visibleOverlay.value = OverlayType.Widget
-        } else {
-            _visibleOverlay.value = OverlayType.None
-        }
+        _bubbleVisible.value = false
     }
 }

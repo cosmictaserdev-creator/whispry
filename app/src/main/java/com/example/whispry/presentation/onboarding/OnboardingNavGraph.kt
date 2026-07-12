@@ -87,13 +87,6 @@ fun OnboardingNavGraph(
         }
     )
 
-    val phonePermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission(),
-        onResult = { isGranted ->
-            viewModel.checkPermissions()
-        }
-    )
-
     // ONE cached backdrop for the whole background
     val onboardingBackdrop = rememberCachedBackdrop()
 
@@ -127,15 +120,6 @@ fun OnboardingNavGraph(
             composable("intro") {
                 IntroScreen(
                     onTransition = {
-                        navController.navigate("welcome")
-                    },
-                    backdrop = onboardingBackdrop
-                )
-            }
-
-            composable("welcome") {
-                WelcomeScreen(
-                    onContinue = {
                         navController.navigate("permissions")
                     },
                     backdrop = onboardingBackdrop
@@ -154,9 +138,6 @@ fun OnboardingNavGraph(
                             Uri.parse("package:${context.packageName}")
                         )
                         context.startActivity(intent)
-                    },
-                    onGrantPhone = {
-                        phonePermissionLauncher.launch(Manifest.permission.READ_PHONE_STATE)
                     },
                     onGrantAccessibility = {
                         val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
@@ -220,6 +201,8 @@ fun OnboardingNavGraph(
                     onContinue = {
                         viewModel.completeOnboarding()
                     },
+                    onRetry = { viewModel.retryTutorial() },
+                    onSkip = { viewModel.completeOnboarding() },
                     backdrop = onboardingBackdrop
                 )
 

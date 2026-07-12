@@ -1,6 +1,8 @@
 package com.example.whispry.presentation.settings
 
+import com.example.whispry.domain.model.FormattingProviderPreset
 import com.example.whispry.domain.model.RetentionPolicy
+import com.example.whispry.domain.model.TranscriptionProviderPreset
 import com.example.whispry.domain.model.TriggerMode
 import com.example.whispry.service.TriggerSound
 
@@ -23,14 +25,17 @@ data class SettingsState(
     val triggerMode: TriggerMode = TriggerMode.VolumeButton,
     val availableTriggerModes: List<TriggerMode> = emptyList(),
     val isActionButtonSupported: Boolean = true,
-    val smartTriggerSuppression: Boolean = true,
+    val smartTriggerSuppression: Boolean = false,
     val consumeVolumeKeys: Boolean = true,
     val singlePressTrigger: Boolean = false,
     val handsFreeMode: Boolean = false,
+    val handsFreeArmingDelayMs: Long = 450L,
+    val singlePressHoldDelayMs: Long = 450L,
     val triggerVolumeKey: String = "VOLUME_DOWN",
 
     // Interface
-    val floatingWidgetEnabled: Boolean = true,
+    val floatingWidgetEnabled: Boolean = false,
+    val widgetConfig: com.example.whispry.service.WidgetConfig = com.example.whispry.service.WidgetConfig(),
     val glassNavbar: Boolean = true,
     val glassLiquidBackdrop: Boolean = true,
 
@@ -54,7 +59,20 @@ data class SettingsState(
     // Universal Press Actions (opt-in)
     val pressActionsEnabled: Boolean = false,
     val singlePressAction: String = "NORMAL",
-    val doublePressAction: String = "NORMAL"
+    val doublePressAction: String = "NORMAL",
+
+    // Multi-provider AI support: transcription and formatting resolve independently.
+    val transcriptionProviderPreset: TranscriptionProviderPreset = TranscriptionProviderPreset.GROQ,
+    val transcriptionCustomBaseUrl: String = "",
+    val transcriptionCustomModel: String = "",
+    val transcriptionApiKey: String = "",
+    val formattingProviderPreset: FormattingProviderPreset = FormattingProviderPreset.GROQ,
+    val formattingCustomBaseUrl: String = "",
+    val formattingCustomModel: String = "",
+    val formattingApiKey: String = "",
+
+    // Hinglish output: romanizes a "hi" transcript instead of leaving it in Devanagari.
+    val hinglishOutputEnabled: Boolean = false
 )
 
 sealed class SettingsIntent {
@@ -89,6 +107,8 @@ sealed class SettingsIntent {
     data class SetConsumeVolumeKeys(val enabled: Boolean) : SettingsIntent()
     data class SetSinglePressTrigger(val enabled: Boolean) : SettingsIntent()
     data class SetHandsFreeMode(val enabled: Boolean) : SettingsIntent()
+    data class SetHandsFreeArmingDelay(val ms: Long) : SettingsIntent()
+    data class SetSinglePressHoldDelay(val ms: Long) : SettingsIntent()
 
     // Feature 1
     data class SetFloatingWidgetEnabled(val enabled: Boolean) : SettingsIntent()
@@ -109,4 +129,27 @@ sealed class SettingsIntent {
     data class SetPressActionsEnabled(val enabled: Boolean) : SettingsIntent()
     data class SetSinglePressAction(val action: String) : SettingsIntent()
     data class SetDoublePressAction(val action: String) : SettingsIntent()
+
+    // Floating widget (physical switch)
+    data class SetWidgetShapeMode(val mode: String) : SettingsIntent()
+    data class SetWidgetIdleOpacity(val pct: Int) : SettingsIntent()
+    data class SetWidgetFadeDelay(val ms: Long) : SettingsIntent()
+    data class SetWidgetArmingDelay(val ms: Long) : SettingsIntent()
+    data class SetWidgetCustomTriggers(val custom: Boolean) : SettingsIntent()
+    data class SetWidgetSingleTapAction(val action: String) : SettingsIntent()
+    data class SetWidgetDoubleTapAction(val action: String) : SettingsIntent()
+    data class SetWidgetSoundMuted(val muted: Boolean) : SettingsIntent()
+    data class SetWidgetMotion(val value: String) : SettingsIntent()
+    object EnterWidgetEditMode : SettingsIntent()
+
+    // Multi-provider AI support
+    data class SetTranscriptionProviderPreset(val preset: TranscriptionProviderPreset) : SettingsIntent()
+    data class SetTranscriptionCustomBaseUrl(val url: String) : SettingsIntent()
+    data class SetTranscriptionCustomModel(val model: String) : SettingsIntent()
+    data class SetTranscriptionApiKey(val apiKey: String) : SettingsIntent()
+    data class SetFormattingProviderPreset(val preset: FormattingProviderPreset) : SettingsIntent()
+    data class SetFormattingCustomBaseUrl(val url: String) : SettingsIntent()
+    data class SetFormattingCustomModel(val model: String) : SettingsIntent()
+    data class SetFormattingApiKey(val apiKey: String) : SettingsIntent()
+    data class SetHinglishOutputEnabled(val enabled: Boolean) : SettingsIntent()
 }

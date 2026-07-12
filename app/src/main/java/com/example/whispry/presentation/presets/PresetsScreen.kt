@@ -28,6 +28,9 @@ import androidx.datastore.preferences.core.edit
 import com.example.whispry.data.local.datasource.DataStoreKeys
 import com.example.whispry.data.local.datasource.SettingsProvider
 import com.example.whispry.domain.model.OutputPreset
+import com.example.whispry.presentation.common.CoachMark
+import com.example.whispry.presentation.common.CoachMarkOverlay
+import com.example.whispry.presentation.common.CoachMarkViewModel
 import com.example.whispry.ui.components.WhispryBottomSheet
 import com.example.whispry.ui.theme.WhispryTheme
 import com.example.whispry.ui.util.TopFadeScrim
@@ -91,6 +94,7 @@ fun PresetsScreen(
     val translateLanguage by viewModel.translateTargetLanguage.collectAsStateWithLifecycle()
     var showLanguageSheet by remember { mutableStateOf(false) }
     val themeAccent = androidx.compose.ui.graphics.Color.White
+    val coachVm: CoachMarkViewModel = hiltViewModel()
 
     Box(modifier = Modifier.fillMaxSize()) {
         LazyVerticalGrid(
@@ -211,6 +215,13 @@ fun PresetsScreen(
                 onDismiss = { showLanguageSheet = false }
             )
         }
+
+        CoachMarkOverlay(
+            visible = coachVm.shouldShow(CoachMark.PRESETS),
+            title = "Presets shape your words",
+            message = "Tap a preset to change how Whispry rewrites what you say — clean it up, or turn it into an email, a list, a story, and more.",
+            onDismiss = { coachVm.markSeen(CoachMark.PRESETS) }
+        )
     }
 }
 

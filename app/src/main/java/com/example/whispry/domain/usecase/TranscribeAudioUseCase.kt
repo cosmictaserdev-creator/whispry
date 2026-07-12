@@ -1,16 +1,20 @@
 package com.example.whispry.domain.usecase
 
+import com.example.whispry.data.local.datasource.SettingsProvider
 import com.example.whispry.domain.model.OutputPreset
 import com.example.whispry.domain.repository.AudioRepository
 import com.example.whispry.domain.repository.TranscriptRepository
 import com.example.whispry.domain.util.Result
+import kotlinx.coroutines.flow.first
 import javax.inject.Inject
 
 
 class TranscribeAudioUseCase @Inject constructor(
     private val audioRepository: AudioRepository,
     private val transcriptRepository: TranscriptRepository,
-    private val formatTranscriptUseCase: FormatTranscriptUseCase
+    private val formatTranscriptUseCase: FormatTranscriptUseCase,
+    private val hinglishTransliterationUseCase: HinglishTransliterationUseCase,
+    private val settingsProvider: SettingsProvider
 ) {
     suspend operator fun invoke(
         audioFilePath: String,
@@ -31,12 +35,21 @@ class TranscribeAudioUseCase @Inject constructor(
 
         val rawText = transcribeResult.data
 
-        // Step 2 — format if preset is not NONE
-        val finalText = if (outputPreset != OutputPreset.NONE) {
-            val formatResult = formatTranscriptUseCase(rawText, outputPreset)
-            if (formatResult is Result.Success) formatResult.data else rawText
+        // Step 1.5 — romanize Devanagari Hindi into Hinglish before any further formatting,
+        // so a downstream output preset always sees Latin-script text.
+        val workingText = if (finalLanguageCode == "hi" && settingsProvider.hinglishOutputEnabled.first()) {
+            val transliterateResult = hinglishTransliterationUseCase(rawText)
+            if (transliterateResult is Result.Success) transliterateResult.data else rawText
         } else {
             rawText
+        }
+
+        // Step 2 — format if preset is not NONE
+        val finalText = if (outputPreset != OutputPreset.NONE) {
+            val formatResult = formatTranscriptUseCase(workingText, outputPreset)
+            if (formatResult is Result.Success) formatResult.data else workingText
+        } else {
+            workingText
         }
 
         // Step 3 — save to Room (save the FORMATTED text, not raw)

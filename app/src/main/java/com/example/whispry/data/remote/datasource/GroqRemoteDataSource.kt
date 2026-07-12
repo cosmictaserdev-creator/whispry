@@ -27,9 +27,11 @@ class GroqRemoteDataSource @Inject constructor(
     suspend fun transcribeAudio(
         apiKey: String,
         audioFilePath: String,
-        languageCode: String
+        languageCode: String,
+        baseUrl: String = "https://api.groq.com/openai/v1/",
+        model: String = "whisper-large-v3"
     ): Result<String> {
-        Log.d(TAG, "transcribeAudio: keyPrefix=${apiKey.take(5)}..., file=$audioFilePath")
+        Log.d(TAG, "transcribeAudio: keyPrefix=${apiKey.take(5)}..., file=$audioFilePath, model=$model")
 
         if (!isNetworkAvailable(context)) {
             return Result.Error("no_internet")
@@ -51,9 +53,10 @@ class GroqRemoteDataSource @Inject constructor(
             )
 
             val response = apiService.transcribeAudio(
+                url = baseUrl + "audio/transcriptions",
                 authorization = "Bearer $apiKey",
                 file = filePart,
-                model = MultipartBody.Part.createFormData("model", "whisper-large-v3"),
+                model = MultipartBody.Part.createFormData("model", model),
                 language = MultipartBody.Part.createFormData("language", languageCode),
                 responseFormat = MultipartBody.Part.createFormData("response_format", "json"),
                 temperature = MultipartBody.Part.createFormData("temperature", "0.0")

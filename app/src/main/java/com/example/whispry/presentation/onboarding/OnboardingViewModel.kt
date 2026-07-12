@@ -8,8 +8,11 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.whispry.data.local.datasource.ApiKeyProvider
+import com.example.whispry.data.local.datasource.DataStoreKeys
 import com.example.whispry.data.local.datasource.SettingsProvider
-import com.example.whispry.data.remote.datasource.GroqRemoteDataSource
+import com.example.whispry.data.remote.api.GroqChatApiService
+import com.example.whispry.data.remote.api.dto.ChatCompletionRequest
+import com.example.whispry.data.remote.api.dto.ChatMessage
 import com.example.whispry.service.ServiceBridge
 import com.example.whispry.service.ServiceLocator
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -30,15 +33,23 @@ data class OnboardingState(
     val allPermissionsGranted: Boolean = false,
     val isCompleted: Boolean = false,
     val tutorialStep: TutorialStep = TutorialStep.Idle,
-    val recordedText: String = ""
-)
+    val recordedText: String = "",
+    // Live trigger config so the teach phase mirrors the user's real settings.
+    val triggerVolumeKey: String = "VOLUME_DOWN", // "VOLUME_UP" | "VOLUME_DOWN"
+    val isHoldGesture: Boolean = DataStoreKeys.DEFAULT_SINGLE_PRESS_TRIGGER // true = press-and-hold, false = double-press
+) {
+    /** Human-readable key label for the teach phase, e.g. "Volume Down". */
+    val triggerKeyLabel: String
+        get() = if (triggerVolumeKey == "VOLUME_UP") "Volume Up" else "Volume Down"
+}
 
 enum class TutorialStep {
     Idle,
     DoublePressMe,
     HoldMe,
     Recording,
-    Success
+    Success,
+    Failed
 }
 
 @HiltViewModel
@@ -47,7 +58,7 @@ class OnboardingViewModel @Inject constructor(
     private val settingsProvider: SettingsProvider,
     private val apiKeyProvider: ApiKeyProvider,
     private val serviceBridge: ServiceBridge,
-    private val groqDataSource: GroqRemoteDataSource
+    private val chatApiService: GroqChatApiService
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(OnboardingState())
@@ -56,6 +67,21 @@ class OnboardingViewModel @Inject constructor(
     init {
         checkPermissions()
         observeServiceEvents()
+        observeTriggerConfig()
+    }
+
+    private fun observeTriggerConfig() {
+        settingsProvider.dataStore.data
+            .onEach { prefs ->
+                _state.update {
+                    it.copy(
+                        triggerVolumeKey = prefs[DataStoreKeys.TRIGGER_VOLUME_KEY] ?: "VOLUME_DOWN",
+                        isHoldGesture = prefs[DataStoreKeys.SINGLE_PRESS_TRIGGER]
+                            ?: DataStoreKeys.DEFAULT_SINGLE_PRESS_TRIGGER
+                    )
+                }
+            }
+            .launchIn(viewModelScope)
     }
 
     private fun observeServiceEvents() {
@@ -80,17 +106,31 @@ class OnboardingViewModel @Inject constructor(
                             ) }
                         }
                     }
+                    is ServiceBridge.TriggerEvent.TranscriptionFailed -> {
+                        // The live-transcription payoff couldn't complete (bad network, API hiccup).
+                        // Drop into a graceful failure state instead of hanging on the spinner.
+                        val step = _state.value.tutorialStep
+                        if (step == TutorialStep.Recording || step == TutorialStep.HoldMe || step == TutorialStep.DoublePressMe) {
+                            _state.update { it.copy(tutorialStep = TutorialStep.Failed) }
+                        }
+                    }
                     is ServiceBridge.TriggerEvent.Idle -> {
                         // Handle idle if needed
                     }
+                    else -> { /* widget-only events (cancel arming etc.) don't affect the tutorial */ }
                 }
             }
             .launchIn(viewModelScope)
     }
 
     fun startTutorial() {
-        _state.update { it.copy(tutorialStep = TutorialStep.DoublePressMe) }
+        // Enter the flow at the step that matches the user's saved gesture.
+        val firstStep = if (_state.value.isHoldGesture) TutorialStep.HoldMe else TutorialStep.DoublePressMe
+        _state.update { it.copy(tutorialStep = firstStep, recordedText = "") }
     }
+
+    /** Retry the live practice after a failed attempt. */
+    fun retryTutorial() = startTutorial()
 
     fun checkPermissions() {
         val mic = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
@@ -105,7 +145,9 @@ class OnboardingViewModel @Inject constructor(
                 overlayPermissionGranted = overlay,
                 phoneStatePermissionGranted = phone,
                 accessibilityEnabled = accessibility,
-                allPermissionsGranted = mic && overlay && phone && accessibility
+                // Only microphone + accessibility are required to continue. Overlay (the bubble) is
+                // optional with a degraded fallback; Phone State is requested just-in-time in Settings.
+                allPermissionsGranted = mic && accessibility
             )
         }
     }
@@ -124,21 +166,54 @@ class OnboardingViewModel @Inject constructor(
     }
 
     fun validateAndSaveApiKey() {
-        val key = _state.value.apiKey
+        val key = _state.value.apiKey.trim()
         if (key.isBlank()) return
+
+        // Cheap shape check first — avoids a network round-trip on an obvious typo.
+        if (!key.startsWith("gsk_") || key.length < 40) {
+            _state.update { it.copy(keyValidationError = "That doesn't look like a Groq key — it should start with \"gsk_\".") }
+            return
+        }
 
         viewModelScope.launch {
             _state.update { it.copy(isValidatingKey = true, keyValidationError = null) }
-            
-            // Dummy validation for now
-            kotlinx.coroutines.delay(1500)
-            
-            if (key.startsWith("gsk_") && key.length >= 40) {
-                apiKeyProvider.saveApiKey(key)
-                _state.update { it.copy(isValidatingKey = false, isApiKeyValid = true) }
-            } else {
-                _state.update { it.copy(isValidatingKey = false, keyValidationError = "Invalid Groq API Key format") }
+
+            // Verify the key actually works with a tiny live call, so a bad key is caught here
+            // instead of surfacing as a mysterious authorization error at the first transcription.
+            val result = runCatching {
+                chatApiService.chatCompletion(
+                    url = "https://api.groq.com/openai/v1/chat/completions",
+                    authorization = "Bearer $key",
+                    request = ChatCompletionRequest(
+                        model = "llama-3.3-70b-versatile",
+                        messages = listOf(ChatMessage(role = "user", content = "ping")),
+                        maxTokens = 1,
+                        temperature = 0f
+                    )
+                )
             }
+
+            result.fold(
+                onSuccess = { response ->
+                    when {
+                        response.isSuccessful -> {
+                            apiKeyProvider.saveApiKey(key)
+                            _state.update { it.copy(isValidatingKey = false, isApiKeyValid = true) }
+                        }
+                        response.code() == 401 -> _state.update {
+                            it.copy(isValidatingKey = false, keyValidationError = "Groq rejected this key. Double-check it and try again.")
+                        }
+                        else -> _state.update {
+                            it.copy(isValidatingKey = false, keyValidationError = "Couldn't verify the key (error ${response.code()}). Please try again.")
+                        }
+                    }
+                },
+                onFailure = {
+                    _state.update {
+                        it.copy(isValidatingKey = false, keyValidationError = "Couldn't reach Groq — check your connection and try again.")
+                    }
+                }
+            )
         }
     }
 

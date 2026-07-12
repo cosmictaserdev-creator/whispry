@@ -39,13 +39,37 @@ fun LanguagePickerBottomSheet(
     onDragProgress: (Float) -> Unit,
     @Suppress("UNUSED_PARAMETER") backdrop: LayerBackdrop
 ) {
+    // Full language set supported by whisper-large-v3 (Groq/OpenAI), alphabetized by name.
+    // "hi" doubles as the Hinglish (Hindi + English code-switching) option — Whisper has no
+    // separate Hinglish code, but hinting "hi" already handles mixed Hindi/English speech well.
     val languages = remember {
         listOf(
-            "Auto" to "Detect Language", "en" to "English", "es" to "Spanish", "fr" to "French",
-            "de" to "German", "it" to "Italian", "pt" to "Portuguese", "nl" to "Dutch",
-            "ja" to "Japanese", "ko" to "Korean", "zh" to "Chinese", "ru" to "Russian",
-            "tr" to "Turkish", "ar" to "Arabic", "hi" to "Hindi", "vi" to "Vietnamese",
-            "pl" to "Polish", "uk" to "Ukrainian", "id" to "Indonesian", "th" to "Thai"
+            "Auto" to "Detect Language",
+            "af" to "Afrikaans", "sq" to "Albanian", "am" to "Amharic", "ar" to "Arabic",
+            "hy" to "Armenian", "as" to "Assamese", "az" to "Azerbaijani", "ba" to "Bashkir",
+            "eu" to "Basque", "be" to "Belarusian", "bn" to "Bengali", "bs" to "Bosnian",
+            "br" to "Breton", "bg" to "Bulgarian", "yue" to "Cantonese", "ca" to "Catalan",
+            "zh" to "Chinese", "hr" to "Croatian", "cs" to "Czech", "da" to "Danish",
+            "nl" to "Dutch", "en" to "English", "et" to "Estonian", "fo" to "Faroese",
+            "fi" to "Finnish", "fr" to "French", "gl" to "Galician", "ka" to "Georgian",
+            "de" to "German", "el" to "Greek", "gu" to "Gujarati", "ht" to "Haitian Creole",
+            "ha" to "Hausa", "haw" to "Hawaiian", "he" to "Hebrew", "hi" to "Hindi (Hinglish)",
+            "hu" to "Hungarian", "is" to "Icelandic", "id" to "Indonesian", "it" to "Italian",
+            "ja" to "Japanese", "jw" to "Javanese", "kn" to "Kannada", "kk" to "Kazakh",
+            "km" to "Khmer", "ko" to "Korean", "lo" to "Lao", "la" to "Latin",
+            "lv" to "Latvian", "ln" to "Lingala", "lt" to "Lithuanian", "lb" to "Luxembourgish",
+            "mk" to "Macedonian", "mg" to "Malagasy", "ms" to "Malay", "ml" to "Malayalam",
+            "mt" to "Maltese", "mi" to "Maori", "mr" to "Marathi", "mn" to "Mongolian",
+            "my" to "Myanmar", "ne" to "Nepali", "no" to "Norwegian", "nn" to "Nynorsk",
+            "oc" to "Occitan", "ps" to "Pashto", "fa" to "Persian", "pl" to "Polish",
+            "pt" to "Portuguese", "pa" to "Punjabi", "ro" to "Romanian", "ru" to "Russian",
+            "sa" to "Sanskrit", "sr" to "Serbian", "sn" to "Shona", "sd" to "Sindhi",
+            "si" to "Sinhala", "sk" to "Slovak", "sl" to "Slovenian", "so" to "Somali",
+            "es" to "Spanish", "su" to "Sundanese", "sw" to "Swahili", "sv" to "Swedish",
+            "tl" to "Tagalog", "tg" to "Tajik", "ta" to "Tamil", "tt" to "Tatar",
+            "te" to "Telugu", "th" to "Thai", "bo" to "Tibetan", "tr" to "Turkish",
+            "tk" to "Turkmen", "uk" to "Ukrainian", "ur" to "Urdu", "uz" to "Uzbek",
+            "vi" to "Vietnamese", "cy" to "Welsh", "yi" to "Yiddish", "yo" to "Yoruba"
         )
     }
 

@@ -1,6 +1,7 @@
 package com.example.whispry
 
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -35,6 +36,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         enableEdgeToEdge()
+        requestHighestRefreshRate()
         parseDeepLink(intent)
 
         splashScreen.setKeepOnScreenCondition {
@@ -69,6 +71,24 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         parseDeepLink(intent)
+    }
+
+    /**
+     * Opt the window into the panel's highest refresh rate (e.g. 120Hz). Without this, Compose
+     * commonly renders capped at 60/90Hz even on a high-refresh display. Picks the fastest mode that
+     * keeps the current resolution, so we never trade sharpness for frame rate.
+     */
+    private fun requestHighestRefreshRate() {
+        @Suppress("DEPRECATION")
+        val display = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) display else windowManager.defaultDisplay
+        display ?: return
+        val current = display.mode ?: return
+        val best = display.supportedModes
+            .filter { it.physicalWidth == current.physicalWidth && it.physicalHeight == current.physicalHeight }
+            .maxByOrNull { it.refreshRate } ?: return
+        if (best.modeId != current.modeId) {
+            window.attributes = window.attributes.apply { preferredDisplayModeId = best.modeId }
+        }
     }
 
     private fun parseDeepLink(intent: Intent?) {

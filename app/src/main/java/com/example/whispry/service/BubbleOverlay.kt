@@ -43,6 +43,7 @@ fun BubbleOverlay(
     state: BubbleState,
     amplitudeProvider: () -> Float,
     message: String,
+    cancelArming: Boolean = false,
     onRetry: () -> Unit = {},
     onCancel: () -> Unit = {},
     onStop: () -> Unit = {},
@@ -74,6 +75,7 @@ fun BubbleOverlay(
             state = state,
             amplitudeProvider = amplitudeProvider,
             message = message,
+            cancelArming = cancelArming,
             backdrop = backdrop,
             onRetry = onRetry,
             onCancel = onCancel,
@@ -89,6 +91,7 @@ private fun PillContent(
     state: BubbleState,
     amplitudeProvider: () -> Float,
     message: String,
+    cancelArming: Boolean,
     backdrop: com.kyant.backdrop.Backdrop,
     onRetry: () -> Unit,
     onCancel: () -> Unit,
@@ -154,6 +157,10 @@ private fun PillContent(
                     if (isListening || isProcessing || isFormatting) {
                         drawRect(accentColor.copy(alpha = if (isMiniMode) 0.4f else 0.3f))
                     }
+                    // Widget drag-down cancel mirror: drain the pill red while armed.
+                    if (isListening && cancelArming) {
+                        drawRect(Color(0xFFE5484D).copy(alpha = 0.45f))
+                    }
                     if (isError) {
                         drawRect(Color.Red.copy(alpha = 0.3f))
                     }
@@ -188,12 +195,19 @@ private fun PillContent(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 if (isListening || isProcessing || isFormatting) {
-                    SiriRingBubble(
-                        isListening = isListening,
-                        isProcessing = isProcessing || isFormatting,
-                        amplitudeProvider = amplitudeProvider,
-                        modifier = Modifier.size(32.dp)
-                    )
+                    if (isListening) {
+                        VoiceBarsVisualizer(
+                            amplitudeProvider = amplitudeProvider,
+                            modifier = Modifier.size(32.dp)
+                        )
+                    } else {
+                        SiriRingBubble(
+                            isListening = false,
+                            isProcessing = true,
+                            amplitudeProvider = amplitudeProvider,
+                            modifier = Modifier.size(32.dp)
+                        )
+                    }
                     Spacer(modifier = Modifier.width(12.dp))
                 }
 
@@ -248,10 +262,10 @@ private fun PillContent(
                         )
                     } else if (isListening) {
                         Text(
-                            text = "Listening...",
-                            color = Color.White.copy(alpha = 0.8f),
+                            text = if (cancelArming) "Release to cancel" else "Listening...",
+                            color = if (cancelArming) Color.White else Color.White.copy(alpha = 0.8f),
                             fontSize = 15.sp,
-                            fontWeight = FontWeight.Medium
+                            fontWeight = if (cancelArming) FontWeight.SemiBold else FontWeight.Medium
                         )
                     } else if (message.isNotEmpty()) {
                         Text(

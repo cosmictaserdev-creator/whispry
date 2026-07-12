@@ -1,32 +1,48 @@
 package com.example.whispry.data.repository
 
 import com.example.whispry.data.local.datasource.ApiKeyProvider
+import com.example.whispry.data.local.datasource.DataStoreKeys
+import com.example.whispry.data.local.datasource.SettingsProvider
 import com.example.whispry.data.remote.api.GroqChatApiService
 import com.example.whispry.data.remote.api.dto.ChatCompletionRequest
 import com.example.whispry.data.remote.api.dto.ChatMessage
+import com.example.whispry.domain.model.FormattingProviderPreset
+import com.example.whispry.domain.model.ProviderConfigResolver
 import com.example.whispry.domain.repository.GroqFormatterRepository
 import com.example.whispry.domain.util.Result
+import kotlinx.coroutines.flow.first
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 class GroqFormatterRepositoryImpl @Inject constructor(
     private val groqChatApiService: GroqChatApiService,
-    private val apiKeyProvider: ApiKeyProvider
+    private val apiKeyProvider: ApiKeyProvider,
+    private val settingsProvider: SettingsProvider
 ) : GroqFormatterRepository {
 
     override suspend fun formatText(
-        rawText: String,
-        systemPrompt: String
+        userContent: String,
+        systemPrompt: String,
+        fallbackText: String
     ): Result<String> {
-        val apiKey = apiKeyProvider.getApiKey()
-        if (apiKey.isBlank()) return Result.Error("API key not set")
+        val prefs = settingsProvider.dataStore.data.first()
+        val preset = FormattingProviderPreset.fromName(prefs[DataStoreKeys.FORMATTING_PROVIDER_PRESET])
+        val resolved = ProviderConfigResolver.resolveFormatting(
+            preset = preset,
+            customBaseUrl = prefs[DataStoreKeys.FORMATTING_CUSTOM_BASE_URL] ?: "",
+            customModel = prefs[DataStoreKeys.FORMATTING_CUSTOM_MODEL] ?: "",
+            apiKey = apiKeyProvider.getFormattingApiKey(preset)
+        )
+        if (resolved.apiKey.isBlank()) return Result.Error("API key not set")
+        if (resolved.baseUrl.isBlank()) return Result.Success(fallbackText)
 
         return try {
             val response = groqChatApiService.chatCompletion(
-                authorization = "Bearer $apiKey",
+                url = resolved.baseUrl + "chat/completions",
+                authorization = "Bearer ${resolved.apiKey}",
                 request = ChatCompletionRequest(
-                    model = "llama-3.3-70b-versatile",  // superior reasoning for intelligent formatting
+                    model = resolved.model,
                     messages = listOf(
                         ChatMessage(
                             role = "system",
@@ -34,7 +50,7 @@ class GroqFormatterRepositoryImpl @Inject constructor(
                         ),
                         ChatMessage(
                             role = "user",
-                            content = rawText
+                            content = userContent
                         )
                     ),
                     maxTokens = 1024,
@@ -59,8 +75,8 @@ class GroqFormatterRepositoryImpl @Inject constructor(
                 Result.Error("Formatting failed: ${response.code()}")
             }
         } catch (e: Exception) {
-            // formatting failed — return original text as fallback
-            Result.Success(rawText) 
+            // formatting failed — return the clean fallback text (never the wrapped content)
+            Result.Success(fallbackText)
         }
     }
 }

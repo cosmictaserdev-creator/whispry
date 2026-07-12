@@ -230,6 +230,7 @@ class BubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedState
     @Inject lateinit var transcriptRepository: TranscriptRepository
     @Inject lateinit var formatTranscriptUseCase: FormatTranscriptUseCase
     @Inject lateinit var transcribeAudioUseCase: TranscribeAudioUseCase
+    @Inject lateinit var hinglishTransliterationUseCase: com.example.whispry.domain.usecase.HinglishTransliterationUseCase
     @Inject lateinit var expandTextUseCase: ExpandTextUseCase
     @Inject lateinit var processTranscriptUseCase: com.example.whispry.domain.usecase.ProcessTranscriptUseCase
     @Inject lateinit var voiceCommandExecutor: VoiceCommandExecutor
@@ -258,6 +259,8 @@ class BubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedState
     private val message = mutableStateOf("")
     private val isRecording = mutableStateOf(false)
     private val showCancelHint = mutableStateOf(false)
+    // Mirrors the widget's drag-down cancel state: pill drains red, "release to cancel".
+    private val cancelArming = mutableStateOf(false)
 
     private val positionManager by lazy {
         BubblePositionManager(resources.displayMetrics.density)
@@ -297,6 +300,7 @@ class BubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedState
         private const val ERROR_DISMISS_DELAY_MS = 4000L
         private const val AMPLITUDE_POLL_INTERVAL_MS = 120L
         private const val CANCEL_HINT_DELAY_MS = 3000L
+        private const val BUBBLE_ADD_VIEW_RETRY_DELAY_MS = 150L
     }
 
     override fun onCreate() {
@@ -310,7 +314,7 @@ class BubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedState
 
     private fun observeSettings() {
         serviceScope.launch {
-            settingsProvider.dataStore.data.map { it[DataStoreKeys.FLOATING_WIDGET_ENABLED] ?: true }.collect { enabled ->
+            settingsProvider.dataStore.data.map { it[DataStoreKeys.FLOATING_WIDGET_ENABLED] ?: DataStoreKeys.DEFAULT_FLOATING_WIDGET_ENABLED }.collect { enabled ->
                 overlayCoordinator.setWidgetEnabled(enabled)
             }
         }
@@ -407,6 +411,7 @@ class BubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedState
 
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
         super.onConfigurationChanged(newConfig)
+        floatingWidgetManager.onOrientationChanged()
         val view = composeView ?: return
         val params = layoutParams ?: return
         if (!view.isAttachedToWindow) return
@@ -439,10 +444,25 @@ class BubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedState
                 when (event) {
                     is ServiceBridge.TriggerEvent.RecordingStarted -> onRecordingStarted()
                     is ServiceBridge.TriggerEvent.RecordingStopped -> onRecordingStopped()
+                    is ServiceBridge.TriggerEvent.RecordingCancelled -> cancelSession()
+                    is ServiceBridge.TriggerEvent.CancelArming -> cancelArming.value = event.armed
                     else -> {}
                 }
             }
         }
+    }
+
+    /** Abort the in-flight recording/transcription and dismiss (widget drag-down + pill ✕ share this). */
+    private fun cancelSession() {
+        transcriptionJob?.cancel()
+        audioRecorder.cancel()
+        stopAmplitudePolling()
+        hapticHelper.vibrateShort()
+        cancelArming.value = false
+        isRecording.value = false
+        bubbleState.value = BubbleState.Idle
+        audioDuckingManager.restore()
+        scheduleBubbleDismissal(0)
     }
 
     private fun onRecordingStarted() {
@@ -467,6 +487,7 @@ class BubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedState
         
         updateForegroundStatus()
         message.value = ""
+        cancelArming.value = false
         bubbleState.value = BubbleState.Listening
         isRecording.value = true
         isMiniMode = false
@@ -534,7 +555,19 @@ class BubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedState
                     )
                     when (rawResult) {
                         is com.example.whispry.domain.util.Result.Success -> {
-                            val rawText = rawResult.data
+                            val transcribedText = rawResult.data
+                            // Romanize Devanagari Hindi into Hinglish before any further routing,
+                            // so preset formatting / expand / voice commands all see Latin script.
+                            val rawText = if (language == "hi" && settingsProvider.hinglishOutputEnabled.first()) {
+                                val transliterated = hinglishTransliterationUseCase(transcribedText)
+                                if (transliterated is com.example.whispry.domain.util.Result.Success) {
+                                    transliterated.data
+                                } else {
+                                    transcribedText
+                                }
+                            } else {
+                                transcribedText
+                            }
                             // Open-app press action: skip routing, open the app and copy the text.
                             if (pressAction is com.example.whispry.domain.model.PressAction.OpenApp && rawText.isNotBlank()) {
                                 transcriptRepository.saveTranscript(rawText, rawText, durationMs, language ?: "en", OutputPreset.NONE.name)
@@ -620,6 +653,7 @@ class BubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedState
                         }
                         is Processed.Err -> {
                             val isNoInternet = processed.noInternet
+                            serviceBridge.emit(ServiceBridge.TriggerEvent.TranscriptionFailed(processed.message))
                             bubbleState.value = BubbleState.Error(processed.message, isNoInternet)
                             message.value = if (isNoInternet) "No Internet" else processed.message
                             hapticHelper.vibrateError()
@@ -687,15 +721,9 @@ class BubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedState
                                 state = bubbleState.value,
                                 amplitudeProvider = { amplitude.value },
                                 message = message.value,
+                                cancelArming = cancelArming.value,
                                 onRetry = { retryTranscription() },
-                                onCancel = {
-                                    transcriptionJob?.cancel()
-                                    audioRecorder.cancel()
-                                    hapticHelper.vibrateShort()
-                                    bubbleState.value = BubbleState.Idle
-                                    audioDuckingManager.restore()
-                                    scheduleBubbleDismissal(0)
-                                },
+                                onCancel = { cancelSession() },
                                 onStop = { if (bubbleState.value is BubbleState.Listening) serviceBridge.emit(ServiceBridge.TriggerEvent.RecordingStopped) },
                                 onDrag = { dx, dy -> handleBubbleDrag(dx, dy) },
                                 onDragEnd = { handleBubbleDragEnd() }
@@ -745,9 +773,16 @@ class BubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedState
                 }
 
                 try {
-                    windowManager.addView(composeView, layoutParams)
+                    com.example.whispry.util.retryOnce(
+                        onFirstFailure = { e ->
+                            Log.e(TAG, "Error adding bubble view, retrying once", e)
+                            delay(BUBBLE_ADD_VIEW_RETRY_DELAY_MS)
+                        }
+                    ) {
+                        windowManager.addView(composeView, layoutParams)
+                    }
                 } catch (e: Exception) {
-                    Log.e(TAG, "Error adding bubble view", e)
+                    Log.e(TAG, "Retry failed, giving up on this session's bubble", e)
                     composeView = null
                 }
             }

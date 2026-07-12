@@ -24,6 +24,16 @@ class ServiceBridge @Inject constructor() {
         object Idle : TriggerEvent()
         object RecordingStarted : TriggerEvent()
         object RecordingStopped : TriggerEvent()
+
+        /** Abort the in-flight recording and discard it (widget drag-down cancel). */
+        object RecordingCancelled : TriggerEvent()
+
+        /**
+         * The widget's drag-down cancel crossed (true) or un-crossed (false) its threshold;
+         * the pill mirrors this as a red "release to cancel" state.
+         */
+        data class CancelArming(val armed: Boolean) : TriggerEvent()
         data class TranscriptionResult(val text: String) : TriggerEvent()
+        data class TranscriptionFailed(val message: String) : TriggerEvent()
     }
 }

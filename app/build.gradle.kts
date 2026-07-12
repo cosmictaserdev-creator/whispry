@@ -43,6 +43,14 @@ android {
 
 }
 
+// Diagnostics: emit per-composable stability + recomposition reports so we can see exactly which
+// composables fail to skip (the real recomposition offenders) instead of guessing. Output lands in
+// app/build/compose_reports/*-composables.txt (look for "restartable skippable" vs "restartable").
+composeCompiler {
+    reportsDestination = layout.buildDirectory.dir("compose_reports")
+    metricsDestination = layout.buildDirectory.dir("compose_metrics")
+}
+
 ksp {
     arg("room.schemaLocation", "$projectDir/schemas")
 }

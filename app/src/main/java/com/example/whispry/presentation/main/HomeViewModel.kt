@@ -120,10 +120,9 @@ class HomeViewModel @Inject constructor(
             missing.add("Microphone")
         }
 
-        // Overlay
-        if (!Settings.canDrawOverlays(context)) {
-            missing.add("Overlay")
-        }
+        // Overlay is intentionally NOT part of this guard — it's non-essential (the bubble is optional
+        // and the floating widget is off by default). It's requested just-in-time when the user turns
+        // on the Floating Widget in Settings.
 
         // Notifications (Android 13+)
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
@@ -138,10 +137,8 @@ class HomeViewModel @Inject constructor(
             missing.add("Accessibility")
         }
 
-        // Phone State (for call suppression)
-        if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_PHONE_STATE) != PackageManager.PERMISSION_GRANTED) {
-            missing.add("Phone State")
-        }
+        // Phone State is intentionally NOT part of this guard — it's a non-essential permission
+        // requested just-in-time only when the user enables call suppression in Settings.
 
         _state.update { it.copy(missingPermissions = missing) }
     }

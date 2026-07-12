@@ -75,6 +75,10 @@ import com.example.whispry.domain.model.Transcript
 import com.example.whispry.R
 import com.example.whispry.presentation.common.GlassCard
 import com.example.whispry.ui.components.WhispryBottomSheet
+import com.example.whispry.ui.components.liquidExpand
+import com.example.whispry.ui.components.liquidGlow
+import com.example.whispry.ui.components.pressClickable
+import com.example.whispry.ui.components.rememberLiquidTouch
 import com.example.whispry.ui.util.adaptive.currentWidthSizeClass
 import com.example.whispry.ui.util.adaptive.gridColumnsFor
 import com.example.whispry.ui.util.gridItems
@@ -229,6 +233,15 @@ fun HistoryScreen(
             val fallbackTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() +
                 dimensionResource(R.dimen.library_header_top_offset)
             val topPadding = if (headerHeightPx > 0) with(density) { headerHeightPx.toDp() } + 12.dp else fallbackTop
+            // Quantize the recede blur to 6 steps and cache the RenderEffect per step, so the search
+            // transition reuses ~6 objects instead of allocating a fresh blur effect every frame.
+            val blurStep = (recede * 6f).roundToInt()
+            val recedeBlur = remember(blurStep) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && blurStep > 0) {
+                    val blurPx = with(density) { (12.dp * (blurStep / 6f)).toPx() }
+                    RenderEffect.createBlurEffect(blurPx, blurPx, Shader.TileMode.CLAMP).asComposeRenderEffect()
+                } else null
+            }
             LazyColumn(
                 state = listState,
                 modifier = Modifier
@@ -238,15 +251,7 @@ fun HistoryScreen(
                         scaleX = s
                         scaleY = s
                         alpha = 1f - (0.3f * recede)
-
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && recede > 0.01f) {
-                            val blurPx = (lerp(0.dp, 12.dp, recede)).toPx()
-                            if (blurPx > 0.1f) {
-                                renderEffect = RenderEffect.createBlurEffect(
-                                    blurPx, blurPx, Shader.TileMode.CLAMP
-                                ).asComposeRenderEffect()
-                            }
-                        }
+                        renderEffect = recedeBlur
                     },
                 contentPadding = PaddingValues(
                     top = topPadding,
@@ -500,16 +505,10 @@ fun RubberySearchBar(
     val focusRequester = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
     val interactionSource = remember { MutableInteractionSource() }
-    val isPressed by interactionSource.collectIsPressedAsState()
+    val touch = rememberLiquidTouch()
 
     // Local state for immediate typing feedback
     var localQuery by remember(query) { mutableStateOf(query) }
-
-    val pressScale by animateFloatAsState(
-        targetValue = if (isPressed) 0.97f else 1f,
-        animationSpec = spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessMedium),
-        label = "SearchPressScale"
-    )
 
     Row(
         modifier = Modifier.fillMaxWidth().height(52.dp),
@@ -519,13 +518,11 @@ fun RubberySearchBar(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxHeight()
-                .graphicsLayer {
-                    scaleX = pressScale
-                    scaleY = pressScale
-                }
+                .liquidExpand(touch, enabled = progress < 0.5f)
                 .shadow(4.dp, com.kyant.capsule.ContinuousRoundedRectangle(100.dp), spotColor = androidx.compose.ui.graphics.Color.Black)
                     .background(com.example.whispry.ui.theme.WhispryTokens.SurfaceElevated, com.kyant.capsule.ContinuousRoundedRectangle(100.dp))
                     .border(1.dp, com.example.whispry.ui.theme.WhispryTokens.GlassBorder, com.kyant.capsule.ContinuousRoundedRectangle(100.dp))
+                .liquidGlow(touch, com.kyant.capsule.ContinuousRoundedRectangle(100.dp), enabled = progress < 0.5f)
                 .clickable(
                     enabled = progress < 0.5f, // Disable clickable area when expanded to allow text field focus
                     interactionSource = interactionSource, 
@@ -602,12 +599,19 @@ fun RubberySearchBar(
 
 @Composable
 private fun SuggestionChip(text: String, onClick: () -> Unit) {
+    val touch = rememberLiquidTouch()
     Row(
         modifier = Modifier
+            .liquidExpand(touch)
             .clip(ContinuousRoundedRectangle(100.dp))
             .background(com.example.whispry.ui.theme.WhispryTokens.SurfaceElevated, ContinuousRoundedRectangle(100.dp))
             .border(1.dp, com.example.whispry.ui.theme.WhispryTokens.GlassBorder, ContinuousRoundedRectangle(100.dp))
-            .clickable { onClick() }
+            .liquidGlow(touch, ContinuousRoundedRectangle(100.dp))
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick
+            )
             .padding(horizontal = 14.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -631,7 +635,7 @@ fun SectionHeader(title: String, icon: ImageVector, onSeeMore: () -> Unit) {
         }
         Text(
             "See All",
-            modifier = Modifier.clickable { onSeeMore() },
+            modifier = Modifier.pressClickable(onClick = onSeeMore, shape = RoundedCornerShape(8.dp)),
             style = MaterialTheme.typography.labelLarge,
             color = androidx.compose.ui.graphics.Color.White,
             fontWeight = FontWeight.Medium
@@ -652,12 +656,7 @@ fun LibraryTranscriptItemOptimized(
     modifier: Modifier = Modifier
 ) {
     val interactionSource = remember { MutableInteractionSource() }
-    val isPressed by interactionSource.collectIsPressedAsState()
-    val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.96f else 1f,
-        animationSpec = spring(stiffness = 500f, dampingRatio = 0.8f),
-        label = "CardScale"
-    )
+    val touch = rememberLiquidTouch()
 
     var showPresetPicker by remember { mutableStateOf(false) }
 
@@ -728,13 +727,11 @@ fun LibraryTranscriptItemOptimized(
                         }
                     )
                 }
-                .graphicsLayer {
-                    scaleX = scale
-                    scaleY = scale
-                }
+                .liquidExpand(touch)
                 .shadow(4.dp, ContinuousRoundedRectangle(20.dp), spotColor = Color.Black)
                 .background(com.example.whispry.ui.theme.WhispryTokens.SurfaceElevated, ContinuousRoundedRectangle(20.dp))
                 .border(1.dp, com.example.whispry.ui.theme.WhispryTokens.GlassBorder, ContinuousRoundedRectangle(20.dp))
+                .liquidGlow(touch, ContinuousRoundedRectangle(20.dp))
                 .clickable(
                     interactionSource = interactionSource,
                     indication = null,
@@ -1159,12 +1156,19 @@ fun PresetPickerBottomSheet(
                 }
                 items(presets, key = { it.name }) { preset ->
                     val isSelected = preset == currentPreset
+                    val touch = rememberLiquidTouch()
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .liquidExpand(touch)
                             .clip(ContinuousRoundedRectangle(16.dp))
                             .background(if (isSelected) Color.White.copy(alpha = 0.1f) else Color.Transparent)
-                            .clickable { onPresetSelected(preset) }
+                            .liquidGlow(touch, ContinuousRoundedRectangle(16.dp))
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                                onClick = { onPresetSelected(preset) }
+                            )
                             .padding(16.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -1247,12 +1251,12 @@ fun FilterMenu(
 @Composable
 fun FilterMenuItem(label: String, isSelected: Boolean, onClick: () -> Unit) {
     val interactionSource = remember { MutableInteractionSource() }
-    val isPressed by interactionSource.collectIsPressedAsState()
-    val scale by animateFloatAsState(if (isPressed) 0.95f else 1f, label = "FilterScale")
+    val touch = rememberLiquidTouch()
 
     Row(
-        modifier = Modifier.fillMaxWidth().graphicsLayer { scaleX = scale; scaleY = scale }
-            .clip(RoundedCornerShape(12.dp))
+        modifier = Modifier.fillMaxWidth()
+            .liquidExpand(touch)
+            .liquidGlow(touch, RoundedCornerShape(12.dp))
             .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -1303,12 +1307,19 @@ fun ExportBottomSheet(
             ) {
                 items(ExportFormat.entries) { format ->
                     val isSelected = format == selectedFormat
+                    val touch = rememberLiquidTouch()
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .liquidExpand(touch)
                             .clip(RoundedCornerShape(16.dp))
                             .background(if (isSelected) androidx.compose.ui.graphics.Color.White.copy(alpha = 0.1f) else Color.Transparent)
-                            .clickable { selectedFormat = format }
+                            .liquidGlow(touch, RoundedCornerShape(16.dp))
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                                onClick = { selectedFormat = format }
+                            )
                             .padding(16.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {

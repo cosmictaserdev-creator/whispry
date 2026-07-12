@@ -1,15 +1,12 @@
 package com.example.whispry.features.myinfo.presentation
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -17,85 +14,74 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.example.whispry.features.myinfo.data.model.MyInfoEntity
 import com.example.whispry.ui.components.HeaderActionButton
-import com.example.whispry.ui.components.ScreenHeader
 import com.example.whispry.ui.components.SheetPrimaryButton
 import com.example.whispry.ui.components.SheetTextField
 import com.example.whispry.ui.components.WhispryBottomSheet
-import com.example.whispry.ui.theme.WhispryTokens
+import com.example.whispry.ui.components.WhispryCard
+import com.example.whispry.ui.components.WhispryDetailScaffold
+import com.example.whispry.ui.components.WhispryHero
+import com.example.whispry.ui.components.WhispryHeroKeys
+import com.example.whispry.ui.components.WhispryPill
 import com.kyant.backdrop.backdrops.LayerBackdrop
-import com.kyant.capsule.ContinuousRoundedRectangle
 
 @Composable
 fun MyInfoScreen(
     viewModel: MyInfoViewModel,
     navController: NavController,
     backdrop: LayerBackdrop,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    hero: WhispryHero? = null
 ) {
     val items by viewModel.items.collectAsState()
     var editTarget by remember { mutableStateOf<MyInfoEntity?>(null) }
     var showDialog by remember { mutableStateOf(false) }
     var sheetProgress by remember { mutableFloatStateOf(0f) }
 
-    Box(modifier = modifier.fillMaxSize()) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .graphicsLayer {
-                    val s = if (showDialog) 1f - 0.08f * sheetProgress else 1f
-                    scaleX = s; scaleY = s
-                }
-                .padding(horizontal = 24.dp)
+    WhispryDetailScaffold(
+        title = "My Info",
+        onBack = { navController.popBackStack() },
+        subtitle = "Save personal details, then paste any of them by voice with \"insert <name>\" (e.g. \"insert address\").",
+        pushBackProgress = if (showDialog) sheetProgress else 0f,
+        hero = hero,
+        heroKey = WhispryHeroKeys.MyInfo,
+        modifier = modifier,
+        headerActions = {
+            HeaderActionButton(Icons.Rounded.Add, "Add") { editTarget = null; showDialog = true }
+        }
+    ) {
+        LazyColumn(
+            modifier = Modifier.weight(1f).fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+            contentPadding = PaddingValues(bottom = 120.dp)
         ) {
-            ScreenHeader(
-                title = "My Info",
-                onBack = { navController.popBackStack() },
-                actions = {
-                    HeaderActionButton(Icons.Rounded.Add, "Add") { editTarget = null; showDialog = true }
-                }
-            )
-
-            Text(
-                text = "Save personal details, then paste any of them by voice with \"insert <name>\" (e.g. \"insert address\").",
-                color = Color.White.copy(alpha = 0.6f),
-                fontSize = 14.sp,
-                modifier = Modifier.padding(bottom = 24.dp)
-            )
-
-            LazyColumn(
-                modifier = Modifier.weight(1f).fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-                contentPadding = PaddingValues(bottom = 120.dp)
-            ) {
-                items(items, key = { it.id }) { item ->
-                    MyInfoCard(
-                        item = item,
-                        onEdit = { editTarget = item; showDialog = true },
-                        onDelete = { viewModel.delete(item) }
-                    )
-                }
+            items(items, key = { it.id }) { item ->
+                MyInfoCard(
+                    modifier = Modifier.animateItem(),
+                    item = item,
+                    onEdit = { editTarget = item; showDialog = true },
+                    onDelete = { viewModel.delete(item) }
+                )
             }
         }
+    }
 
-        if (showDialog) {
-            MyInfoSheet(
-                existing = editTarget,
-                isReserved = viewModel::isReserved,
-                onDismiss = { showDialog = false },
-                onDragProgress = { sheetProgress = it },
-                onSave = { key, value ->
-                    viewModel.save(key, value)
-                    showDialog = false
-                }
-            )
-        }
+    if (showDialog) {
+        MyInfoSheet(
+            existing = editTarget,
+            isReserved = viewModel::isReserved,
+            onDismiss = { showDialog = false },
+            onDragProgress = { sheetProgress = it },
+            onSave = { key, value ->
+                viewModel.save(key, value)
+                showDialog = false
+            }
+        )
     }
 }
 
@@ -103,30 +89,14 @@ fun MyInfoScreen(
 private fun MyInfoCard(
     item: MyInfoEntity,
     onEdit: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    val accent = Color.White
     val hasValue = item.value.isNotBlank()
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(ContinuousRoundedRectangle(16.dp))
-            .background(WhispryTokens.SurfaceElevated, ContinuousRoundedRectangle(16.dp))
-            .border(1.dp, WhispryTokens.GlassBorder, ContinuousRoundedRectangle(16.dp))
-            .clickable(onClick = onEdit)
-            .padding(16.dp)
-    ) {
+    WhispryCard(modifier = modifier, onClick = onEdit) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.weight(1f)) {
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(accent.copy(alpha = 0.1f))
-                        .border(0.5.dp, accent.copy(alpha = 0.25f), RoundedCornerShape(8.dp))
-                        .padding(horizontal = 10.dp, vertical = 4.dp)
-                ) {
-                    Text(item.key, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                }
+                WhispryPill(item.key)
                 Spacer(modifier = Modifier.height(10.dp))
                 Text(
                     text = if (hasValue) item.value else "Tap to add your ${item.key}",

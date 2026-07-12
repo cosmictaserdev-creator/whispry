@@ -2,12 +2,15 @@ package com.example.whispry.domain.usecase
 
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import com.example.whispry.data.local.datasource.SettingsProvider
 import com.example.whispry.domain.model.OutputPreset
 import com.example.whispry.domain.repository.AudioRepository
 import com.example.whispry.domain.repository.TranscriptRepository
@@ -18,11 +21,17 @@ class TranscribeAudioUseCaseTest {
     private val audioRepository: AudioRepository = mockk()
     private val transcriptRepository: TranscriptRepository = mockk(relaxed = true)
     private val formatTranscriptUseCase: FormatTranscriptUseCase = mockk(relaxed = true)
+    private val hinglishTransliterationUseCase: HinglishTransliterationUseCase = mockk(relaxed = true)
+    private val settingsProvider: SettingsProvider = mockk()
     private lateinit var useCase: TranscribeAudioUseCase
 
     @Before
     fun setUp() {
-        useCase = TranscribeAudioUseCase(audioRepository, transcriptRepository, formatTranscriptUseCase)
+        every { settingsProvider.hinglishOutputEnabled } returns flowOf(false)
+        useCase = TranscribeAudioUseCase(
+            audioRepository, transcriptRepository, formatTranscriptUseCase,
+            hinglishTransliterationUseCase, settingsProvider
+        )
     }
 
     @Test
@@ -89,6 +98,31 @@ class TranscribeAudioUseCaseTest {
         coVerify {
             transcriptRepository.saveTranscript(
                 text = "नमस्ते",
+                rawText = "नमस्ते",
+                durationMs = 1000L,
+                languageCode = "hi",
+                preset = OutputPreset.NONE.name
+            )
+        }
+    }
+
+    @Test
+    fun `hinglish output romanizes hi transcript but keeps raw text devanagari`() = runTest {
+        every { settingsProvider.hinglishOutputEnabled } returns flowOf(true)
+        coEvery {
+            audioRepository.transcribeAudio(any(), "hi")
+        } returns Result.Success("नमस्ते")
+        coEvery {
+            hinglishTransliterationUseCase("नमस्ते")
+        } returns Result.Success("Namaste")
+
+        val result = useCase("/path/audio.m4a", 1000L, language = "hi")
+
+        assertTrue(result is Result.Success)
+        assertEquals("Namaste", (result as Result.Success).data)
+        coVerify {
+            transcriptRepository.saveTranscript(
+                text = "Namaste",
                 rawText = "नमस्ते",
                 durationMs = 1000L,
                 languageCode = "hi",

@@ -28,6 +28,7 @@ class SettingsViewModel @Inject constructor(
     private val triggerRepository: TriggerRepository,
     private val transcriptRepository: com.example.whispry.domain.repository.TranscriptRepository,
     private val soundManager: com.example.whispry.service.SoundManager,
+    private val floatingWidgetManager: com.example.whispry.service.FloatingWidgetManager,
     val trainedModelMatcher: TrainedModelMatcher // Make it val
 ) : ViewModel() {
 
@@ -38,7 +39,9 @@ class SettingsViewModel @Inject constructor(
         _state.update { it.copy(
             apiKey = apiKeyProvider.getApiKey(),
             availableTriggerModes = triggerRepository.getAvailableTriggerModes(),
-            isActionButtonSupported = checkActionButtonSupport()
+            isActionButtonSupported = checkActionButtonSupport(),
+            transcriptionApiKey = apiKeyProvider.getRawTranscriptionApiKey(),
+            formattingApiKey = apiKeyProvider.getRawFormattingApiKey()
         ) }
         observeSettings()
         refreshStatus()
@@ -75,9 +78,18 @@ class SettingsViewModel @Inject constructor(
         triggerRepository.getActiveTriggerMode().onEach { v -> _state.update { it.copy(triggerMode = v) } }.launchIn(viewModelScope)
         settingsProvider.smartTriggerSuppression.onEach { v -> _state.update { it.copy(smartTriggerSuppression = v) } }.launchIn(viewModelScope)
         settingsProvider.dataStore.data.map { it[DataStoreKeys.CONSUME_VOLUME_KEYS] ?: true }.onEach { v -> _state.update { it.copy(consumeVolumeKeys = v) } }.launchIn(viewModelScope)
-        settingsProvider.dataStore.data.map { it[DataStoreKeys.SINGLE_PRESS_TRIGGER] ?: false }.onEach { v -> _state.update { it.copy(singlePressTrigger = v) } }.launchIn(viewModelScope)
+        settingsProvider.dataStore.data.map { it[DataStoreKeys.SINGLE_PRESS_TRIGGER] ?: DataStoreKeys.DEFAULT_SINGLE_PRESS_TRIGGER }.onEach { v -> _state.update { it.copy(singlePressTrigger = v) } }.launchIn(viewModelScope)
         settingsProvider.handsFreeMode.onEach { v -> _state.update { it.copy(handsFreeMode = v) } }.launchIn(viewModelScope)
-        settingsProvider.dataStore.data.map { it[DataStoreKeys.FLOATING_WIDGET_ENABLED] ?: true }.onEach { v -> _state.update { it.copy(floatingWidgetEnabled = v) } }.launchIn(viewModelScope)
+        settingsProvider.handsFreeArmingDelayMs.onEach { v -> _state.update { it.copy(handsFreeArmingDelayMs = v) } }.launchIn(viewModelScope)
+        settingsProvider.singlePressHoldDelayMs.onEach { v -> _state.update { it.copy(singlePressHoldDelayMs = v) } }.launchIn(viewModelScope)
+        settingsProvider.transcriptionProviderPreset.onEach { v -> _state.update { it.copy(transcriptionProviderPreset = v) } }.launchIn(viewModelScope)
+        settingsProvider.transcriptionCustomBaseUrl.onEach { v -> _state.update { it.copy(transcriptionCustomBaseUrl = v) } }.launchIn(viewModelScope)
+        settingsProvider.transcriptionCustomModel.onEach { v -> _state.update { it.copy(transcriptionCustomModel = v) } }.launchIn(viewModelScope)
+        settingsProvider.formattingProviderPreset.onEach { v -> _state.update { it.copy(formattingProviderPreset = v) } }.launchIn(viewModelScope)
+        settingsProvider.formattingCustomBaseUrl.onEach { v -> _state.update { it.copy(formattingCustomBaseUrl = v) } }.launchIn(viewModelScope)
+        settingsProvider.formattingCustomModel.onEach { v -> _state.update { it.copy(formattingCustomModel = v) } }.launchIn(viewModelScope)
+        settingsProvider.hinglishOutputEnabled.onEach { v -> _state.update { it.copy(hinglishOutputEnabled = v) } }.launchIn(viewModelScope)
+        settingsProvider.dataStore.data.map { it[DataStoreKeys.FLOATING_WIDGET_ENABLED] ?: DataStoreKeys.DEFAULT_FLOATING_WIDGET_ENABLED }.onEach { v -> _state.update { it.copy(floatingWidgetEnabled = v) } }.launchIn(viewModelScope)
         settingsProvider.dataStore.data.map { it[DataStoreKeys.GLASS_NAVBAR] ?: true }.onEach { v -> _state.update { it.copy(glassNavbar = v) } }.launchIn(viewModelScope)
         settingsProvider.dataStore.data.map { it[DataStoreKeys.GLASS_LIQUID_BACKDROP] ?: true }.onEach { v -> _state.update { it.copy(glassLiquidBackdrop = v) } }.launchIn(viewModelScope)
         
@@ -99,6 +111,12 @@ class SettingsViewModel @Inject constructor(
         settingsProvider.pressActionsEnabled.onEach { v -> _state.update { it.copy(pressActionsEnabled = v) } }.launchIn(viewModelScope)
         settingsProvider.singlePressAction.onEach { v -> _state.update { it.copy(singlePressAction = v) } }.launchIn(viewModelScope)
         settingsProvider.doublePressAction.onEach { v -> _state.update { it.copy(doublePressAction = v) } }.launchIn(viewModelScope)
+
+        // Floating widget (physical switch)
+        settingsProvider.dataStore.data
+            .map { com.example.whispry.service.WidgetConfig.fromPreferences(it) }
+            .onEach { v -> _state.update { it.copy(widgetConfig = v) } }
+            .launchIn(viewModelScope)
     }
 
     fun onIntent(intent: SettingsIntent) {
@@ -146,7 +164,15 @@ class SettingsViewModel @Inject constructor(
                 is SettingsIntent.SetSmartTriggerSuppression -> settingsProvider.setSmartTriggerSuppression(intent.enabled)
                 is SettingsIntent.SetConsumeVolumeKeys -> settingsProvider.dataStore.edit { it[DataStoreKeys.CONSUME_VOLUME_KEYS] = intent.enabled }
                 is SettingsIntent.SetSinglePressTrigger -> settingsProvider.dataStore.edit { it[DataStoreKeys.SINGLE_PRESS_TRIGGER] = intent.enabled }
-                is SettingsIntent.SetHandsFreeMode -> settingsProvider.setHandsFreeMode(intent.enabled)
+                is SettingsIntent.SetHandsFreeMode -> {
+                    settingsProvider.setHandsFreeMode(intent.enabled)
+                    // Mutually exclusive with Press Actions — both take over the volume key
+                    // entirely, and Press Actions silently wins if left on, making Hands-free
+                    // look broken (this was today's bug: both stuck on at once).
+                    if (intent.enabled) settingsProvider.setPressActionsEnabled(false)
+                }
+                is SettingsIntent.SetHandsFreeArmingDelay -> settingsProvider.dataStore.edit { it[DataStoreKeys.HANDS_FREE_ARMING_DELAY_MS] = intent.ms }
+                is SettingsIntent.SetSinglePressHoldDelay -> settingsProvider.dataStore.edit { it[DataStoreKeys.SINGLE_PRESS_HOLD_DELAY_MS] = intent.ms }
                 is SettingsIntent.SetFloatingWidgetEnabled -> settingsProvider.dataStore.edit { it[DataStoreKeys.FLOATING_WIDGET_ENABLED] = intent.enabled }
                 is SettingsIntent.SetGlassNavbar -> settingsProvider.dataStore.edit { it[DataStoreKeys.GLASS_NAVBAR] = intent.enabled }
                 is SettingsIntent.SetGlassLiquidBackdrop -> settingsProvider.dataStore.edit { it[DataStoreKeys.GLASS_LIQUID_BACKDROP] = intent.enabled }
@@ -160,13 +186,49 @@ class SettingsViewModel @Inject constructor(
                 }
                 is SettingsIntent.SetAppAwareToneEnabled -> settingsProvider.setAppAwareToneEnabled(intent.enabled)
                 is SettingsIntent.SetVoiceCommandsEnabled -> settingsProvider.setVoiceCommandsEnabled(intent.enabled)
-                is SettingsIntent.SetPressActionsEnabled -> settingsProvider.setPressActionsEnabled(intent.enabled)
+                is SettingsIntent.SetPressActionsEnabled -> {
+                    settingsProvider.setPressActionsEnabled(intent.enabled)
+                    if (intent.enabled) settingsProvider.setHandsFreeMode(false)
+                }
                 is SettingsIntent.SetSinglePressAction -> settingsProvider.setSinglePressAction(intent.action)
                 is SettingsIntent.SetDoublePressAction -> settingsProvider.setDoublePressAction(intent.action)
                 is SettingsIntent.SetTriggerVolumeKey -> settingsProvider.dataStore.edit { it[DataStoreKeys.TRIGGER_VOLUME_KEY] = intent.key }
                 is SettingsIntent.SetDuckingEnabled -> settingsProvider.dataStore.edit { it[DataStoreKeys.DUCKING_ENABLED] = intent.enabled }
                 is SettingsIntent.SetDuckingPercent -> settingsProvider.dataStore.edit { it[DataStoreKeys.DUCKING_PERCENT] = intent.percent }
                 is SettingsIntent.SetRetentionPolicy -> settingsProvider.dataStore.edit { it[DataStoreKeys.RETENTION_POLICY] = intent.policy.name }
+                is SettingsIntent.SetWidgetShapeMode -> settingsProvider.dataStore.edit { it[DataStoreKeys.WIDGET_SHAPE_MODE] = intent.mode }
+                is SettingsIntent.SetWidgetIdleOpacity -> settingsProvider.dataStore.edit { it[DataStoreKeys.WIDGET_IDLE_OPACITY_PCT] = intent.pct }
+                is SettingsIntent.SetWidgetFadeDelay -> settingsProvider.dataStore.edit { it[DataStoreKeys.WIDGET_FADE_DELAY_MS] = intent.ms }
+                is SettingsIntent.SetWidgetArmingDelay -> settingsProvider.dataStore.edit { it[DataStoreKeys.WIDGET_ARMING_DELAY_MS] = intent.ms }
+                is SettingsIntent.SetWidgetCustomTriggers -> settingsProvider.dataStore.edit { it[DataStoreKeys.WIDGET_CUSTOM_TRIGGERS] = intent.custom }
+                is SettingsIntent.SetWidgetSingleTapAction -> settingsProvider.dataStore.edit { it[DataStoreKeys.WIDGET_SINGLE_TAP_ACTION] = intent.action }
+                is SettingsIntent.SetWidgetDoubleTapAction -> settingsProvider.dataStore.edit { it[DataStoreKeys.WIDGET_DOUBLE_TAP_ACTION] = intent.action }
+                is SettingsIntent.SetWidgetSoundMuted -> settingsProvider.dataStore.edit { it[DataStoreKeys.WIDGET_SOUND_MUTED] = intent.muted }
+                is SettingsIntent.SetWidgetMotion -> settingsProvider.dataStore.edit { it[DataStoreKeys.WIDGET_REDUCED_MOTION] = intent.value }
+                is SettingsIntent.SetTranscriptionProviderPreset -> settingsProvider.dataStore.edit { it[DataStoreKeys.TRANSCRIPTION_PROVIDER_PRESET] = intent.preset.name }
+                is SettingsIntent.SetTranscriptionCustomBaseUrl -> settingsProvider.dataStore.edit { it[DataStoreKeys.TRANSCRIPTION_CUSTOM_BASE_URL] = intent.url }
+                is SettingsIntent.SetTranscriptionCustomModel -> settingsProvider.dataStore.edit { it[DataStoreKeys.TRANSCRIPTION_CUSTOM_MODEL] = intent.model }
+                is SettingsIntent.SetTranscriptionApiKey -> {
+                    apiKeyProvider.saveTranscriptionApiKey(intent.apiKey)
+                    _state.update { it.copy(transcriptionApiKey = intent.apiKey) }
+                }
+                is SettingsIntent.SetFormattingProviderPreset -> settingsProvider.dataStore.edit { it[DataStoreKeys.FORMATTING_PROVIDER_PRESET] = intent.preset.name }
+                is SettingsIntent.SetFormattingCustomBaseUrl -> settingsProvider.dataStore.edit { it[DataStoreKeys.FORMATTING_CUSTOM_BASE_URL] = intent.url }
+                is SettingsIntent.SetFormattingCustomModel -> settingsProvider.dataStore.edit { it[DataStoreKeys.FORMATTING_CUSTOM_MODEL] = intent.model }
+                is SettingsIntent.SetFormattingApiKey -> {
+                    apiKeyProvider.saveFormattingApiKey(intent.apiKey)
+                    _state.update { it.copy(formattingApiKey = intent.apiKey) }
+                }
+                is SettingsIntent.SetHinglishOutputEnabled -> settingsProvider.dataStore.edit { it[DataStoreKeys.HINGLISH_OUTPUT_ENABLED] = intent.enabled }
+                is SettingsIntent.EnterWidgetEditMode -> {
+                    floatingWidgetManager.enterEditMode()
+                    // Positioning happens on a live home-screen preview.
+                    val home = Intent(Intent.ACTION_MAIN).apply {
+                        addCategory(Intent.CATEGORY_HOME)
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    context.startActivity(home)
+                }
                 is SettingsIntent.ClearAllTranscripts -> {
                     transcriptRepository.deleteAll()
                 }

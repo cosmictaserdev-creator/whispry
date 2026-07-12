@@ -35,7 +35,6 @@ fun PermissionsScreen(
     state: OnboardingState,
     onGrantMic: () -> Unit,
     onGrantOverlay: () -> Unit,
-    onGrantPhone: () -> Unit,
     onGrantAccessibility: () -> Unit,
     onContinue: () -> Unit,
     onRefresh: () -> Unit,
@@ -78,7 +77,7 @@ fun PermissionsScreen(
             Spacer(modifier = Modifier.height(16.dp))
 
             StaggeredTextReveal(
-                text = "Whispry needs these permissions to operate properly from the background. All are required to continue.",
+                text = "Whispry is a hands-free voice input tool. Microphone and Accessibility are required so you can talk-to-type in any app. The bubble is optional.",
                 style = TextStyle(
                     color = WhispryTokens.TextSecondary,
                     fontSize = 17.sp,
@@ -103,36 +102,25 @@ fun PermissionsScreen(
                 )
 
                 PermissionCard(
-                    title = "Draw Over Apps",
-                    description = "To display the floating recording bubble",
-                    isGranted = state.overlayPermissionGranted,
-                    onClick = onGrantOverlay,
-                    delayMs = 500,
-                    icon = Icons.Rounded.Layers,
-                    backdrop = backdrop,
-                    isRequired = true
-                )
-
-                PermissionCard(
-                    title = "Phone State",
-                    description = "To suppress triggers during active calls",
-                    isGranted = state.phoneStatePermissionGranted,
-                    onClick = onGrantPhone,
-                    delayMs = 600,
-                    icon = Icons.Rounded.Phone,
-                    backdrop = backdrop,
-                    isRequired = true
-                )
-
-                PermissionCard(
                     title = "Accessibility",
-                    description = "To detect the volume button trigger",
+                    description = "So a volume-key press starts recording and your text is pasted into the field you're typing in. Whispry only reads the volume keys and the focused text field — nothing else.",
                     isGranted = state.accessibilityEnabled,
                     onClick = onGrantAccessibility,
-                    delayMs = 700,
+                    delayMs = 500,
                     icon = Icons.Rounded.Gesture,
                     backdrop = backdrop,
                     isRequired = true
+                )
+
+                PermissionCard(
+                    title = "Bubble (optional)",
+                    description = "Shows a floating recording bubble with a live waveform. Skip it and voice-to-text still works — you'll just get sound and haptics instead of the visual bubble.",
+                    isGranted = state.overlayPermissionGranted,
+                    onClick = onGrantOverlay,
+                    delayMs = 600,
+                    icon = Icons.Rounded.Layers,
+                    backdrop = backdrop,
+                    isRequired = false
                 )
             }
         }
@@ -192,7 +180,7 @@ private fun PermissionCard(
         backdrop = backdrop,
         modifier = Modifier
             .fillMaxWidth()
-            .height(96.dp)
+            .heightIn(min = 96.dp)
             .graphicsLayer {
                 translationX = offset.toPx()
                 this.alpha = alpha
@@ -201,7 +189,7 @@ private fun PermissionCard(
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 16.dp)
         ) {
             Box(
                 modifier = Modifier
@@ -249,7 +237,7 @@ private fun PermissionCard(
                     color = WhispryTokens.TextTertiary,
                     fontSize = 14.sp,
                     lineHeight = 20.sp,
-                    maxLines = 2
+                    maxLines = 5
                 )
             }
 

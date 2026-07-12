@@ -21,6 +21,44 @@ class HapticHelper @Inject constructor(
         context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
     }
 
+    /** Light tick — widget touch-down. */
+    fun vibrateTick() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            vibrator?.vibrate(VibrationEffect.createPredefined(VibrationEffect.EFFECT_TICK))
+        } else {
+            @Suppress("DEPRECATION")
+            vibrator?.vibrate(20)
+        }
+    }
+
+    /** Firm click — widget arming completes and recording starts. */
+    fun vibrateClick() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            vibrator?.vibrate(VibrationEffect.createPredefined(VibrationEffect.EFFECT_HEAVY_CLICK))
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            vibrator?.vibrate(VibrationEffect.createOneShot(40, VibrationEffect.DEFAULT_AMPLITUDE))
+        } else {
+            @Suppress("DEPRECATION")
+            vibrator?.vibrate(40)
+        }
+    }
+
+    /** Warning buzz — widget drag crossed the cancel threshold. */
+    fun vibrateWarn() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            vibrator?.vibrate(
+                VibrationEffect.createWaveform(
+                    longArrayOf(0, 30, 40, 30),
+                    intArrayOf(0, 180, 0, 180),
+                    -1
+                )
+            )
+        } else {
+            @Suppress("DEPRECATION")
+            vibrator?.vibrate(longArrayOf(0, 30, 40, 30), -1)
+        }
+    }
+
     fun vibrateShort() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             vibrator?.vibrate(VibrationEffect.createOneShot(50, VibrationEffect.DEFAULT_AMPLITUDE))

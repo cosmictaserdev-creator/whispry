@@ -3,11 +3,10 @@ package com.example.whispry.features.tone.presentation
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
@@ -15,10 +14,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -27,14 +24,19 @@ import androidx.navigation.NavController
 import com.example.whispry.domain.model.OutputPreset
 import com.example.whispry.features.tone.data.model.AppToneEntity
 import com.example.whispry.ui.components.HeaderActionButton
-import com.example.whispry.ui.components.ScreenHeader
-import com.example.whispry.ui.theme.WhispryTheme
-import com.kyant.backdrop.Backdrop
+import com.example.whispry.ui.components.liquidExpand
+import com.example.whispry.ui.components.liquidGlow
+import com.example.whispry.ui.components.rememberLiquidTouch
+import com.example.whispry.ui.components.SheetPrimaryButton
+import com.example.whispry.ui.components.SheetTextField
+import com.example.whispry.ui.components.WhispryBottomSheet
+import com.example.whispry.ui.components.WhispryCard
+import com.example.whispry.ui.components.WhispryDetailScaffold
+import com.example.whispry.ui.components.WhispryEmptyState
+import com.example.whispry.ui.components.WhispryHero
+import com.example.whispry.ui.components.WhispryHeroKeys
+import com.example.whispry.ui.theme.WhispryTokens
 import com.kyant.backdrop.backdrops.LayerBackdrop
-import com.kyant.backdrop.backdrops.rememberLayerBackdrop
-import com.kyant.backdrop.drawBackdrop
-import com.kyant.backdrop.effects.blur
-import com.kyant.backdrop.effects.vibrancy
 import com.kyant.capsule.ContinuousRoundedRectangle
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -43,124 +45,74 @@ fun AppToneScreen(
     viewModel: AppToneViewModel,
     navController: NavController,
     backdrop: LayerBackdrop,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    hero: WhispryHero? = null
 ) {
     val appTones by viewModel.appTones.collectAsState()
     val installedApps by viewModel.installedApps.collectAsState()
     var showAddDialog by remember { mutableStateOf(false) }
+    var sheetProgress by remember { mutableFloatStateOf(0f) }
 
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .background(Color(0xFF08080C))
+    WhispryDetailScaffold(
+        title = "App-Aware Tones",
+        onBack = { navController.popBackStack() },
+        subtitle = "Automatically adjust transcription formatting and tone based on the active foreground application (e.g. professional for Slack, casual for WhatsApp).",
+        pushBackProgress = if (showAddDialog) sheetProgress else 0f,
+        hero = hero,
+        heroKey = WhispryHeroKeys.AppTones,
+        modifier = modifier,
+        headerActions = {
+            HeaderActionButton(Icons.Rounded.Add, "Add mapping") { showAddDialog = true }
+        }
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 24.dp)
-        ) {
-            // Header Row
-            ScreenHeader(
-                title = "App-Aware Tones",
-                onBack = { navController.popBackStack() },
-                actions = {
-                    HeaderActionButton(Icons.Rounded.Add, "Add mapping") { showAddDialog = true }
-                }
+        if (appTones.isEmpty()) {
+            WhispryEmptyState(
+                title = "No app tone mappings yet",
+                hint = "Tap + to customize formatting for an app"
             )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Subtitle
-            Text(
-                text = "Automatically adjust transcription formatting and tone based on the active foreground application (e.g. professional for Slack, casual for WhatsApp).",
-                color = Color.White.copy(alpha = 0.6f),
-                fontSize = 14.sp,
-                lineHeight = 20.sp,
-                modifier = Modifier.padding(bottom = 24.dp)
-            )
-
-            if (appTones.isEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        Text(
-                            text = "No app tone mappings yet",
-                            color = Color.White.copy(alpha = 0.5f),
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 16.sp
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "Tap + to customize formatting for an app",
-                            color = Color.White.copy(alpha = 0.3f),
-                            fontSize = 13.sp
-                        )
-                    }
-                }
-            } else {
-                LazyColumn(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
-                    contentPadding = PaddingValues(bottom = 120.dp)
-                ) {
-                    items(appTones, key = { it.packageName }) { mapping ->
-                        AppToneCard(
-                            mapping = mapping,
-                            onDelete = { viewModel.deleteAppTone(mapping.packageName) }
-                        )
-                    }
+        } else {
+            LazyColumn(
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                contentPadding = PaddingValues(bottom = 120.dp)
+            ) {
+                items(appTones, key = { it.packageName }) { mapping ->
+                    AppToneCard(
+                        modifier = Modifier.animateItem(),
+                        mapping = mapping,
+                        onDelete = { viewModel.deleteAppTone(mapping.packageName) }
+                    )
                 }
             }
         }
+    }
 
-        // Add Mapping Dialog
-        if (showAddDialog) {
-            AddAppToneDialog(
-                installedApps = installedApps,
-                alreadyMappedPackages = appTones.map { it.packageName }.toSet(),
-                onDismiss = { showAddDialog = false },
-                onSave = { packageName, appName, preset, customPrompt ->
-                    viewModel.saveAppTone(packageName, appName, preset.name, customPrompt)
-                    showAddDialog = false
-                }
-            )
-        }
+    if (showAddDialog) {
+        AddAppToneSheet(
+            installedApps = installedApps,
+            alreadyMappedPackages = appTones.map { it.packageName }.toSet(),
+            onDismiss = { showAddDialog = false },
+            onDragProgress = { sheetProgress = it },
+            onSave = { packageName, appName, preset, customPrompt ->
+                viewModel.saveAppTone(packageName, appName, preset.name, customPrompt)
+                showAddDialog = false
+            }
+        )
     }
 }
 
 @Composable
 private fun AppToneCard(
     mapping: AppToneEntity,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    val accentColor = androidx.compose.ui.graphics.Color.White
-    val backdropState = rememberLayerBackdrop()
+    val accentColor = Color.White
     val preset = remember(mapping.presetName) {
         OutputPreset.values().find { it.name == mapping.presetName } ?: OutputPreset.NONE
     }
 
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .graphicsLayer {
-                clip = true
-                shape = ContinuousRoundedRectangle(16.dp)
-            }
-            .shadow(4.dp, com.kyant.capsule.ContinuousRoundedRectangle(16.dp), spotColor = androidx.compose.ui.graphics.Color.Black)
-                    .background(com.example.whispry.ui.theme.WhispryTokens.SurfaceElevated, com.kyant.capsule.ContinuousRoundedRectangle(16.dp))
-                    .border(1.dp, com.example.whispry.ui.theme.WhispryTokens.GlassBorder, com.kyant.capsule.ContinuousRoundedRectangle(16.dp))
-            .border(1.dp, Color.White.copy(alpha = 0.08f), ContinuousRoundedRectangle(16.dp))
-            .padding(16.dp)
-    ) {
+    WhispryCard(modifier = modifier) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth()
@@ -182,7 +134,6 @@ private fun AppToneCard(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Mapped Preset Pill Badge
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
@@ -193,7 +144,7 @@ private fun AppToneCard(
                 ) {
                     Text(
                         text = "${preset.emoji}  ${preset.displayName}",
-                        color = androidx.compose.ui.graphics.Color.White,
+                        color = Color.White,
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 13.sp
                     )
@@ -214,7 +165,6 @@ private fun AppToneCard(
 
             Spacer(modifier = Modifier.width(16.dp))
 
-            // Delete Button
             IconButton(
                 onClick = onDelete,
                 modifier = Modifier
@@ -233,262 +183,236 @@ private fun AppToneCard(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AddAppToneDialog(
+private fun AddAppToneSheet(
     installedApps: List<AppInfo>,
     alreadyMappedPackages: Set<String>,
     onDismiss: () -> Unit,
+    onDragProgress: (Float) -> Unit,
     onSave: (packageName: String, appName: String, preset: OutputPreset, customPrompt: String) -> Unit
 ) {
-    var searchQuery by remember { mutableStateOf("") }
-    val filteredApps = remember(installedApps, alreadyMappedPackages, searchQuery) {
-        installedApps.filter { 
-            !alreadyMappedPackages.contains(it.packageName) &&
-            (it.appName.contains(searchQuery, ignoreCase = true) || it.packageName.contains(searchQuery, ignoreCase = true))
-        }
-    }
-
     var selectedApp by remember { mutableStateOf<AppInfo?>(null) }
     var selectedPreset by remember { mutableStateOf(OutputPreset.INTELLIGENT_FORMAT) }
     var customPrompt by remember { mutableStateOf("") }
-    var expandedPresetMenu by remember { mutableStateOf(false) }
-    var expandedAppMenu by remember { mutableStateOf(false) }
+    var showAppPicker by remember { mutableStateOf(false) }
+    var showPresetPicker by remember { mutableStateOf(false) }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Text(
-                text = "Map App Formatting",
-                color = Color.White,
-                fontWeight = FontWeight.Bold
+    WhispryBottomSheet(
+        title = "Map App Formatting",
+        onDismiss = onDismiss,
+        heightFraction = 0.9f,
+        onDragProgress = onDragProgress
+    ) {
+        SelectorField(
+            label = "Target App",
+            value = selectedApp?.appName,
+            placeholder = "Select an App…",
+            onClick = { showAppPicker = true }
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        SelectorField(
+            label = "Formatting Preset / Tone",
+            value = "${selectedPreset.emoji}  ${selectedPreset.displayName}",
+            placeholder = "Select a preset…",
+            onClick = { showPresetPicker = true }
+        )
+
+        if (selectedPreset == OutputPreset.CUSTOM) {
+            Spacer(modifier = Modifier.height(16.dp))
+            SheetTextField(
+                value = customPrompt,
+                onValueChange = { customPrompt = it },
+                label = "Custom Instructions for this App",
+                placeholder = "e.g. Write a brief professional reply, start with hello…",
+                minLines = 4
             )
-        },
-        containerColor = Color(0xFF14141E),
-        text = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                // Application Picker Selection
-                Column {
-                    Text(
-                        text = "Target App",
-                        color = Color.White.copy(alpha = 0.6f),
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
+        }
 
-                    Box(
+        Spacer(modifier = Modifier.height(24.dp))
+        SheetPrimaryButton(enabled = selectedApp != null) {
+            selectedApp?.let { onSave(it.packageName, it.appName, selectedPreset, customPrompt) }
+        }
+    }
+
+    if (showAppPicker) {
+        AppPickerSheet(
+            apps = installedApps.filter { !alreadyMappedPackages.contains(it.packageName) },
+            onDismiss = { showAppPicker = false },
+            onPick = { selectedApp = it; showAppPicker = false }
+        )
+    }
+
+    if (showPresetPicker) {
+        PresetPickerSheet(
+            current = selectedPreset,
+            onDismiss = { showPresetPicker = false },
+            onPick = { selectedPreset = it; showPresetPicker = false }
+        )
+    }
+}
+
+/** A tappable field row that opens a picker — matches the SheetTextField glass style. */
+@Composable
+private fun SelectorField(
+    label: String,
+    value: String?,
+    placeholder: String,
+    onClick: () -> Unit
+) {
+    Column {
+        Text(
+            text = label,
+            color = WhispryTokens.TextSecondary,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        val touch = rememberLiquidTouch()
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp)
+                .liquidExpand(touch)
+                .clip(ContinuousRoundedRectangle(16.dp))
+                .background(Color.White.copy(alpha = 0.05f))
+                .border(1.dp, Color.White.copy(alpha = 0.12f), ContinuousRoundedRectangle(16.dp))
+                .liquidGlow(touch, ContinuousRoundedRectangle(16.dp))
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onClick
+                )
+                .padding(horizontal = 16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = value ?: placeholder,
+                color = if (value != null) Color.White else Color.White.copy(alpha = 0.4f),
+                modifier = Modifier.weight(1f)
+            )
+            Icon(Icons.Rounded.ExpandMore, null, tint = Color.White.copy(alpha = 0.6f))
+        }
+    }
+}
+
+@Composable
+private fun AppPickerSheet(
+    apps: List<AppInfo>,
+    onDismiss: () -> Unit,
+    onPick: (AppInfo) -> Unit
+) {
+    var query by remember { mutableStateOf("") }
+    val filtered = remember(apps, query) {
+        if (query.isBlank()) apps
+        else apps.filter { it.appName.contains(query, ignoreCase = true) || it.packageName.contains(query, ignoreCase = true) }
+    }
+
+    WhispryBottomSheet(
+        title = "Choose App",
+        onDismiss = onDismiss,
+        heightFraction = 0.85f,
+        scrollableContent = false
+    ) {
+        SheetTextField(
+            value = query,
+            onValueChange = { query = it },
+            label = "Search apps",
+            placeholder = "Search apps",
+            singleLine = true
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        if (filtered.isEmpty()) {
+            Text("No apps found", color = Color.White.copy(alpha = 0.5f), modifier = Modifier.padding(16.dp))
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxWidth().weight(1f),
+                contentPadding = PaddingValues(bottom = 24.dp)
+            ) {
+                items(filtered, key = { it.packageName }) { app ->
+                    val touch = rememberLiquidTouch()
+                    Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(56.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(Color.White.copy(alpha = 0.05f))
-                            .border(1.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(12.dp))
-                            .clickable { expandedAppMenu = true }
-                            .padding(horizontal = 16.dp),
-                        contentAlignment = Alignment.CenterStart
+                            .liquidExpand(touch)
+                            .liquidGlow(touch, ContinuousRoundedRectangle(12.dp))
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                                onClick = { onPick(app) }
+                            )
+                            .padding(horizontal = 12.dp, vertical = 12.dp)
                     ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text(
-                                text = selectedApp?.appName ?: "Select an App...",
-                                color = if (selectedApp != null) Color.White else Color.White.copy(alpha = 0.4f),
-                                modifier = Modifier.weight(1f)
-                            )
-                            Icon(
-                                imageVector = Icons.Rounded.ArrowDropDown,
-                                contentDescription = "Dropdown",
-                                tint = Color.White.copy(alpha = 0.6f)
-                            )
-                        }
-                    }
-
-                    if (expandedAppMenu) {
-                        DropdownMenu(
-                            expanded = expandedAppMenu,
-                            onDismissRequest = { expandedAppMenu = false },
-                            modifier = Modifier
-                                .fillMaxWidth(0.8f)
-                                .heightIn(max = 280.dp)
-                                .background(Color(0xFF1F1F2E))
-                        ) {
-                            // Search Box in dropdown
-                            OutlinedTextField(
-                                value = searchQuery,
-                                onValueChange = { searchQuery = it },
-                                placeholder = { Text("Search apps...", color = Color.White.copy(alpha = 0.4f)) },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(8.dp),
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = androidx.compose.ui.graphics.Color.White,
-                                    unfocusedBorderColor = Color.White.copy(alpha = 0.1f),
-                                    focusedTextColor = Color.White,
-                                    unfocusedTextColor = Color.White
-                                )
-                            )
-
-                            if (filteredApps.isEmpty()) {
-                                DropdownMenuItem(
-                                    text = { Text("No apps found", color = Color.White.copy(alpha = 0.5f)) },
-                                    onClick = {}
-                                )
-                            } else {
-                                filteredApps.forEach { app ->
-                                    DropdownMenuItem(
-                                        text = {
-                                            Column {
-                                                Text(app.appName, color = Color.White, fontWeight = FontWeight.SemiBold)
-                                                Text(app.packageName, color = Color.White.copy(alpha = 0.4f), fontSize = 11.sp)
-                                            }
-                                        },
-                                        onClick = {
-                                            selectedApp = app
-                                            expandedAppMenu = false
-                                        }
-                                    )
-                                }
-                            }
-                        }
+                        Text(app.appName, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+                        Text(app.packageName, color = Color.White.copy(alpha = 0.4f), fontSize = 11.sp)
                     }
                 }
-
-                // Preset Selection
-                Column {
-                    Text(
-                        text = "Formatting Preset / Tone",
-                        color = Color.White.copy(alpha = 0.6f),
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(56.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(Color.White.copy(alpha = 0.05f))
-                            .border(1.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(12.dp))
-                            .clickable { expandedPresetMenu = true }
-                            .padding(horizontal = 16.dp),
-                        contentAlignment = Alignment.CenterStart
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text(
-                                text = "${selectedPreset.emoji}  ${selectedPreset.displayName}",
-                                color = Color.White,
-                                modifier = Modifier.weight(1f)
-                            )
-                            Icon(
-                                imageVector = Icons.Rounded.ArrowDropDown,
-                                contentDescription = "Dropdown",
-                                tint = Color.White.copy(alpha = 0.6f)
-                            )
-                        }
-                    }
-
-                    DropdownMenu(
-                        expanded = expandedPresetMenu,
-                        onDismissRequest = { expandedPresetMenu = false },
-                        modifier = Modifier
-                            .fillMaxWidth(0.8f)
-                            .background(Color(0xFF1F1F2E))
-                    ) {
-                        OutputPreset.byGroup().forEach { (group, presets) ->
-                            Text(
-                                text = group.displayName,
-                                color = Color.White.copy(alpha = 0.4f),
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                modifier = Modifier.padding(start = 16.dp, top = 10.dp, bottom = 4.dp)
-                            )
-                            presets.forEach { preset ->
-                                DropdownMenuItem(
-                                    text = {
-                                        Column {
-                                            Text("${preset.emoji} ${preset.displayName}", color = Color.White, fontWeight = FontWeight.SemiBold)
-                                            Text(preset.description, color = Color.White.copy(alpha = 0.5f), fontSize = 11.sp)
-                                        }
-                                    },
-                                    onClick = {
-                                        selectedPreset = preset
-                                        expandedPresetMenu = false
-                                    }
-                                )
-                            }
-                        }
-                    }
-                }
-
-                // Custom Prompt Override Input (shown if Custom Preset is selected)
-                if (selectedPreset == OutputPreset.CUSTOM) {
-                    Column {
-                        Text(
-                            text = "Custom Instructions for this App",
-                            color = Color.White.copy(alpha = 0.6f),
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        OutlinedTextField(
-                            value = customPrompt,
-                            onValueChange = { customPrompt = it },
-                            placeholder = {
-                                Text(
-                                    text = "e.g. Write a brief professional reply, start with hello...",
-                                    color = Color.White.copy(alpha = 0.4f),
-                                    fontSize = 14.sp
-                                )
-                            },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(120.dp),
-                            maxLines = 5,
-                            shape = RoundedCornerShape(12.dp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = androidx.compose.ui.graphics.Color.White,
-                                unfocusedBorderColor = Color.White.copy(alpha = 0.1f),
-                                focusedTextColor = Color.White,
-                                unfocusedTextColor = Color.White
-                            )
-                        )
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = {
-                    selectedApp?.let {
-                        onSave(it.packageName, it.appName, selectedPreset, customPrompt)
-                    }
-                },
-                enabled = selectedApp != null,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = com.example.whispry.ui.theme.WhispryTheme.colors.accent,
-                    disabledContentColor = com.example.whispry.ui.theme.WhispryTheme.colors.accent.copy(alpha = 0.4f)
-                ),
-                shape = RoundedCornerShape(10.dp)
-            ) {
-                Text("Save", color = Color.White, fontWeight = FontWeight.Bold)
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel", color = Color.White.copy(alpha = 0.6f))
             }
         }
-    )
+    }
+}
+
+@Composable
+private fun PresetPickerSheet(
+    current: OutputPreset,
+    onDismiss: () -> Unit,
+    onPick: (OutputPreset) -> Unit
+) {
+    WhispryBottomSheet(
+        title = "Choose Preset",
+        onDismiss = onDismiss,
+        heightFraction = 0.85f,
+        scrollableContent = false
+    ) {
+        LazyColumn(
+            modifier = Modifier.fillMaxWidth().weight(1f),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = PaddingValues(bottom = 24.dp)
+        ) {
+            OutputPreset.byGroup().forEach { (group, presets) ->
+                item(key = "header_${group.name}") {
+                    Text(
+                        group.displayName,
+                        color = Color.White.copy(alpha = 0.4f),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(start = 4.dp, top = 8.dp, bottom = 2.dp)
+                    )
+                }
+                items(presets, key = { it.name }) { preset ->
+                    val selected = preset == current
+                    val touch = rememberLiquidTouch()
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .liquidExpand(touch)
+                            .clip(ContinuousRoundedRectangle(14.dp))
+                            .background(if (selected) Color.White.copy(alpha = 0.1f) else Color.Transparent)
+                            .liquidGlow(touch, ContinuousRoundedRectangle(14.dp))
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                                onClick = { onPick(preset) }
+                            )
+                            .padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(preset.emoji, fontSize = 22.sp)
+                        Spacer(modifier = Modifier.width(14.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                preset.displayName,
+                                color = Color.White,
+                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                                fontSize = 15.sp
+                            )
+                            Text(preset.description, color = Color.White.copy(alpha = 0.4f), fontSize = 12.sp)
+                        }
+                        if (selected) Icon(Icons.Rounded.Check, null, tint = Color.White, modifier = Modifier.size(18.dp))
+                    }
+                }
+            }
+        }
+    }
 }

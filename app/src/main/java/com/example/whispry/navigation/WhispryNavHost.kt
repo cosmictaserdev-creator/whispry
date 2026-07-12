@@ -29,9 +29,11 @@ import com.example.whispry.presentation.main.HomeScreen
 import com.example.whispry.presentation.presets.PresetsScreen
 import com.example.whispry.presentation.settings.SettingsScreen
 import com.example.whispry.presentation.settings.SettingsViewModel
+import com.example.whispry.ui.components.WhispryHero
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.backdrops.LayerBackdrop
 
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 fun WhispryNavHost(
     navController: NavHostController,
@@ -42,10 +44,11 @@ fun WhispryNavHost(
     onSearchActiveChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    SharedTransitionLayout(modifier = modifier.fillMaxSize()) {
     NavHost(
         navController = navController,
         startDestination = Route.Home,
-        modifier = modifier.fillMaxSize(),
+        modifier = Modifier.fillMaxSize(),
         enterTransition = {
             fadeIn(tween(200)) +
                     slideIntoContainer(
@@ -122,7 +125,8 @@ fun WhispryNavHost(
                 onNavigateToAppTones = { navController.navigate(Route.AppTones) },
                 onNavigateToMemory = { navController.navigate(Route.Memory) },
                 onNavigateToMyInfo = { navController.navigate(Route.MyInfo) },
-                onNavigateToVoiceCommands = { navController.navigate(Route.VoiceCommands) }
+                onNavigateToVoiceCommands = { navController.navigate(Route.VoiceCommands) },
+                hero = WhispryHero(this@SharedTransitionLayout, this)
             )
         }
         composable<Route.About> {
@@ -133,7 +137,8 @@ fun WhispryNavHost(
             TextExpanderScreen(
                 viewModel = vm,
                 navController = navController,
-                backdrop = globalGlassBackdrop
+                backdrop = globalGlassBackdrop,
+                hero = WhispryHero(this@SharedTransitionLayout, this)
             )
         }
         composable<Route.AppTones> {
@@ -141,7 +146,8 @@ fun WhispryNavHost(
             AppToneScreen(
                 viewModel = vm,
                 navController = navController,
-                backdrop = globalGlassBackdrop
+                backdrop = globalGlassBackdrop,
+                hero = WhispryHero(this@SharedTransitionLayout, this)
             )
         }
         composable<Route.Memory> {
@@ -149,7 +155,8 @@ fun WhispryNavHost(
             MemoryScreen(
                 viewModel = vm,
                 navController = navController,
-                backdrop = globalGlassBackdrop
+                backdrop = globalGlassBackdrop,
+                hero = WhispryHero(this@SharedTransitionLayout, this)
             )
         }
         composable<Route.MyInfo> {
@@ -157,15 +164,18 @@ fun WhispryNavHost(
             MyInfoScreen(
                 viewModel = vm,
                 navController = navController,
-                backdrop = globalGlassBackdrop
+                backdrop = globalGlassBackdrop,
+                hero = WhispryHero(this@SharedTransitionLayout, this)
             )
         }
         composable<Route.VoiceCommands> {
             val vm: VoiceCommandViewModel = hiltViewModel()
             VoiceCommandScreen(
                 viewModel = vm,
-                navController = navController
+                navController = navController,
+                hero = WhispryHero(this@SharedTransitionLayout, this)
             )
         }
+    }
     }
 }

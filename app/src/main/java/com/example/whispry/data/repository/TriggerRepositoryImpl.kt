@@ -38,8 +38,9 @@ class TriggerRepositoryImpl @Inject constructor(
         if (hasActionButton()) {
             modes.add(TriggerMode.ActionButton)
         }
-        
-        modes.add(TriggerMode.FloatingWidget)
+
+        // FloatingWidget is no longer offered: the widget coexists with every trigger
+        // and is controlled by its own enable toggle in Settings.
         modes.add(TriggerMode.Manual)
         
         return modes

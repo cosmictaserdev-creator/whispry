@@ -13,6 +13,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.VolumeOff
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
@@ -40,16 +41,32 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.whispry.R
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.example.whispry.presentation.common.CoachMark
+import com.example.whispry.presentation.common.CoachMarkOverlay
+import com.example.whispry.presentation.common.CoachMarkViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.whispry.domain.model.FormattingProviderPreset
 import com.example.whispry.domain.model.OutputPreset
 import com.example.whispry.domain.model.PressAction
 import com.example.whispry.domain.model.RetentionPolicy
+import com.example.whispry.domain.model.TranscriptionProviderPreset
 import com.example.whispry.domain.model.TriggerMode
 import com.example.whispry.service.TriggerSound
 import com.example.whispry.ui.components.WhispryBottomSheet
+import com.example.whispry.ui.components.liquidExpand
+import com.example.whispry.ui.components.liquidGlow
+import com.example.whispry.ui.components.rememberLiquidTouch
+import com.example.whispry.ui.components.WhispryHero
+import com.example.whispry.ui.components.WhispryHeroKeys
+import com.example.whispry.ui.components.heroSharedBounds
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -97,10 +114,12 @@ fun SettingsScreen(
     onNavigateToMemory: () -> Unit = {},
     onNavigateToMyInfo: () -> Unit = {},
     onNavigateToVoiceCommands: () -> Unit = {},
+    hero: WhispryHero? = null,
     modifier: Modifier = Modifier
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    val coachVm: CoachMarkViewModel = hiltViewModel()
     var showRetentionPicker by remember { mutableStateOf(false) }
     val isMasterDetail = masterDetailEnabledFor(currentWidthSizeClass())
     var selectedCategory by rememberSaveable { mutableStateOf(SettingsCategory.Voice) }
@@ -143,6 +162,7 @@ fun SettingsScreen(
                         onNavigateToMemory = onNavigateToMemory,
                         onNavigateToMyInfo = onNavigateToMyInfo,
                         onNavigateToVoiceCommands = onNavigateToVoiceCommands,
+                        hero = hero,
                         onShowRetentionPicker = { showRetentionPicker = true }
                     )
                 }
@@ -172,14 +192,17 @@ fun SettingsScreen(
                     )
                 }
                 item { VoiceRecognitionSection(state, viewModel, backdrop, onShowLanguagePicker) }
+                item { AiProviderSection(state, viewModel, backdrop) }
                 item { TriggerMethodSection(state, viewModel, backdrop) }
                 item { PressActionsSection(state, viewModel, backdrop) }
+                item { FloatingWidgetSection(state, viewModel, backdrop) }
                 item { InterfaceSoundsSection(state, viewModel, backdrop) }
                 item {
                     ProductivitySection(
                         state, viewModel, backdrop,
                         onNavigateToTextExpander, onNavigateToAppTones, onNavigateToMemory,
-                        onNavigateToMyInfo, onNavigateToVoiceCommands
+                        onNavigateToMyInfo, onNavigateToVoiceCommands,
+                        hero = hero
                     )
                 }
                 item { DataPrivacySection(state, viewModel, backdrop) { showRetentionPicker = true } }
@@ -199,6 +222,13 @@ fun SettingsScreen(
                 backdrop = backdrop
             )
         }
+
+        CoachMarkOverlay(
+            visible = coachVm.shouldShow(CoachMark.SETTINGS),
+            title = "Make Whispry yours",
+            message = "This is your control room — set your trigger key and gesture, sounds, privacy, and more. The trigger settings up top are the place to start.",
+            onDismiss = { coachVm.markSeen(CoachMark.SETTINGS) }
+        )
     }
 }
 
@@ -248,9 +278,11 @@ private fun SettingsCategoryRow(
     selected: Boolean,
     onClick: () -> Unit
 ) {
+    val touch = rememberLiquidTouch(intensity = 0.35f)
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .liquidExpand(touch)
             .clip(RoundedCornerShape(16.dp))
             .background(if (selected) Color.White.copy(alpha = 0.08f) else Color.Transparent)
             .border(
@@ -258,7 +290,12 @@ private fun SettingsCategoryRow(
                 if (selected) Color.White.copy(alpha = 0.12f) else Color.Transparent,
                 RoundedCornerShape(16.dp)
             )
-            .clickable(onClick = onClick)
+            .liquidGlow(touch, RoundedCornerShape(16.dp))
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick
+            )
             .padding(horizontal = 14.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -299,6 +336,7 @@ private fun SettingsDetailPane(
     onNavigateToMemory: () -> Unit,
     onNavigateToMyInfo: () -> Unit,
     onNavigateToVoiceCommands: () -> Unit,
+    hero: WhispryHero? = null,
     onShowRetentionPicker: () -> Unit
 ) {
     LazyColumn(
@@ -314,19 +352,26 @@ private fun SettingsDetailPane(
         item {
             when (category) {
                 SettingsCategory.Voice ->
-                    VoiceRecognitionSection(state, viewModel, backdrop, onShowLanguagePicker)
+                    Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
+                        VoiceRecognitionSection(state, viewModel, backdrop, onShowLanguagePicker)
+                        AiProviderSection(state, viewModel, backdrop)
+                    }
                 SettingsCategory.Trigger ->
                     Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
                         TriggerMethodSection(state, viewModel, backdrop)
                         PressActionsSection(state, viewModel, backdrop)
                     }
                 SettingsCategory.Interface ->
-                    InterfaceSoundsSection(state, viewModel, backdrop)
+                    Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
+                        FloatingWidgetSection(state, viewModel, backdrop)
+                        InterfaceSoundsSection(state, viewModel, backdrop)
+                    }
                 SettingsCategory.Productivity ->
                     ProductivitySection(
                         state, viewModel, backdrop,
                         onNavigateToTextExpander, onNavigateToAppTones, onNavigateToMemory,
-                        onNavigateToMyInfo, onNavigateToVoiceCommands
+                        onNavigateToMyInfo, onNavigateToVoiceCommands,
+                        hero = hero
                     )
                 SettingsCategory.Data ->
                     DataPrivacySection(state, viewModel, backdrop, onShowRetentionPicker)
@@ -360,6 +405,20 @@ private fun VoiceRecognitionSection(
             onClick = onShowLanguagePicker
         )
 
+        AnimatedVisibility(visible = state.language == "hi") {
+            Column {
+                Spacer(modifier = Modifier.height(16.dp))
+                LiquidSettingsToggle(
+                    icon = Icons.Rounded.Translate,
+                    title = "Hinglish output",
+                    checked = state.hinglishOutputEnabled,
+                    onCheckedChange = { viewModel.onIntent(SettingsIntent.SetHinglishOutputEnabled(it)) },
+                    backdrop = backdrop,
+                    helpText = "Romanizes the Hindi transcript into Latin letters (\"kaise ho\" instead of \"कैसे हो\") instead of translating it. Whisper transcribes Hindi in Devanagari script by default; this runs it through the formatting AI to romanize it afterward."
+                )
+            }
+        }
+
         Spacer(modifier = Modifier.height(16.dp))
 
         LiquidSettingsSlider(
@@ -371,6 +430,175 @@ private fun VoiceRecognitionSection(
             startLabel = "Precise",
             endLabel = "Creative",
             helpText = "Controls how creative the AI is when formatting your text. Lower is more literal and predictable; higher is more varied. Keep it low for accurate transcripts."
+        )
+    }
+}
+
+@Composable
+private fun AiProviderSection(
+    state: SettingsState,
+    viewModel: SettingsViewModel,
+    backdrop: LayerBackdrop
+) {
+    SettingsSectionOptimized(title = "AI Providers", backdrop = backdrop) {
+        Text(
+            text = "Choose which AI handles transcription and formatting, independently. Defaults to Groq — change only if you want a different provider.",
+            style = MaterialTheme.typography.labelSmall,
+            color = Color.White.copy(alpha = 0.5f),
+            modifier = Modifier.padding(bottom = 12.dp)
+        )
+
+        ProviderPickerRow(
+            label = "Transcription",
+            options = TranscriptionProviderPreset.entries,
+            selected = state.transcriptionProviderPreset,
+            optionLabel = { it.displayName },
+            onSelect = { viewModel.onIntent(SettingsIntent.SetTranscriptionProviderPreset(it)) }
+        )
+        AnimatedVisibility(visible = state.transcriptionProviderPreset == TranscriptionProviderPreset.CUSTOM) {
+            Column(modifier = Modifier.padding(top = 8.dp)) {
+                ProviderCustomFields(
+                    baseUrl = state.transcriptionCustomBaseUrl,
+                    model = state.transcriptionCustomModel,
+                    onBaseUrlChange = { viewModel.onIntent(SettingsIntent.SetTranscriptionCustomBaseUrl(it)) },
+                    onModelChange = { viewModel.onIntent(SettingsIntent.SetTranscriptionCustomModel(it)) }
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        ApiKeyField(
+            label = "Transcription API Key",
+            apiKey = state.transcriptionApiKey,
+            onValueChange = { viewModel.onIntent(SettingsIntent.SetTranscriptionApiKey(it)) }
+        )
+
+        Spacer(modifier = Modifier.height(20.dp))
+        HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
+        Spacer(modifier = Modifier.height(20.dp))
+
+        ProviderPickerRow(
+            label = "Formatting",
+            options = FormattingProviderPreset.entries,
+            selected = state.formattingProviderPreset,
+            optionLabel = { it.displayName },
+            onSelect = { viewModel.onIntent(SettingsIntent.SetFormattingProviderPreset(it)) }
+        )
+        AnimatedVisibility(visible = state.formattingProviderPreset == FormattingProviderPreset.CUSTOM) {
+            Column(modifier = Modifier.padding(top = 8.dp)) {
+                ProviderCustomFields(
+                    baseUrl = state.formattingCustomBaseUrl,
+                    model = state.formattingCustomModel,
+                    onBaseUrlChange = { viewModel.onIntent(SettingsIntent.SetFormattingCustomBaseUrl(it)) },
+                    onModelChange = { viewModel.onIntent(SettingsIntent.SetFormattingCustomModel(it)) }
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        ApiKeyField(
+            label = "Formatting API Key",
+            apiKey = state.formattingApiKey,
+            onValueChange = { viewModel.onIntent(SettingsIntent.SetFormattingApiKey(it)) }
+        )
+
+        AnimatedVisibility(
+            visible = state.transcriptionProviderPreset == TranscriptionProviderPreset.CUSTOM ||
+                    state.formattingProviderPreset == FormattingProviderPreset.CUSTOM
+        ) {
+            Text(
+                text = "Custom endpoints need HTTPS, or HTTP to a server on the same WiFi network as your phone — a local server becomes unreachable the moment you switch to cellular data.",
+                style = MaterialTheme.typography.labelSmall,
+                color = Color.White.copy(alpha = 0.5f),
+                modifier = Modifier.padding(top = 12.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun <T> ProviderPickerRow(
+    label: String,
+    options: List<T>,
+    selected: T,
+    optionLabel: (T) -> String,
+    onSelect: (T) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Column {
+        Text(
+            label,
+            color = Color.White.copy(alpha = 0.7f),
+            fontSize = 12.sp,
+            modifier = Modifier.padding(bottom = 6.dp)
+        )
+        Box {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color.White.copy(alpha = 0.06f))
+                    .clickable { expanded = true }
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(optionLabel(selected), color = Color.White, fontSize = 14.sp)
+                Icon(
+                    Icons.Rounded.ArrowDropDown,
+                    contentDescription = null,
+                    tint = Color.White.copy(alpha = 0.5f)
+                )
+            }
+            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                options.forEach { option ->
+                    DropdownMenuItem(
+                        text = { Text(optionLabel(option)) },
+                        onClick = {
+                            onSelect(option)
+                            expanded = false
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProviderCustomFields(
+    baseUrl: String,
+    model: String,
+    onBaseUrlChange: (String) -> Unit,
+    onModelChange: (String) -> Unit
+) {
+    Column {
+        OutlinedTextField(
+            value = baseUrl,
+            onValueChange = onBaseUrlChange,
+            label = { Text("Base URL (e.g. https://api.example.com/v1/)", fontSize = 11.sp) },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            shape = RoundedCornerShape(12.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = Color.White,
+                unfocusedBorderColor = Color.White.copy(alpha = 0.1f),
+                focusedTextColor = Color.White,
+                unfocusedTextColor = Color.White
+            )
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        OutlinedTextField(
+            value = model,
+            onValueChange = onModelChange,
+            label = { Text("Model", fontSize = 11.sp) },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            shape = RoundedCornerShape(12.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = Color.White,
+                unfocusedBorderColor = Color.White.copy(alpha = 0.1f),
+                focusedTextColor = Color.White,
+                unfocusedTextColor = Color.White
+            )
         )
     }
 }
@@ -398,39 +626,89 @@ private fun TriggerMethodSection(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            LiquidSettingsToggle(
-                icon = Icons.Rounded.PanTool,
-                title = "Hands-free",
-                checked = state.handsFreeMode,
-                onCheckedChange = { viewModel.onIntent(SettingsIntent.SetHandsFreeMode(it)) },
-                backdrop = backdrop,
-                helpText = "No need to hold the key down. Trigger once to start recording, speak as long as you like, then trigger again to stop. Respects your single/double-press choice — single mode toggles on one press, double mode on a quick double press (to start and to stop)."
-            )
-            Text(
-                "Trigger to start, trigger again to stop — no holding.",
-                style = MaterialTheme.typography.labelSmall,
-                color = Color.White.copy(alpha = 0.4f),
-                modifier = Modifier.padding(start = 36.dp, top = 4.dp)
-            )
+            if (state.pressActionsEnabled) {
+                Text(
+                    "Press Actions (below) has taken over the trigger key — Hands-free and the hold/double-press settings here don't apply until you turn it off.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.White.copy(alpha = 0.5f)
+                )
+            } else {
+                LiquidSettingsToggle(
+                    icon = Icons.Rounded.PanTool,
+                    title = "Hands-free",
+                    checked = state.handsFreeMode,
+                    onCheckedChange = { viewModel.onIntent(SettingsIntent.SetHandsFreeMode(it)) },
+                    backdrop = backdrop,
+                    helpText = "No need to hold the key down. Trigger once to start recording, speak as long as you like, then trigger again to stop. Respects your single/double-press choice — single mode toggles on one press; double mode needs a quick double press to start, but just one press to stop."
+                )
+                Text(
+                    "Trigger to start, trigger again to stop — no holding.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.White.copy(alpha = 0.4f),
+                    modifier = Modifier.padding(start = 36.dp, top = 4.dp)
+                )
 
-            AnimatedVisibility(
-                visible = !state.singlePressTrigger,
-                enter = expandVertically() + fadeIn(),
-                exit = shrinkVertically() + fadeOut()
-            ) {
-                Column(modifier = Modifier.padding(top = 16.dp)) {
-                    LiquidSettingsSlider(
-                        title = "Double-press speed",
-                        value = state.doublePressInterval.toFloat(),
-                        onValueChange = { viewModel.onIntent(SettingsIntent.SetDoublePressInterval(it.toLong())) },
-                        valueRange = 200f..600f,
-                        steps = 7,
-                        backdrop = backdrop,
-                        startLabel = "Fast",
-                        endLabel = "Relaxed",
-                        valueLabel = "${state.doublePressInterval} ms",
-                        helpText = "How quickly the two presses of a double-press must follow each other. Lower is snappier but easier to miss; higher gives you more time between presses."
-                    )
+                AnimatedVisibility(
+                    visible = state.handsFreeMode && state.singlePressTrigger,
+                    enter = expandVertically() + fadeIn(),
+                    exit = shrinkVertically() + fadeOut()
+                ) {
+                    Column(modifier = Modifier.padding(top = 16.dp)) {
+                        LiquidSettingsSlider(
+                            title = "Arming delay",
+                            value = state.handsFreeArmingDelayMs.toFloat(),
+                            onValueChange = { viewModel.onIntent(SettingsIntent.SetHandsFreeArmingDelay(it.toLong())) },
+                            valueRange = 150f..800f,
+                            steps = 12,
+                            backdrop = backdrop,
+                            startLabel = "Snappy",
+                            endLabel = "Deliberate",
+                            valueLabel = "${state.handsFreeArmingDelayMs} ms",
+                            helpText = "How long you must hold the key before it starts recording. A quick tap under this delay acts as a normal key press instead — so you can still use the volume key normally."
+                        )
+                    }
+                }
+
+                AnimatedVisibility(
+                    visible = !state.handsFreeMode && state.singlePressTrigger,
+                    enter = expandVertically() + fadeIn(),
+                    exit = shrinkVertically() + fadeOut()
+                ) {
+                    Column(modifier = Modifier.padding(top = 16.dp)) {
+                        LiquidSettingsSlider(
+                            title = "Hold delay",
+                            value = state.singlePressHoldDelayMs.toFloat(),
+                            onValueChange = { viewModel.onIntent(SettingsIntent.SetSinglePressHoldDelay(it.toLong())) },
+                            valueRange = 150f..1500f,
+                            steps = 26,
+                            backdrop = backdrop,
+                            startLabel = "Snappy",
+                            endLabel = "Deliberate",
+                            valueLabel = "${state.singlePressHoldDelayMs} ms",
+                            helpText = "How long you must hold the key before recording starts. A quick tap under this delay passes through as a normal volume press instead — this is the plain press-and-hold trigger, separate from Hands-free's own arming delay above."
+                        )
+                    }
+                }
+
+                AnimatedVisibility(
+                    visible = !state.singlePressTrigger,
+                    enter = expandVertically() + fadeIn(),
+                    exit = shrinkVertically() + fadeOut()
+                ) {
+                    Column(modifier = Modifier.padding(top = 16.dp)) {
+                        LiquidSettingsSlider(
+                            title = "Double-press speed",
+                            value = state.doublePressInterval.toFloat(),
+                            onValueChange = { viewModel.onIntent(SettingsIntent.SetDoublePressInterval(it.toLong())) },
+                            valueRange = 200f..1500f,
+                            steps = 25,
+                            backdrop = backdrop,
+                            startLabel = "Fast",
+                            endLabel = "Relaxed",
+                            valueLabel = "${state.doublePressInterval} ms",
+                            helpText = "How quickly the two presses of a double-press must follow each other. Lower is snappier but easier to miss; higher gives you more time between presses."
+                        )
+                    }
                 }
             }
         }
@@ -492,6 +770,21 @@ private fun PressActionsSection(
                     title = "Double press",
                     value = PressAction.parse(state.doublePressAction).displayLabel(),
                     onClick = { openPicker = "double" }
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                LiquidSettingsSlider(
+                    title = "Double-press speed",
+                    value = state.doublePressInterval.toFloat(),
+                    onValueChange = { viewModel.onIntent(SettingsIntent.SetDoublePressInterval(it.toLong())) },
+                    valueRange = 200f..1500f,
+                    steps = 25,
+                    backdrop = backdrop,
+                    startLabel = "Fast",
+                    endLabel = "Relaxed",
+                    valueLabel = "${state.doublePressInterval} ms",
+                    helpText = "How quickly the two presses of a double-press must follow each other. Lower is snappier but easier to miss; higher gives you more time between presses."
                 )
             }
         }
@@ -608,12 +901,19 @@ private fun PressActionOptionRow(
     selected: Boolean,
     onClick: () -> Unit
 ) {
+    val touch = rememberLiquidTouch(intensity = 0.35f)
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .liquidExpand(touch)
             .clip(RoundedCornerShape(16.dp))
             .background(if (selected) Color.White.copy(alpha = 0.08f) else Color.Transparent)
-            .clickable(onClick = onClick)
+            .liquidGlow(touch, RoundedCornerShape(16.dp))
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick
+            )
             .padding(horizontal = 14.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -638,6 +938,201 @@ private fun PressActionOptionRow(
     }
 }
 
+/**
+ * The floating physical-switch widget: always-available press-to-talk surface that coexists
+ * with every other trigger. Enable toggle routes through the overlay permission; everything
+ * else (shape, idle behavior, taps, edit mode) lives behind it.
+ */
+@Composable
+private fun FloatingWidgetSection(
+    state: SettingsState,
+    viewModel: SettingsViewModel,
+    backdrop: LayerBackdrop
+) {
+    val context = LocalContext.current
+    val cfg = state.widgetConfig
+
+    SettingsSectionOptimized(title = "Floating Switch", backdrop = backdrop) {
+        LiquidSettingsToggle(
+            icon = Icons.Rounded.OpenInNew,
+            title = "Floating Switch",
+            checked = state.floatingWidgetEnabled,
+            onCheckedChange = { enabled ->
+                if (enabled && !android.provider.Settings.canDrawOverlays(context)) {
+                    val intent = android.content.Intent(
+                        android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                        android.net.Uri.parse("package:${context.packageName}")
+                    )
+                    context.startActivity(intent)
+                }
+                viewModel.onIntent(SettingsIntent.SetFloatingWidgetEnabled(enabled))
+            },
+            backdrop = backdrop,
+            helpText = "A small accent-colored switch that stays on screen. Press and hold it to talk, release to send, or flick it down to cancel. It works alongside your other triggers and fades out of the way when idle."
+        )
+
+        AnimatedVisibility(
+            visible = state.floatingWidgetEnabled,
+            enter = expandVertically() + fadeIn(),
+            exit = shrinkVertically() + fadeOut()
+        ) {
+            Column(modifier = Modifier.padding(top = 16.dp)) {
+                SettingsRow(
+                    icon = Icons.Rounded.Category,
+                    title = "Shape",
+                    value = if (cfg.shapeMode == com.example.whispry.service.WidgetShapeMode.RAMP) "Edge ramp" else "Corner arch",
+                    helpText = "Edge ramp is a slim wedge hugging the left or right edge. Corner arch wraps around a screen corner and follows its curve — adjust the arch in edit mode to match your device.",
+                    onClick = {
+                        val next = if (cfg.shapeMode == com.example.whispry.service.WidgetShapeMode.RAMP)
+                            com.example.whispry.service.WidgetShapeMode.CORNER
+                        else com.example.whispry.service.WidgetShapeMode.RAMP
+                        viewModel.onIntent(SettingsIntent.SetWidgetShapeMode(next.name))
+                    }
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                SettingsRow(
+                    icon = Icons.Rounded.OpenWith,
+                    title = "Adjust position & size",
+                    value = "",
+                    helpText = "Opens a live preview over your home screen. Drag the switch anywhere (it snaps to edges or corners), fine-tune its size, then tap Done.",
+                    onClick = { viewModel.onIntent(SettingsIntent.EnterWidgetEditMode) }
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                LiquidSettingsSlider(
+                    title = "Anti-accident delay",
+                    value = cfg.armingDelayMs.toFloat(),
+                    onValueChange = { viewModel.onIntent(SettingsIntent.SetWidgetArmingDelay(it.toLong())) },
+                    valueRange = 150f..800f,
+                    steps = 12,
+                    backdrop = backdrop,
+                    startLabel = "Fast",
+                    endLabel = "Delayed",
+                    valueLabel = "${cfg.armingDelayMs} ms",
+                    helpText = "How long you must hold before recording actually starts. The switch fills up while you wait, then clicks when it arms — accidental brushes never fire."
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                LiquidSettingsSlider(
+                    title = "Idle transparency",
+                    value = cfg.idleOpacityPct.toFloat(),
+                    onValueChange = { viewModel.onIntent(SettingsIntent.SetWidgetIdleOpacity(it.toInt())) },
+                    valueRange = 10f..80f,
+                    backdrop = backdrop,
+                    startLabel = "Subtle",
+                    endLabel = "Visible",
+                    valueLabel = "${cfg.idleOpacityPct}%",
+                    helpText = "How visible the switch stays after it fades. The touch area never shrinks — a faded switch is just as easy to grab."
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                LiquidSettingsSlider(
+                    title = "Fade delay",
+                    value = (cfg.fadeDelayMs / 1000f),
+                    onValueChange = { viewModel.onIntent(SettingsIntent.SetWidgetFadeDelay((it * 1000).toLong())) },
+                    valueRange = 1f..10f,
+                    steps = 8,
+                    backdrop = backdrop,
+                    startLabel = "Quick",
+                    endLabel = "Patient",
+                    valueLabel = "${cfg.fadeDelayMs / 1000}s",
+                    helpText = "Seconds of no use before the switch shrinks and fades out of the way."
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                LiquidSettingsToggle(
+                    icon = Icons.Rounded.Tune,
+                    title = "Custom taps",
+                    checked = cfg.customTriggers,
+                    onCheckedChange = { viewModel.onIntent(SettingsIntent.SetWidgetCustomTriggers(it)) },
+                    backdrop = backdrop,
+                    helpText = "Off = same as default: a single tap starts and stops a hands-free recording, holding is always press-to-talk. On = choose what single and double taps do."
+                )
+
+                AnimatedVisibility(
+                    visible = cfg.customTriggers,
+                    enter = expandVertically() + fadeIn(),
+                    exit = shrinkVertically() + fadeOut()
+                ) {
+                    Column(modifier = Modifier.padding(top = 16.dp)) {
+                        SettingsRow(
+                            icon = Icons.Rounded.TouchApp,
+                            title = "Single tap",
+                            value = widgetTapActionLabel(cfg.singleTapAction),
+                            onClick = {
+                                viewModel.onIntent(
+                                    SettingsIntent.SetWidgetSingleTapAction(nextWidgetTapAction(cfg.singleTapAction).serialize())
+                                )
+                            }
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        SettingsRow(
+                            icon = Icons.Rounded.Bolt,
+                            title = "Double tap",
+                            value = widgetTapActionLabel(cfg.doubleTapAction),
+                            onClick = {
+                                viewModel.onIntent(
+                                    SettingsIntent.SetWidgetDoubleTapAction(nextWidgetTapAction(cfg.doubleTapAction).serialize())
+                                )
+                            }
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                LiquidSettingsToggle(
+                    icon = Icons.AutoMirrored.Rounded.VolumeOff,
+                    title = "Mute switch sounds",
+                    checked = cfg.soundMuted,
+                    onCheckedChange = { viewModel.onIntent(SettingsIntent.SetWidgetSoundMuted(it)) },
+                    backdrop = backdrop,
+                    helpText = "Silences the switch's own start cue. Recording sounds from the pill follow your Trigger Sounds setting."
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                SettingsRow(
+                    icon = Icons.Rounded.Animation,
+                    title = "Springy animations",
+                    value = when (cfg.motion) {
+                        com.example.whispry.service.WidgetMotionSetting.AUTO -> "Follow system"
+                        com.example.whispry.service.WidgetMotionSetting.ON -> "Always on"
+                        com.example.whispry.service.WidgetMotionSetting.OFF -> "Off"
+                    },
+                    helpText = "The bouncy press-and-cancel animations. \"Follow system\" turns them off automatically when your device's remove-animations accessibility setting is on.",
+                    onClick = {
+                        val next = when (cfg.motion) {
+                            com.example.whispry.service.WidgetMotionSetting.AUTO -> com.example.whispry.service.WidgetMotionSetting.ON
+                            com.example.whispry.service.WidgetMotionSetting.ON -> com.example.whispry.service.WidgetMotionSetting.OFF
+                            com.example.whispry.service.WidgetMotionSetting.OFF -> com.example.whispry.service.WidgetMotionSetting.AUTO
+                        }
+                        viewModel.onIntent(SettingsIntent.SetWidgetMotion(next.name))
+                    }
+                )
+            }
+        }
+    }
+}
+
+private fun widgetTapActionLabel(action: com.example.whispry.service.WidgetTapAction): String =
+    when (action) {
+        com.example.whispry.service.WidgetTapAction.None -> "Nothing"
+        is com.example.whispry.service.WidgetTapAction.ToggleRecord -> "Start & stop recording"
+    }
+
+private fun nextWidgetTapAction(current: com.example.whispry.service.WidgetTapAction): com.example.whispry.service.WidgetTapAction =
+    when (current) {
+        com.example.whispry.service.WidgetTapAction.None -> com.example.whispry.service.WidgetTapAction.ToggleRecord()
+        is com.example.whispry.service.WidgetTapAction.ToggleRecord -> com.example.whispry.service.WidgetTapAction.None
+    }
+
 @Composable
 private fun InterfaceSoundsSection(
     state: SettingsState,
@@ -645,17 +1140,6 @@ private fun InterfaceSoundsSection(
     backdrop: LayerBackdrop
 ) {
     SettingsSectionOptimized(title = "Interface & Sounds", backdrop = backdrop) {
-        LiquidSettingsToggle(
-            icon = Icons.Rounded.OpenInNew,
-            title = "Floating Widget",
-            checked = state.floatingWidgetEnabled,
-            onCheckedChange = { viewModel.onIntent(SettingsIntent.SetFloatingWidgetEnabled(it)) },
-            backdrop = backdrop,
-            helpText = "Shows a small draggable bubble on screen that you tap to start recording — handy when you'd rather not use the volume-key trigger."
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
         LiquidSettingsToggle(
             icon = Icons.Rounded.BlurOn,
             title = "Glass Navbar",
@@ -708,7 +1192,8 @@ private fun ProductivitySection(
     onNavigateToAppTones: () -> Unit,
     onNavigateToMemory: () -> Unit,
     onNavigateToMyInfo: () -> Unit,
-    onNavigateToVoiceCommands: () -> Unit
+    onNavigateToVoiceCommands: () -> Unit,
+    hero: WhispryHero? = null
 ) {
     SettingsSectionOptimized(title = "Productivity", backdrop = backdrop) {
         LiquidSettingsToggle(
@@ -738,6 +1223,8 @@ private fun ProductivitySection(
                     title = "Voice Commands",
                     value = "Word → open / search app",
                     helpText = "Create trigger words that open apps or run searches. Say the word, then your query — e.g. \"chrome best laptops\" searches the web, \"note buy milk\" opens a notes app.",
+                    hero = hero,
+                    heroKey = WhispryHeroKeys.VoiceCommands,
                     onClick = onNavigateToVoiceCommands
                 )
 
@@ -748,6 +1235,8 @@ private fun ProductivitySection(
                     title = "My Info",
                     value = "insert address, email…",
                     helpText = "Save details like your address, email or phone once, then paste any of them by voice with \"insert <name>\" (e.g. \"insert address\").",
+                    hero = hero,
+                    heroKey = WhispryHeroKeys.MyInfo,
                     onClick = onNavigateToMyInfo
                 )
             }
@@ -760,6 +1249,8 @@ private fun ProductivitySection(
             title = "Text Expander",
             value = "expand shortcut → full text",
             helpText = "Save short shortcuts that expand into longer text. Say \"expand <shortcut>\" while recording to paste the full snippet (e.g. \"expand sig\" → your email signature).",
+            hero = hero,
+            heroKey = WhispryHeroKeys.TextExpander,
             onClick = onNavigateToTextExpander
         )
 
@@ -781,6 +1272,8 @@ private fun ProductivitySection(
             title = "Memory Bank",
             value = "Personalize your context",
             helpText = "Store personal facts (names, projects, preferences) that the AI can use to make your transcripts more accurate and personalized.",
+            hero = hero,
+            heroKey = WhispryHeroKeys.Memory,
             onClick = onNavigateToMemory
         )
 
@@ -795,6 +1288,8 @@ private fun ProductivitySection(
                     title = "Configure App Tones",
                     value = "Map apps to presets",
                     helpText = "Map specific apps to a preset, so transcripts are formatted that way whenever that app is in the foreground.",
+                    hero = hero,
+                    heroKey = WhispryHeroKeys.AppTones,
                     onClick = onNavigateToAppTones
                 )
             }
@@ -874,6 +1369,17 @@ private fun ServiceMaintenanceSection(
             value = "Show guide",
             helpText = "Replays the first-time setup guide that explains how triggers and permissions work.",
             onClick = onRevisitTutorial
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        val coachVm: CoachMarkViewModel = hiltViewModel()
+        SettingsRow(
+            icon = Icons.Rounded.Lightbulb,
+            title = "Replay Tips",
+            value = "Show again",
+            helpText = "Shows the first-visit tips on the Presets and Settings screens again.",
+            onClick = { coachVm.replayAll() }
         )
     }
 }
@@ -969,12 +1475,19 @@ fun RetentionPolicyBottomSheet(
 
             RetentionPolicy.entries.forEach { policy ->
                 val isSelected = policy == currentPolicy
+                val touch = rememberLiquidTouch(intensity = 0.35f)
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .liquidExpand(touch)
                         .clip(RoundedCornerShape(16.dp))
                         .background(if (isSelected) androidx.compose.ui.graphics.Color.White.copy(alpha = 0.05f) else Color.Transparent)
-                        .clickable { onPolicySelected(policy) }
+                        .liquidGlow(touch, RoundedCornerShape(16.dp))
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = { onPolicySelected(policy) }
+                        )
                         .padding(16.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -1204,6 +1717,7 @@ fun SettingsSectionOptimized(
     backdrop: Backdrop,
     content: @Composable ColumnScope.() -> Unit
 ) {
+    val touch = rememberLiquidTouch(intensity = 0.35f)
     Column {
         Text(
             text = title,
@@ -1218,6 +1732,9 @@ fun SettingsSectionOptimized(
                 .shadow(4.dp, com.kyant.capsule.ContinuousRoundedRectangle(24.dp), spotColor = androidx.compose.ui.graphics.Color.Black)
                     .background(com.example.whispry.ui.theme.WhispryTokens.SurfaceElevated, com.kyant.capsule.ContinuousRoundedRectangle(24.dp))
                     .border(1.dp, com.example.whispry.ui.theme.WhispryTokens.GlassBorder, com.kyant.capsule.ContinuousRoundedRectangle(24.dp))
+                // Glow blooms wherever the card is touched; no scale/stretch so tapping an inner
+                // control (toggle/slider/row) doesn't make the whole section lurch.
+                .liquidGlow(touch, com.kyant.capsule.ContinuousRoundedRectangle(24.dp))
                 .padding(16.dp)
         ) {
             Column(content = content)
@@ -1253,13 +1770,12 @@ fun SoundChip(
     onClick: () -> Unit
 ) {
     val interactionSource = remember { MutableInteractionSource() }
-    val isPressed by interactionSource.collectIsPressedAsState()
-    val scale by animateFloatAsState(if (isPressed) 0.94f else 1f)
+    val touch = rememberLiquidTouch(intensity = 0.35f)
 
     Box(
         modifier = Modifier
             .height(36.dp)
-            .graphicsLayer { scaleX = scale; scaleY = scale }
+            .liquidExpand(touch)
             .clip(CircleShape)
             .background(
                 if (isSelected) Color.White.copy(alpha = 0.15f)
@@ -1270,6 +1786,7 @@ fun SoundChip(
                 if (isSelected) Color.Transparent else Color.White.copy(alpha = 0.1f),
                 CircleShape
             )
+            .liquidGlow(touch, CircleShape)
             .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
             .padding(horizontal = 12.dp),
         contentAlignment = Alignment.Center
@@ -1293,13 +1810,26 @@ fun TriggerPickerSection(
     val availableModes = state.availableTriggerModes
     val smartSuppression = state.smartTriggerSuppression
 
+    // Phone State is requested just-in-time here — only when the user turns on call suppression.
+    val context = LocalContext.current
+    val phonePermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        // Only persist "on" if actually granted — otherwise the toggle would claim to be
+        // enabled while call suppression has no permission to act on (denial degrades
+        // gracefully: everything else keeps working, this feature just stays off).
+        onIntent(SettingsIntent.SetSmartTriggerSuppression(granted))
+    }
+
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         availableModes.forEach { mode ->
             val isSupported = if (mode is TriggerMode.ActionButton) state.isActionButtonSupported else true
+            val touch = rememberLiquidTouch(intensity = 0.35f)
 
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .liquidExpand(touch, enabled = isSupported)
                     .clip(RoundedCornerShape(16.dp))
                     .border(
                         width = if (isSelected(selectedMode, mode)) 1.5.dp else 1.dp,
@@ -1313,7 +1843,12 @@ fun TriggerPickerSection(
                         if (isSelected(selectedMode, mode)) androidx.compose.ui.graphics.Color.White.copy(alpha = 0.08f)
                         else Color.White.copy(alpha = 0.02f)
                     )
-                    .clickable(enabled = isSupported) { if (isSupported) onIntent(SettingsIntent.SetTriggerMode(mode)) }
+                    .liquidGlow(touch, RoundedCornerShape(16.dp), enabled = isSupported)
+                    .clickable(
+                        enabled = isSupported,
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) { if (isSupported) onIntent(SettingsIntent.SetTriggerMode(mode)) }
                     .padding(12.dp)
                     .graphicsLayer { alpha = if (isSupported) 1f else 0.4f }
             ) {
@@ -1373,7 +1908,18 @@ fun TriggerPickerSection(
                         icon = Icons.Rounded.AutoAwesome,
                         title = "Smart Suppression",
                         checked = smartSuppression,
-                        onCheckedChange = { onIntent(SettingsIntent.SetSmartTriggerSuppression(it)) },
+                        onCheckedChange = { enabled ->
+                            if (enabled && ContextCompat.checkSelfPermission(
+                                    context, Manifest.permission.READ_PHONE_STATE
+                                ) != PackageManager.PERMISSION_GRANTED
+                            ) {
+                                // Persisting happens in the launcher's callback once the grant
+                                // result is actually known — not here.
+                                phonePermissionLauncher.launch(Manifest.permission.READ_PHONE_STATE)
+                            } else {
+                                onIntent(SettingsIntent.SetSmartTriggerSuppression(enabled))
+                            }
+                        },
                         backdrop = backdrop,
                         helpText = "Ignores the trigger when it's likely accidental — e.g. while you're on a call or media is actively playing — to avoid false recordings."
                     )
@@ -1503,12 +2049,23 @@ fun SettingsRow(
     value: String? = null,
     showChevron: Boolean = true,
     helpText: String? = null,
+    hero: com.example.whispry.ui.components.WhispryHero? = null,
+    heroKey: Any? = null,
     onClick: (() -> Unit)? = null
 ) {
+    val touch = rememberLiquidTouch(intensity = 0.35f)
+    val interactive = onClick != null
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(enabled = onClick != null) { onClick?.invoke() }
+            .heroSharedBounds(hero, heroKey)
+            .liquidExpand(touch, enabled = interactive)
+            .liquidGlow(touch, RoundedCornerShape(12.dp), enabled = interactive)
+            .clickable(
+                enabled = interactive,
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null
+            ) { onClick?.invoke() }
             .padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -1649,7 +2206,8 @@ fun LiquidSettingsSlider(
 @Composable
 fun ApiKeyField(
     apiKey: String,
-    onValueChange: (String) -> Unit
+    onValueChange: (String) -> Unit,
+    label: String = "Groq API Key"
 ) {
     var passwordVisible by remember { mutableStateOf(false) }
 
@@ -1657,7 +2215,7 @@ fun ApiKeyField(
         OutlinedTextField(
             value = apiKey,
             onValueChange = onValueChange,
-            label = { Text("Groq API Key", fontSize = 12.sp) },
+            label = { Text(label, fontSize = 12.sp) },
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(12.dp),
             singleLine = true,
@@ -1800,15 +2358,22 @@ fun StatusRow(
         label = "PulseAlpha"
     )
 
+    val touch = rememberLiquidTouch(intensity = 0.35f)
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .liquidExpand(touch)
             .clip(RoundedCornerShape(16.dp))
             .background(
                 if (isRunning) Color.Transparent
                 else Color(0xFFFF5252).copy(alpha = 0.05f)
             )
-            .clickable { onClick() }
+            .liquidGlow(touch, RoundedCornerShape(16.dp))
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick
+            )
             .padding(vertical = 8.dp, horizontal = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

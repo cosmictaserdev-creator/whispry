@@ -21,7 +21,9 @@ import kotlinx.coroutines.launch
 
 class InteractiveHighlight(
     val animationScope: CoroutineScope,
-    val position: (size: Size, offset: Offset) -> Offset = { _, offset -> offset }
+    val position: (size: Size, offset: Offset) -> Offset = { _, offset -> offset },
+    /** Scales the glow brightness. 1f = the full LiquidButton glow; lower = subtler (e.g. cards). */
+    val intensity: Float = 1f
 ) {
 
     private val pressProgressAnimationSpec =
@@ -63,13 +65,13 @@ half4 main(float2 coord) {
             if (progress > 0f) {
                 if (shader != null) {
                     drawRect(
-                        Color.White.copy(0.08f * progress),
+                        Color.White.copy(0.08f * progress * intensity),
                         blendMode = BlendMode.Plus
                     )
                     shader.apply {
                         val position = position(size, positionAnimation.value)
                         setFloatUniform("size", size.width, size.height)
-                        setColorUniform("color", Color.White.copy(0.15f * progress))
+                        setColorUniform("color", Color.White.copy(0.15f * progress * intensity))
                         setFloatUniform("radius", size.minDimension * 1.5f)
                         setFloatUniform(
                             "position",
@@ -83,7 +85,7 @@ half4 main(float2 coord) {
                     )
                 } else {
                     drawRect(
-                        Color.White.copy(0.25f * progress),
+                        Color.White.copy(0.25f * progress * intensity),
                         blendMode = BlendMode.Plus
                     )
                 }
