@@ -39,8 +39,8 @@ import com.example.whispry.domain.repository.TranscriptRepository
 import com.example.whispry.domain.usecase.FormatTranscriptUseCase
 import com.example.whispry.domain.usecase.TranscribeAudioUseCase
 import com.example.whispry.features.expander.domain.usecase.ExpandTextUseCase
-import com.example.whispry.ui.theme.AccentPreset
 import com.example.whispry.ui.theme.WhispryTheme
+import com.example.whispry.ui.theme.resolveAccentColors
 import com.example.whispry.util.HapticHelper
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.*
@@ -71,6 +71,16 @@ class BubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedState
     
     private var isMiniMode = false
     private var isAnimatingSize = false
+
+    // Keyboard-anchored record toggle (see KeyboardLogoSurface). Hosted here because this is the
+    // persistent overlay service; shown only while the soft keyboard is up (IME bounds reported
+    // by TriggerService via serviceBridge.imeBounds).
+    private var keyboardLogoEnabled = false
+    private var currentImeBounds: android.graphics.Rect? = null
+    private var keyboardLogoView: ComposeView? = null
+    private var keyboardLogoLp: WindowManager.LayoutParams? = null
+    private var keyboardLogoXPct = DataStoreKeys.DEFAULT_KEYBOARD_LOGO_X
+    private var keyboardLogoAnimator: ValueAnimator? = null
 
     private fun getSafeWindowBounds(): android.graphics.Rect {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -113,18 +123,20 @@ class BubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedState
         snapToNearestEdge()
     }
 
+    private var miniTransitionAnimator: ValueAnimator? = null
+
     private fun transitionToMiniProcessing() {
         if (bubbleState.value !is BubbleState.Processing || isMiniMode) return
-        
+
         val safeBounds = getSafeWindowBounds()
-        
+
         // Target: Top Right corner
         val targetX = safeBounds.right - 72.dpToPx()
         val targetY = safeBounds.top + 100.dpToPx()
-        
+
         val view = composeView ?: return
         val lp = layoutParams ?: return
-        
+
         val startX = lp.x
         val startY = lp.y
         val startWidth = view.width
@@ -132,27 +144,33 @@ class BubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedState
         val endSize = 56.dpToPx()
 
         isAnimatingSize = true
-        ValueAnimator.ofFloat(0f, 1f).apply {
+        miniTransitionAnimator = ValueAnimator.ofFloat(0f, 1f).apply {
             duration = 500
             interpolator = android.view.animation.AccelerateDecelerateInterpolator()
             addUpdateListener { anim ->
                 if (!view.isAttachedToWindow) return@addUpdateListener
-                
+
                 val progress = anim.animatedValue as Float
                 try {
                     lp.x = (startX + (targetX - startX) * progress).toInt()
                     lp.y = (startY + (targetY - startY) * progress).toInt()
                     lp.width = (startWidth + (endSize - startWidth) * progress).toInt()
                     lp.height = (startHeight + (endSize - startHeight) * progress).toInt()
-                    
+
                     windowManager.updateViewLayout(view, lp)
                 } catch (e: Exception) {
                     anim.cancel()
                 }
             }
             addListener(object : android.animation.AnimatorListenerAdapter() {
+                private var wasCanceled = false
+                override fun onAnimationCancel(animation: android.animation.Animator) {
+                    wasCanceled = true
+                }
                 override fun onAnimationEnd(animation: android.animation.Animator) {
                     isAnimatingSize = false
+                    miniTransitionAnimator = null
+                    if (wasCanceled) return
                     val currentState = bubbleState.value
                     if (currentState is BubbleState.Processing && view.isAttachedToWindow) {
                         isMiniMode = true
@@ -164,6 +182,28 @@ class BubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedState
             })
             start()
         }
+    }
+
+    /** Abort a pending or in-flight shrink-to-mini transition and restore normal window size.
+     *  Needed because the shrink runs as a raw ValueAnimator outside coroutine control - if the
+     *  AI response lands mid-shrink, the animator keeps mutating window size underneath the
+     *  success/error state that's about to render unless explicitly cancelled here. */
+    private fun cancelPendingMiniTransition() {
+        mainHandler.removeCallbacks(miniModeTransitionRunnable)
+        val anim = miniTransitionAnimator
+        if (anim != null && anim.isRunning) {
+            anim.cancel()
+            if (!isMiniMode) {
+                val view = composeView
+                val lp = layoutParams
+                if (view != null && lp != null && view.isAttachedToWindow) {
+                    lp.width = WindowManager.LayoutParams.WRAP_CONTENT
+                    lp.height = WindowManager.LayoutParams.WRAP_CONTENT
+                    try { windowManager.updateViewLayout(view, lp) } catch (e: Exception) {}
+                }
+            }
+        }
+        miniTransitionAnimator = null
     }
 
     private fun expandFromMini(onExpanded: () -> Unit) {
@@ -230,7 +270,7 @@ class BubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedState
     @Inject lateinit var transcriptRepository: TranscriptRepository
     @Inject lateinit var formatTranscriptUseCase: FormatTranscriptUseCase
     @Inject lateinit var transcribeAudioUseCase: TranscribeAudioUseCase
-    @Inject lateinit var hinglishTransliterationUseCase: com.example.whispry.domain.usecase.HinglishTransliterationUseCase
+    @Inject lateinit var transliterationUseCase: com.example.whispry.domain.usecase.TransliterationUseCase
     @Inject lateinit var expandTextUseCase: ExpandTextUseCase
     @Inject lateinit var processTranscriptUseCase: com.example.whispry.domain.usecase.ProcessTranscriptUseCase
     @Inject lateinit var voiceCommandExecutor: VoiceCommandExecutor
@@ -251,6 +291,7 @@ class BubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedState
     private var duckingEnabled = true
     private var duckPercent = 70
     private var defaultOutputPreset = OutputPreset.NONE
+    private var instantModeEnabled = false
     // Press Action carried on the START intent (Normal unless a custom single/double press fired).
     private var pendingPressAction: com.example.whispry.domain.model.PressAction = com.example.whispry.domain.model.PressAction.Normal
 
@@ -301,6 +342,9 @@ class BubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedState
         private const val AMPLITUDE_POLL_INTERVAL_MS = 120L
         private const val CANCEL_HINT_DELAY_MS = 3000L
         private const val BUBBLE_ADD_VIEW_RETRY_DELAY_MS = 150L
+        private const val KEYBOARD_LOGO_WIDTH_DP = 72
+        private const val KEYBOARD_LOGO_HEIGHT_DP = 44
+        private const val KEYBOARD_LOGO_MARGIN_DP = 8
     }
 
     override fun onCreate() {
@@ -310,6 +354,7 @@ class BubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedState
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         observeTriggerEvents()
         observeSettings()
+        observeKeyboardLogo()
     }
 
     private fun observeSettings() {
@@ -324,6 +369,7 @@ class BubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedState
                 duckPercent = prefs[DataStoreKeys.DUCKING_PERCENT] ?: 70
                 val presetName = prefs[DataStoreKeys.DEFAULT_OUTPUT_PRESET] ?: "NONE"
                 defaultOutputPreset = try { OutputPreset.valueOf(presetName) } catch (e: Exception) { OutputPreset.NONE }
+                instantModeEnabled = prefs[DataStoreKeys.INSTANT_MODE_ENABLED] ?: false
             }
         }
     }
@@ -386,6 +432,7 @@ class BubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedState
         audioRecorder.cancel()
         audioDuckingManager.restoreIfNeeded()
         removeBubble()
+        hideKeyboardLogo()
         serviceScope.cancel()
         mainHandler.removeCallbacksAndMessages(null)
     }
@@ -438,6 +485,171 @@ class BubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedState
         }
     }
 
+    private fun observeKeyboardLogo() {
+        serviceScope.launch {
+            settingsProvider.dataStore.data.map { prefs ->
+                prefs[DataStoreKeys.KEYBOARD_LOGO_X] ?: DataStoreKeys.DEFAULT_KEYBOARD_LOGO_X
+            }.distinctUntilChanged().collect { xPct ->
+                keyboardLogoXPct = xPct
+                if (keyboardLogoView != null) currentImeBounds?.let { positionKeyboardLogo(it) }
+            }
+        }
+        serviceScope.launch {
+            settingsProvider.dataStore.data.map { prefs ->
+                prefs[DataStoreKeys.KEYBOARD_LOGO_ENABLED] ?: DataStoreKeys.DEFAULT_KEYBOARD_LOGO_ENABLED
+            }.distinctUntilChanged().collect { enabled ->
+                keyboardLogoEnabled = enabled
+                updateKeyboardLogo()
+            }
+        }
+        serviceScope.launch {
+            serviceBridge.imeBounds.collect { bounds ->
+                currentImeBounds = bounds
+                updateKeyboardLogo()
+            }
+        }
+    }
+
+    /** Show, hide, or reposition the keyboard logo to match the current enable + IME state. */
+    private fun updateKeyboardLogo() {
+        if (!keyboardLogoEnabled) {
+            hideKeyboardLogo()
+            return
+        }
+        val ime = currentImeBounds
+        if (ime == null) {
+            // Keep the window attached; just hide it. Recreating it on every IME open/close
+            // churns the window manager and makes the logo feel laggy.
+            keyboardLogoView?.visibility = View.GONE
+            return
+        }
+        if (keyboardLogoView == null) {
+            val view = createKeyboardLogoView() ?: return
+            try {
+                windowManager.addView(view, keyboardLogoLp)
+            } catch (e: Exception) {
+                Log.e(TAG, "Error showing keyboard logo", e)
+                keyboardLogoView = null
+            }
+        }
+        keyboardLogoView?.visibility = View.VISIBLE
+        positionKeyboardLogo(ime)
+    }
+
+    private fun createKeyboardLogoView(): ComposeView? {
+        val density = resources.displayMetrics.density
+        keyboardLogoLp = WindowManager.LayoutParams(
+            (KEYBOARD_LOGO_WIDTH_DP * density).toInt(),
+            (KEYBOARD_LOGO_HEIGHT_DP * density).toInt(),
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.TOP or Gravity.START
+        }
+        return ComposeView(this).apply {
+            setBackgroundColor(android.graphics.Color.TRANSPARENT)
+            setViewTreeLifecycleOwner(this@BubbleService)
+            setViewTreeViewModelStoreOwner(this@BubbleService)
+            setViewTreeSavedStateRegistryOwner(this@BubbleService)
+            setContent {
+                val accentName by settingsProvider.accentColor.collectAsState(initial = "Purple")
+                val accentColors = remember(accentName) { resolveAccentColors(accentName) }
+                WhispryTheme(accentColors = accentColors) {
+                    KeyboardLogoSurface(
+                        isRecording = isRecording.value,
+                        onToggle = { onKeyboardLogoToggle() },
+                        onDragX = { dx -> moveKeyboardLogo(dx) },
+                        onDragEnd = { persistKeyboardLogoX() }
+                    )
+                }
+            }
+        }.also { keyboardLogoView = it }
+    }
+
+    /** Anchor the logo just above the IME's top edge, at the saved X percentage. */
+    private fun positionKeyboardLogo(ime: android.graphics.Rect) {
+        val view = keyboardLogoView ?: return
+        val lp = keyboardLogoLp ?: return
+        val safeBounds = getSafeWindowBounds()
+        val density = resources.displayMetrics.density
+        val marginPx = (KEYBOARD_LOGO_MARGIN_DP * density).toInt()
+
+        val maxX = (safeBounds.right - lp.width).coerceAtLeast(safeBounds.left)
+        val x = safeBounds.left + ((safeBounds.width() - lp.width) * (keyboardLogoXPct / 100f)).toInt()
+        lp.x = x.coerceIn(safeBounds.left, maxX)
+        val targetY = (ime.top - lp.height - marginPx).coerceAtLeast(safeBounds.top)
+
+        keyboardLogoAnimator?.cancel()
+        // Not attached yet (first show): set directly, nothing to animate from.
+        if (!view.isAttachedToWindow) {
+            lp.y = targetY
+            return
+        }
+        // The IME's bounds arrive as coarse, repeated accessibility events while it slides
+        // in/out, not a smooth stream — snapping updateViewLayout straight to each one reads
+        // as jittery. Chase the latest target instead, restarting from the current position
+        // each time a new one arrives so it stays continuous.
+        val startY = lp.y
+        keyboardLogoAnimator = ValueAnimator.ofInt(startY, targetY).apply {
+            duration = 120
+            addUpdateListener { anim ->
+                lp.y = anim.animatedValue as Int
+                try {
+                    if (view.isAttachedToWindow) windowManager.updateViewLayout(view, lp)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error positioning keyboard logo", e)
+                }
+            }
+            start()
+        }
+    }
+
+    private fun moveKeyboardLogo(dx: Float) {
+        val view = keyboardLogoView ?: return
+        val lp = keyboardLogoLp ?: return
+        val safeBounds = getSafeWindowBounds()
+        lp.x = (lp.x + dx.toInt()).coerceIn(safeBounds.left, (safeBounds.right - lp.width).coerceAtLeast(safeBounds.left))
+        try {
+            if (view.isAttachedToWindow) windowManager.updateViewLayout(view, lp)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error dragging keyboard logo", e)
+        }
+    }
+
+    private fun persistKeyboardLogoX() {
+        val lp = keyboardLogoLp ?: return
+        val safeBounds = getSafeWindowBounds()
+        val usable = safeBounds.width() - lp.width
+        val pct = if (usable > 0) {
+            ((lp.x - safeBounds.left).toFloat() / usable * 100f).toInt().coerceIn(0, 100)
+        } else {
+            DataStoreKeys.DEFAULT_KEYBOARD_LOGO_X
+        }
+        keyboardLogoXPct = pct
+        serviceScope.launch {
+            settingsProvider.dataStore.edit { prefs -> prefs[DataStoreKeys.KEYBOARD_LOGO_X] = pct }
+        }
+    }
+
+    private fun hideKeyboardLogo() {
+        val view = keyboardLogoView ?: return
+        keyboardLogoAnimator?.cancel()
+        keyboardLogoView = null
+        try { windowManager.removeView(view) } catch (e: Exception) {}
+    }
+
+    private fun onKeyboardLogoToggle() {
+        if (isRecording.value) {
+            serviceBridge.emit(ServiceBridge.TriggerEvent.RecordingStopped)
+        } else {
+            serviceBridge.emit(ServiceBridge.TriggerEvent.RecordingStarted)
+        }
+    }
+
     private fun observeTriggerEvents() {
         serviceScope.launch {
             serviceBridge.triggerEvent.collect { event ->
@@ -455,6 +667,7 @@ class BubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedState
     /** Abort the in-flight recording/transcription and dismiss (widget drag-down + pill ✕ share this). */
     private fun cancelSession() {
         transcriptionJob?.cancel()
+        cancelPendingMiniTransition()
         audioRecorder.cancel()
         stopAmplitudePolling()
         hapticHelper.vibrateShort()
@@ -556,10 +769,11 @@ class BubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedState
                     when (rawResult) {
                         is com.example.whispry.domain.util.Result.Success -> {
                             val transcribedText = rawResult.data
-                            // Romanize Devanagari Hindi into Hinglish before any further routing,
-                            // so preset formatting / expand / voice commands all see Latin script.
-                            val rawText = if (language == "hi" && settingsProvider.hinglishOutputEnabled.first()) {
-                                val transliterated = hinglishTransliterationUseCase(transcribedText)
+                            // Romanize a native-script transcript before any further routing, so
+                            // preset formatting / expand / voice commands all see Latin script.
+                            val transliterationLanguage = com.example.whispry.domain.model.TransliterationLanguage.fromCode(language)
+                            val rawText = if (transliterationLanguage != null && settingsProvider.hinglishOutputEnabled.first()) {
+                                val transliterated = transliterationUseCase(transcribedText, transliterationLanguage)
                                 if (transliterated is com.example.whispry.domain.util.Result.Success) {
                                     transliterated.data
                                 } else {
@@ -600,7 +814,7 @@ class BubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedState
                         else -> Processed.Err("Error", false)
                     }
                 }
-                mainHandler.removeCallbacks(miniModeTransitionRunnable)
+                cancelPendingMiniTransition()
                 hintJob.cancel()
                 showCancelHint.value = false
 
@@ -665,8 +879,10 @@ class BubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedState
                 }
                 if (isMiniMode) expandFromMini { handleResult() } else handleResult()
             } catch (e: CancellationException) {
+                cancelPendingMiniTransition()
                 audioDuckingManager.restore()
             } catch (e: Exception) {
+                cancelPendingMiniTransition()
                 hintJob.cancel()
                 showCancelHint.value = false
                 audioDuckingManager.restore()
@@ -710,10 +926,14 @@ class BubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedState
             if (composeView != null) return@post
             composeView = ComposeView(this).apply {
                 setBackgroundColor(android.graphics.Color.TRANSPARENT)
+                setViewTreeLifecycleOwner(this@BubbleService)
+                setViewTreeViewModelStoreOwner(this@BubbleService)
+                setViewTreeSavedStateRegistryOwner(this@BubbleService)
                 setContent {
                     val accentName by settingsProvider.accentColor.collectAsState(initial = "Purple")
-                    val accentPreset = remember(accentName) { AccentPreset.entries.find { it.name == accentName } ?: AccentPreset.Purple }
-                    WhispryTheme(accentPreset = accentPreset) {
+                    val accentColors = remember(accentName) { resolveAccentColors(accentName) }
+                    val instant by settingsProvider.instantModeEnabled.collectAsState(initial = false)
+                    WhispryTheme(accentColors = accentColors) {
                         Box(
                             modifier = Modifier.wrapContentSize()
                         ) {
@@ -722,6 +942,7 @@ class BubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedState
                                 amplitudeProvider = { amplitude.value },
                                 message = message.value,
                                 cancelArming = cancelArming.value,
+                                instant = instant,
                                 onRetry = { retryTranscription() },
                                 onCancel = { cancelSession() },
                                 onStop = { if (bubbleState.value is BubbleState.Listening) serviceBridge.emit(ServiceBridge.TriggerEvent.RecordingStopped) },
@@ -731,9 +952,6 @@ class BubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedState
                         }
                     }
                 }
-                setViewTreeLifecycleOwner(this@BubbleService)
-                setViewTreeViewModelStoreOwner(this@BubbleService)
-                setViewTreeSavedStateRegistryOwner(this@BubbleService)
             }
 
             layoutParams = WindowManager.LayoutParams(
@@ -798,10 +1016,14 @@ class BubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedState
     }
 
     private fun scheduleBubbleDismissal(delayMs: Long) {
+        // Instant Mode abbreviates the linger + exit-animation wait, it doesn't zero them out -
+        // the exit transition (see BubbleOverlay) still needs to finish before the view is torn down.
+        val lingerMs = if (instantModeEnabled && delayMs > 0L) (delayMs / 4).coerceAtLeast(200L) else delayMs
+        val exitAnimMs = if (instantModeEnabled) 150L else 600L
         mainHandler.postDelayed({
             bubbleState.value = BubbleState.Idle
-            mainHandler.postDelayed({ removeBubble() }, 600)
-        }, delayMs)
+            mainHandler.postDelayed({ removeBubble() }, exitAnimMs)
+        }, lingerMs)
     }
 
 
