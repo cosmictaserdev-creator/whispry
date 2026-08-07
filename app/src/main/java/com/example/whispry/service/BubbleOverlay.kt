@@ -44,6 +44,7 @@ fun BubbleOverlay(
     amplitudeProvider: () -> Float,
     message: String,
     cancelArming: Boolean = false,
+    instant: Boolean = false,
     onRetry: () -> Unit = {},
     onCancel: () -> Unit = {},
     onStop: () -> Unit = {},
@@ -51,7 +52,7 @@ fun BubbleOverlay(
     onDragEnd: () -> Unit = {}
 ) {
     val visibleState = remember { MutableTransitionState(false) }
-    
+
     // Sync visibleState with state
     LaunchedEffect(state) {
         visibleState.targetState = state !is BubbleState.Idle
@@ -64,18 +65,19 @@ fun BubbleOverlay(
         visibleState = visibleState,
         enter = slideInVertically(
             initialOffsetY = { it / 2 },
-            animationSpec = spring(dampingRatio = 0.65f, stiffness = 300f)
-        ) + fadeIn(animationSpec = tween(300)),
+            animationSpec = spring(dampingRatio = 0.65f, stiffness = if (instant) 1400f else 300f)
+        ) + fadeIn(animationSpec = tween(if (instant) 110 else 300)),
         exit = slideOutVertically(
             targetOffsetY = { it / 2 },
-            animationSpec = spring(dampingRatio = 0.8f, stiffness = 400f)
-        ) + fadeOut(animationSpec = tween(250))
+            animationSpec = spring(dampingRatio = 0.8f, stiffness = if (instant) 1600f else 400f)
+        ) + fadeOut(animationSpec = tween(if (instant) 90 else 250))
     ) {
         PillContent(
             state = state,
             amplitudeProvider = amplitudeProvider,
             message = message,
             cancelArming = cancelArming,
+            instant = instant,
             backdrop = backdrop,
             onRetry = onRetry,
             onCancel = onCancel,
@@ -92,6 +94,7 @@ private fun PillContent(
     amplitudeProvider: () -> Float,
     message: String,
     cancelArming: Boolean,
+    instant: Boolean,
     backdrop: com.kyant.backdrop.Backdrop,
     onRetry: () -> Unit,
     onCancel: () -> Unit,
@@ -126,13 +129,13 @@ private fun PillContent(
 
     val animatedWidth by animateDpAsState(
         targetValue = targetWidth,
-        animationSpec = spring(dampingRatio = 0.72f, stiffness = 380f),
+        animationSpec = spring(dampingRatio = 0.72f, stiffness = if (instant) 1400f else 380f),
         label = "PillWidth"
     )
-    
+
     val animatedHeight by animateDpAsState(
         targetValue = targetHeight,
-        animationSpec = spring(dampingRatio = 0.72f, stiffness = 380f),
+        animationSpec = spring(dampingRatio = 0.72f, stiffness = if (instant) 1400f else 380f),
         label = "PillHeight"
     )
 

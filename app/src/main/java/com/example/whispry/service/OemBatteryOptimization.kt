@@ -11,28 +11,31 @@ object OemBatteryOptimization {
     
     fun shouldShowPrompt(context: Context): Boolean {
         val manufacturer = Build.MANUFACTURER.lowercase()
-        val knownAggressiveOems = listOf("xiaomi", "oppo", "vivo", "oneplus", 
+        val knownAggressiveOems = listOf("xiaomi", "poco", "oppo", "realme", "vivo", "oneplus", 
                                           "huawei", "honor", "samsung")
         return knownAggressiveOems.any { manufacturer.contains(it) }
     }
 
     fun getSettingsIntent(context: Context): Intent? {
-        return when (Build.MANUFACTURER.lowercase()) {
-            "xiaomi"  -> Intent().setComponent(ComponentName(
+        val manufacturer = Build.MANUFACTURER.lowercase()
+        return when {
+            // POCO ships HyperOS/MIUI -> the Xiaomi power-keeper flow.
+            manufacturer.contains("poco") || manufacturer.contains("xiaomi") -> Intent().setComponent(ComponentName(
                 "com.miui.powerkeeper",
                 "com.miui.powerkeeper.ui.HiddenAppsConfigActivity"
             )).apply {
                 putExtra("package_name", context.packageName)
                 putExtra("package_label", "Whispry")
             }
-            "oppo"    -> Intent().setComponent(ComponentName(
+            // realme runs ColorOS -> the OPPO safe-center flow.
+            manufacturer.contains("realme") || manufacturer.contains("oppo") -> Intent().setComponent(ComponentName(
                 "com.coloros.safecenter",
                 "com.coloros.safecenter.permission.startup.FakeActivity"
             ))
-            "samsung" -> Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+            manufacturer.contains("samsung") -> Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
                 data = Uri.fromParts("package", context.packageName, null)
             }
-            "huawei" -> Intent().setComponent(ComponentName(
+            manufacturer.contains("huawei") || manufacturer.contains("honor") -> Intent().setComponent(ComponentName(
                 "com.huawei.systemmanager",
                 "com.huawei.systemmanager.optimize.process.ProtectActivity"
             ))

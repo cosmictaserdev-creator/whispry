@@ -5,6 +5,8 @@ import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -48,20 +50,26 @@ fun TutorialScreen(
         onStart()
     }
 
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        // Shrink the phone mock and vertical gutters on short screens so the guide and actions
+        // fit without scrolling.
+        val compact = maxHeight < 640.dp
+
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 24.dp),
+                .padding(horizontal = 24.dp)
+                .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(if (compact) 16.dp else 32.dp))
 
             // Visual Guide
             Box(
                 modifier = Modifier
-                    .size(width = 180.dp, height = 310.dp)
+                    .size(width = if (compact) 150.dp else 180.dp, height = if (compact) 260.dp else 310.dp)
                     .shadow(4.dp, com.kyant.capsule.ContinuousRoundedRectangle(36.dp), spotColor = androidx.compose.ui.graphics.Color.Black)
                     .background(androidx.compose.ui.graphics.Color(0xFF1C1C1E), com.kyant.capsule.ContinuousRoundedRectangle(36.dp))
                     .border(1.dp, com.example.whispry.ui.theme.WhispryTokens.GlassBorder, com.kyant.capsule.ContinuousRoundedRectangle(36.dp))
@@ -81,7 +89,7 @@ fun TutorialScreen(
 
                 Box(
                     modifier = Modifier
-                        .offset(x = 4.dp, y = 110.dp)
+                        .offset(x = 4.dp, y = if (compact) 86.dp else 110.dp)
                         .size(width = 8.dp, height = 44.dp)
                         .scale(if (state.tutorialStep == TutorialStep.DoublePressMe || state.tutorialStep == TutorialStep.HoldMe) pulseScale else 1f)
                         .background(
@@ -169,7 +177,7 @@ fun TutorialScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(40.dp))
+            Spacer(modifier = Modifier.height(if (compact) 20.dp else 40.dp))
 
             AnimatedVisibility(
                 visible = state.tutorialStep == TutorialStep.Success,
@@ -192,7 +200,7 @@ fun TutorialScreen(
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(48.dp))
+            Spacer(modifier = Modifier.height(if (compact) 24.dp else 48.dp))
 
                     LiquidButton(
                         onClick = onContinue,
@@ -254,7 +262,8 @@ fun TutorialScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(if (compact) 16.dp else 32.dp))
         }
+    }
     }
 }

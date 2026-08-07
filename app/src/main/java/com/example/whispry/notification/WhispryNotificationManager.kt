@@ -14,6 +14,7 @@ import com.example.whispry.R
 import com.example.whispry.data.local.datasource.SettingsProvider
 import com.example.whispry.domain.model.UsageInfo
 import com.example.whispry.ui.theme.AccentPreset
+import com.example.whispry.ui.theme.resolveAccentColors
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -41,10 +42,7 @@ class WhispryNotificationManager @Inject constructor(
         scope.launch {
             try {
                 val accentName = settingsProvider.accentColor.first()
-                val preset = AccentPreset.entries.find { it.name == accentName }
-                if (preset != null) {
-                    cachedAccentColor = preset.mainColor.hashCode()
-                }
+                cachedAccentColor = resolveAccentColors(accentName).mainColor.hashCode()
             } catch (_: Exception) { }
         }
     }

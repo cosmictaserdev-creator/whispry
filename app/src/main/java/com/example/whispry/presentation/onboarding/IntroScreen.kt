@@ -7,6 +7,8 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -21,6 +23,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.whispry.R
@@ -100,16 +103,23 @@ fun IntroScreen(
         label = "OrbAlpha"
     )
 
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        // Compact on short screens: shrink the hero stage + tighten the vertical gutters so the
+        // whole intro (logo, name, CTA) fits without scrolling on budget phones.
+        val compact = maxHeight < 640.dp
+
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 24.dp),
+            .padding(horizontal = 24.dp)
+            .verticalScroll(rememberScrollState()),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
         // Shared center stage: logo and orb occupy the same spot and cross-fade.
+        val stage = if (compact) 200.dp else 280.dp
         Box(
-            modifier = Modifier.size(280.dp),
+            modifier = Modifier.size(stage),
             contentAlignment = Alignment.Center
         ) {
             // The tagline's own words drift in from the edges and converge here, dissolving
@@ -119,7 +129,7 @@ fun IntroScreen(
             // Orb (underneath, emerges on dissolve)
             Box(
                 modifier = Modifier
-                    .size(280.dp)
+                    .size(stage)
                     .graphicsLayer {
                         scaleX = orbScale
                         scaleY = orbScale
@@ -127,12 +137,12 @@ fun IntroScreen(
                     },
                 contentAlignment = Alignment.Center
             ) {
-                AmbientOrbField()
+                AmbientOrbField(stage)
                 SiriRingBubble(
                     isListening = phase >= IntroPhase.DISSOLVE,
                     isProcessing = false,
                     amplitudeProvider = { if (phase >= IntroPhase.DISSOLVE) 0.5f else 0f },
-                    modifier = Modifier.size(180.dp)
+                    modifier = Modifier.size(if (compact) 140.dp else 180.dp)
                 )
                 CoreOrbGlow()
             }
@@ -142,7 +152,7 @@ fun IntroScreen(
                 painter = painterResource(id = R.drawable.whisperlogo),
                 contentDescription = "Whispry Logo",
                 modifier = Modifier
-                    .size(180.dp)
+                    .size(if (compact) 140.dp else 180.dp)
                     .graphicsLayer {
                         scaleX = logoScale
                         scaleY = logoScale
@@ -151,7 +161,7 @@ fun IntroScreen(
             )
         }
 
-        Spacer(modifier = Modifier.height(56.dp))
+        Spacer(modifier = Modifier.height(if (compact) 24.dp else 56.dp))
 
         AnimatedVisibility(
             visible = phase >= IntroPhase.NAME_REVEAL,
@@ -162,14 +172,14 @@ fun IntroScreen(
                     text = "Whispry",
                     style = TextStyle(
                         color = WhispryTokens.TextPrimary,
-                        fontSize = 44.sp,
+                        fontSize = if (compact) 36.sp else 44.sp,
                         fontWeight = FontWeight.Bold,
                         textAlign = TextAlign.Center,
                         letterSpacing = (-0.5).sp
                     )
                 )
 
-                Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(if (compact) 12.dp else 20.dp))
 
                 StaggeredTextReveal(
                     text = "Your voice, instantly understood.",
@@ -185,7 +195,7 @@ fun IntroScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(72.dp))
+        Spacer(modifier = Modifier.height(if (compact) 32.dp else 72.dp))
 
         AnimatedVisibility(
             visible = phase >= IntroPhase.READY,
@@ -207,6 +217,7 @@ fun IntroScreen(
                 )
             }
         }
+    }
     }
 }
 
@@ -269,7 +280,7 @@ private fun FlowingWordsField(phase: IntroPhase) {
 }
 
 @Composable
-private fun AmbientOrbField() {
+private fun AmbientOrbField(size: Dp = 240.dp) {
     val infiniteTransition = rememberInfiniteTransition(label = "AmbientOrb")
     val breath by infiniteTransition.animateFloat(
         initialValue = 0.9f,
@@ -283,7 +294,7 @@ private fun AmbientOrbField() {
 
     Box(
         modifier = Modifier
-            .size(240.dp)
+            .size(size)
             .graphicsLayer {
                 scaleX = breath
                 scaleY = breath

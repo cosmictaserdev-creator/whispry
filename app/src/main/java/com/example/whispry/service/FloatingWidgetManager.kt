@@ -37,8 +37,8 @@ import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.example.whispry.data.local.datasource.DataStoreKeys
 import com.example.whispry.data.local.datasource.SettingsProvider
-import com.example.whispry.ui.theme.AccentPreset
 import com.example.whispry.ui.theme.WhispryTheme
+import com.example.whispry.ui.theme.resolveAccentColors
 import com.example.whispry.util.HapticHelper
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.*
@@ -111,20 +111,24 @@ class FloatingWidgetManager @Inject constructor(
     private val sessionActiveState = mutableStateOf(false)
     private val cancelArmedState = mutableStateOf(false)
     private val dragYState = mutableStateOf(0f)
-    private val idleFadedState = mutableStateOf(false)
     private val editModeState = mutableStateOf(false)
     private val editDraggingState = mutableStateOf(false)
     private val edgeState = mutableStateOf(WidgetEdge.Right)
-    private val cornerState = mutableStateOf(WidgetCorner.BottomRight)
 
     private var armingJob: Job? = null
     private var tapTimeoutJob: Job? = null
     private var idleJob: Job? = null
     private var depressTickJob: Job? = null
+    private var collapseResizeJob: Job? = null
 
     private companion object {
         /** How long a press must survive before it haptically/visually commits. */
         const val DEPRESS_COMMIT_MS = 70L
+
+        /** Covers both the sliver-collapse scale spring and its alpha tween (500ms, see
+         *  WidgetSwitchVisual) — the window itself must not clip down to the sliver's narrow
+         *  width until the visual shrink has actually finished animating into it. */
+        const val SLIVER_COLLAPSE_ANIM_MS = 520L
     }
 
     /** True while a session started by a tap (toggle) is live — the next tap stops it. */
@@ -166,10 +170,11 @@ class FloatingWidgetManager @Inject constructor(
             touchSlopPx = 14f * density,
             doubleTapWindowMs = 300L,
             doubleTapEnabled = cfg.doubleTapAction != WidgetTapAction.None,
-            // Edge-panel-style collapsed sliver only makes sense for the edge-anchored wedge;
-            // CORNER keeps its original always-visible + idle-fade behavior untouched.
-            slimSliverEnabled = cfg.shapeMode == WidgetShapeMode.RAMP,
-            revealThresholdPx = 48f * density
+            slimSliverEnabled = true,
+            // A shorter reveal swipe than the original 48dp - still well clear of touchSlopPx
+            // (14dp) so it can't be mistaken for an accidental brush, but a quick flick reveals
+            // the widget instead of demanding a deliberate long drag.
+            revealThresholdPx = 36f * density
         )
     }
 
@@ -190,12 +195,12 @@ class FloatingWidgetManager @Inject constructor(
             settingsProvider.dataStore.data
                 .map { WidgetConfig.fromPreferences(it) }
                 .collect { cfg ->
-                    val sizeChanged = cfg.visualSizeDp() != config.visualSizeDp() ||
-                            cfg.shapeMode != config.shapeMode
+                    val sizeChanged = cfg.visualSizeDp() != config.visualSizeDp()
+                    val clearanceChanged = cfg.edgeClearanceDp != config.edgeClearanceDp
                     config = cfg
                     configState.value = cfg
                     resolver = WidgetGestureResolver(gestureConfig(cfg))
-                    if (sizeChanged && composeView != null) applyWindowSizeAndPosition()
+                    if ((sizeChanged || clearanceChanged) && composeView != null) applyWindowSizeAndPosition()
                     restartIdleTimer()
                 }
         }
@@ -259,7 +264,6 @@ class FloatingWidgetManager @Inject constructor(
         when (effect) {
             WidgetGestureEffect.Depress -> {
                 idleJob?.cancel()
-                idleFadedState.value = false
                 // Delay the tick past the graze window so back-gesture swipes don't buzz.
                 depressTickJob?.cancel()
                 depressTickJob = managerScope.launch {
@@ -306,10 +310,21 @@ class FloatingWidgetManager @Inject constructor(
             WidgetGestureEffect.SingleTap -> performTap(config.singleTapAction)
             WidgetGestureEffect.DoubleTap -> performTap(config.doubleTapAction)
             WidgetGestureEffect.RevealWidget -> {
+                collapseResizeJob?.cancel()
                 applyWindowSizeAndPosition()
                 restartIdleTimer()
             }
-            WidgetGestureEffect.CollapseWidget -> applyWindowSizeAndPosition()
+            WidgetGestureEffect.CollapseWidget -> {
+                // Let the visual shrink animation finish before the window clips down to the
+                // sliver's narrow touch target — resizing immediately cut the still-large
+                // scaling content off mid-animation, which read as a bad, jarring pop.
+                collapseResizeJob?.cancel()
+                collapseResizeJob = managerScope.launch {
+                    delay(SLIVER_COLLAPSE_ANIM_MS)
+                    applyWindowSizeAndPositionInternal(addView = false)
+                }
+            }
+            WidgetGestureEffect.CancelArmingTimer -> armingJob?.cancel()
         }
     }
 
@@ -344,12 +359,8 @@ class FloatingWidgetManager @Inject constructor(
             if (gestureState.phase == WidgetGesturePhase.IDLE &&
                 !gestureState.sessionActive && !editModeState.value
             ) {
-                if (config.shapeMode == WidgetShapeMode.RAMP) {
-                    // RAMP's idle state IS the collapsed sliver now — not a shrink-in-place.
-                    onGestureEvent(WidgetGestureEvent.CollapseToSliver)
-                } else {
-                    idleFadedState.value = true
-                }
+                // Idle state IS the collapsed sliver now — not a shrink-in-place.
+                onGestureEvent(WidgetGestureEvent.CollapseToSliver)
             }
         }
     }
@@ -363,10 +374,10 @@ class FloatingWidgetManager @Inject constructor(
 
         composeView = ComposeView(context).apply {
             setBackgroundColor(android.graphics.Color.TRANSPARENT)
-            setContent { WidgetRoot() }
             setViewTreeLifecycleOwner(this@FloatingWidgetManager)
             setViewTreeViewModelStoreOwner(this@FloatingWidgetManager)
             setViewTreeSavedStateRegistryOwner(this@FloatingWidgetManager)
+            setContent { WidgetRoot() }
         }
 
         layoutParams = WindowManager.LayoutParams(
@@ -375,7 +386,6 @@ class FloatingWidgetManager @Inject constructor(
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                     WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
                     WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                    // Corner mode tucks into the true screen corner, under the nav indicator.
                     WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
             PixelFormat.TRANSLUCENT
         ).apply {
@@ -385,26 +395,35 @@ class FloatingWidgetManager @Inject constructor(
         managerScope.launch {
             applyWindowSizeAndPositionInternal(addView = true)
             lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_START)
-            idleFadedState.value = false
             restartIdleTimer()
         }
     }
 
     fun hide() {
         exitEditMode(save = false)
-        composeView?.let {
-            try {
-                windowManager.removeView(it)
-                lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_STOP)
-            } catch (e: Exception) {
-                Log.e(TAG, "Error removing widget", e)
-            }
+        val view = composeView
+        if (view != null) {
+            // Yanking the view off with removeView() mid-frame reads as the widget just
+            // vanishing — fade it out first so disabling the widget looks deliberate.
+            view.animate()
+                .alpha(0f)
+                .setDuration(160L)
+                .withEndAction {
+                    try {
+                        windowManager.removeView(view)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error removing widget", e)
+                    }
+                }
+                .start()
+            lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_STOP)
         }
         composeView = null
         layoutParams = null
         armingJob?.cancel()
         tapTimeoutJob?.cancel()
         idleJob?.cancel()
+        collapseResizeJob?.cancel()
         gestureState = WidgetGestureState(sessionActive = gestureState.sessionActive)
         phaseState.value = WidgetGesturePhase.IDLE
     }
@@ -423,8 +442,7 @@ class FloatingWidgetManager @Inject constructor(
         val lp = layoutParams ?: return
         val view = composeView ?: return
         val density = context.resources.displayMetrics.density
-        val isSliver = config.shapeMode == WidgetShapeMode.RAMP &&
-                gestureState.phase == WidgetGesturePhase.SLIVER
+        val isSliver = gestureState.phase == WidgetGesturePhase.SLIVER
         val (visualW, visualH) = if (isSliver) {
             sliverWidthDp.toFloat() to config.visualSizeDp().second
         } else {
@@ -453,7 +471,7 @@ class FloatingWidgetManager @Inject constructor(
             val (rawX, rawY) = if (savedX != null && savedY != null) {
                 positionManager.denormalize(savedX.toFloat(), savedY.toFloat(), bounds)
             } else {
-                positionManager.widgetDefaultEdgePosition(winW.toFloat(), winH.toFloat(), bounds)
+                positionManager.widgetDefaultEdgePosition(winW.toFloat(), winH.toFloat(), bounds, clearancePx)
             }
             val (x, y) = snapFor(rawX, rawY, winW.toFloat(), winH.toFloat(), bounds)
             lp.x = x.roundToInt()
@@ -489,21 +507,17 @@ class FloatingWidgetManager @Inject constructor(
         }
     }
 
-    /** Snap per shape mode and record which edge/corner we ended up on (drives mirroring). */
+    /** Snap to the nearest edge and record which one we ended up on (drives mirroring). */
     private fun snapFor(
         x: Float, y: Float, w: Float, h: Float, bounds: BubbleBounds
-    ): Pair<Float, Float> = when (config.shapeMode) {
-        WidgetShapeMode.RAMP -> {
-            val edge = positionManager.widgetEdgeTarget(x, w, bounds)
-            edgeState.value = edge
-            positionManager.widgetEdgePosition(edge, y, w, h, bounds)
-        }
-        WidgetShapeMode.CORNER -> {
-            val corner = positionManager.widgetCornerTarget(x, y, w, h, bounds)
-            cornerState.value = corner
-            positionManager.widgetCornerPosition(corner, w, h, bounds)
-        }
+    ): Pair<Float, Float> {
+        val edge = positionManager.widgetEdgeTarget(x, w, bounds)
+        edgeState.value = edge
+        return positionManager.widgetEdgePosition(edge, y, w, h, bounds, clearancePx)
     }
+
+    private val clearancePx: Float
+        get() = config.edgeClearanceDp * context.resources.displayMetrics.density
 
     private fun getSafeBounds(): android.graphics.Rect {
         return if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
@@ -533,8 +547,15 @@ class FloatingWidgetManager @Inject constructor(
     fun enterEditMode() {
         if (composeView == null) return
         idleJob?.cancel()
-        idleFadedState.value = false
         editModeState.value = true
+        // The idle resting phase for RAMP is a collapsed sliver window a few dp wide - if edit
+        // mode is entered from there, the drag gesture (bound to the window's own bounds) would
+        // be confined to that sliver and effectively ungrabbable. Force full size before dragging.
+        if (gestureState.phase == WidgetGesturePhase.SLIVER) {
+            gestureState = gestureState.copy(phase = WidgetGesturePhase.IDLE)
+            phaseState.value = WidgetGesturePhase.IDLE
+        }
+        applyWindowSizeAndPosition()
         showControlCard()
     }
 
@@ -580,7 +601,7 @@ class FloatingWidgetManager @Inject constructor(
 
     private var controlCardView: ComposeView? = null
 
-    /** Floating control card shown during edit mode: live size/arch sliders + Done. */
+    /** Floating control card shown during edit mode: live size sliders + Done. */
     private fun showControlCard() {
         if (controlCardView != null) return
         controlCardView = ComposeView(context).apply {
@@ -588,15 +609,13 @@ class FloatingWidgetManager @Inject constructor(
             setContent {
                 val cfg by configState
                 val accentName by settingsProvider.accentColor.collectAsState(initial = "Purple")
-                val accentPreset = remember(accentName) {
-                    AccentPreset.entries.find { it.name == accentName } ?: AccentPreset.Purple
-                }
-                WhispryTheme(accentPreset = accentPreset) {
+                val accentColors = remember(accentName) { resolveAccentColors(accentName) }
+                WhispryTheme(accentColors = accentColors) {
                     WidgetEditControlCard(
                         config = cfg,
                         onBaseHeight = { setIntPref(DataStoreKeys.WIDGET_BASE_HEIGHT_DP, it) },
                         onProtrusion = { setIntPref(DataStoreKeys.WIDGET_PROTRUSION_DP, it) },
-                        onArch = { setIntPref(DataStoreKeys.WIDGET_ARCH_DP, it) },
+                        onEdgeClearance = { setIntPref(DataStoreKeys.WIDGET_EDGE_CLEARANCE, it) },
                         onDone = { exitEditMode(save = true) }
                     )
                 }
@@ -661,9 +680,7 @@ class FloatingWidgetManager @Inject constructor(
     private fun WidgetRoot() {
         val cfg by configState
         val accentName by settingsProvider.accentColor.collectAsState(initial = "Purple")
-        val accentPreset = remember(accentName) {
-            AccentPreset.entries.find { it.name == accentName } ?: AccentPreset.Purple
-        }
+        val accentColors = remember(accentName) { resolveAccentColors(accentName) }
         val editMode by editModeState
         val a11yManager = remember {
             context.getSystemService(Context.ACCESSIBILITY_SERVICE) as AccessibilityManager
@@ -680,7 +697,7 @@ class FloatingWidgetManager @Inject constructor(
             }
         }
 
-        WhispryTheme(accentPreset = accentPreset) {
+        WhispryTheme(accentColors = accentColors) {
             val gestureModifier = when {
                 editMode -> Modifier.pointerInput(Unit) {
                     detectDragGestures(
@@ -728,9 +745,14 @@ class FloatingWidgetManager @Inject constructor(
                                 }
                                 change.consume()
                                 val delta = change.position - down.position
+                                // Normalize horizontal drag to "inward positive" regardless of which
+                                // edge the widget is anchored on, so the resolver's reveal/collapse
+                                // logic stays a single direction-agnostic sign convention: swiping
+                                // from the edge toward screen center is always positive dx.
+                                val inwardDx = if (edgeState.value == WidgetEdge.Right) -delta.x else delta.x
                                 onGestureEvent(
                                     WidgetGestureEvent.PointerMove(
-                                        SystemClock.uptimeMillis(), delta.x, delta.y
+                                        SystemClock.uptimeMillis(), inwardDx, delta.y
                                     )
                                 )
                             }
@@ -751,10 +773,8 @@ class FloatingWidgetManager @Inject constructor(
                     cancelArmed = cancelArmedState.value,
                     dragYPx = dragYState.value,
                     cancelThresholdPx = gestureConfig(cfg).cancelThresholdPx,
-                    idleFaded = idleFadedState.value,
                     editMode = editMode,
                     edge = edgeState.value,
-                    corner = cornerState.value,
                     reducedMotion = reducedMotion
                 )
             }

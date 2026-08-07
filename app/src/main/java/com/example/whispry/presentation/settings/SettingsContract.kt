@@ -6,8 +6,15 @@ import com.example.whispry.domain.model.TranscriptionProviderPreset
 import com.example.whispry.domain.model.TriggerMode
 import com.example.whispry.service.TriggerSound
 
+/** Result of testing a provider API key with a live network call. */
+sealed class ApiKeyTestState {
+    object Idle : ApiKeyTestState()
+    object Testing : ApiKeyTestState()
+    object Success : ApiKeyTestState()
+    data class Failure(val message: String) : ApiKeyTestState()
+}
+
 data class SettingsState(
-    val apiKey: String = "",
     val language: String = "en",
     val doublePressInterval: Long = 400L,
     val hapticFeedback: Boolean = true,
@@ -20,11 +27,11 @@ data class SettingsState(
     val isSaved: Boolean = false,
     val error: String? = null,
     val accentColor: String = "Purple",
+    val instantModeEnabled: Boolean = false,
 
     // Trigger
     val triggerMode: TriggerMode = TriggerMode.VolumeButton,
     val availableTriggerModes: List<TriggerMode> = emptyList(),
-    val isActionButtonSupported: Boolean = true,
     val smartTriggerSuppression: Boolean = false,
     val consumeVolumeKeys: Boolean = true,
     val singlePressTrigger: Boolean = false,
@@ -35,6 +42,7 @@ data class SettingsState(
 
     // Interface
     val floatingWidgetEnabled: Boolean = false,
+    val keyboardLogoEnabled: Boolean = false,
     val widgetConfig: com.example.whispry.service.WidgetConfig = com.example.whispry.service.WidgetConfig(),
     val glassNavbar: Boolean = true,
     val glassLiquidBackdrop: Boolean = true,
@@ -70,6 +78,8 @@ data class SettingsState(
     val formattingCustomBaseUrl: String = "",
     val formattingCustomModel: String = "",
     val formattingApiKey: String = "",
+    val transcriptionKeyTestState: ApiKeyTestState = ApiKeyTestState.Idle,
+    val formattingKeyTestState: ApiKeyTestState = ApiKeyTestState.Idle,
 
     // Hinglish output: romanizes a "hi" transcript instead of leaving it in Devanagari.
     val hinglishOutputEnabled: Boolean = false,
@@ -80,9 +90,6 @@ data class SettingsState(
 )
 
 sealed class SettingsIntent {
-    data class UpdateApiKey(val apiKey: String) : SettingsIntent()
-    object SaveApiKey : SettingsIntent()
-    object ClearApiKey : SettingsIntent()
     data class SetLanguage(val language: String) : SettingsIntent()
     data class SetDoublePressInterval(val ms: Long) : SettingsIntent()
     data class SetHapticFeedback(val enabled: Boolean) : SettingsIntent()
@@ -91,6 +98,7 @@ sealed class SettingsIntent {
     data class SetBubbleSize(val size: String) : SettingsIntent()
     data class SetAutoStartBoot(val enabled: Boolean) : SettingsIntent()
     data class SetAccentColor(val colorName: String) : SettingsIntent()
+    data class SetInstantModeEnabled(val enabled: Boolean) : SettingsIntent()
     object RefreshStatus : SettingsIntent()
     object OpenAccessibilitySettings : SettingsIntent()
     object RestartService : SettingsIntent()
@@ -116,6 +124,7 @@ sealed class SettingsIntent {
 
     // Feature 1
     data class SetFloatingWidgetEnabled(val enabled: Boolean) : SettingsIntent()
+    data class SetKeyboardLogoEnabled(val enabled: Boolean) : SettingsIntent()
     data class SetGlassNavbar(val enabled: Boolean) : SettingsIntent()
     data class SetGlassLiquidBackdrop(val enabled: Boolean) : SettingsIntent()
     
@@ -135,7 +144,6 @@ sealed class SettingsIntent {
     data class SetDoublePressAction(val action: String) : SettingsIntent()
 
     // Floating widget (physical switch)
-    data class SetWidgetShapeMode(val mode: String) : SettingsIntent()
     data class SetWidgetIdleOpacity(val pct: Int) : SettingsIntent()
     data class SetWidgetFadeDelay(val ms: Long) : SettingsIntent()
     data class SetWidgetArmingDelay(val ms: Long) : SettingsIntent()
@@ -155,6 +163,8 @@ sealed class SettingsIntent {
     data class SetFormattingCustomBaseUrl(val url: String) : SettingsIntent()
     data class SetFormattingCustomModel(val model: String) : SettingsIntent()
     data class SetFormattingApiKey(val apiKey: String) : SettingsIntent()
+    object TestAndSaveTranscriptionApiKey : SettingsIntent()
+    object TestAndSaveFormattingApiKey : SettingsIntent()
     data class SetHinglishOutputEnabled(val enabled: Boolean) : SettingsIntent()
 
     // App UI language

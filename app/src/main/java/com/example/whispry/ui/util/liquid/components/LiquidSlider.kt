@@ -46,6 +46,7 @@ import com.kyant.backdrop.shadow.InnerShadow
 import com.kyant.backdrop.shadow.Shadow
 import com.kyant.capsule.ContinuousRoundedRectangle
 import kotlinx.coroutines.flow.collectLatest
+import kotlin.math.abs
 
 @Composable
 fun LiquidSlider(
@@ -105,20 +106,22 @@ fun LiquidSlider(
                     }
                 },
                 onDrag = { _, dragAmount ->
-                    didDrag = true
                     val width = currentTrackWidth.value
-                    dragOffset = (dragOffset + (if (isLtr) dragAmount.x else -dragAmount.x)).coerceIn(0f, width)
+                    if (width > 0f) {
+                        didDrag = true
+                        dragOffset = (dragOffset + (if (isLtr) dragAmount.x else -dragAmount.x)).coerceIn(0f, width)
 
-                    val rangeWidth = valueRange.endInclusive - valueRange.start
-                    val newValue = valueRange.start + (dragOffset / width) * rangeWidth
+                        val rangeWidth = valueRange.endInclusive - valueRange.start
+                        val newValue = valueRange.start + (dragOffset / width) * rangeWidth
 
-                    val snapped = snapValue(newValue)
+                        val snapped = snapValue(newValue)
 
-                    // Update visual immediately and smoothly
-                    snapToValue(if (steps > 0) snapped else newValue)
+                        // Update visual immediately and smoothly
+                        snapToValue(if (steps > 0) snapped else newValue)
 
-                    if (snapped != value()) {
-                        onValueChange(snapped)
+                        if (snapped != value()) {
+                            onValueChange(snapped)
+                        }
                     }
                 }
             )
@@ -138,11 +141,14 @@ fun LiquidSlider(
                     .background(trackColor)
                     .pointerInput(animationScope) {
                         detectTapGestures { position ->
-                            val delta = (valueRange.endInclusive - valueRange.start) * (position.x / currentTrackWidth.value)
-                            val rawValue = (if (isLtr) valueRange.start + delta else valueRange.endInclusive - delta)
-                            val targetValue = snapValue(rawValue)
-                            dampedDragAnimation.animateToValue(targetValue)
-                            onValueChange(targetValue)
+                            val width = currentTrackWidth.value
+                            if (width > 0f) {
+                                val delta = (valueRange.endInclusive - valueRange.start) * (position.x / width)
+                                val rawValue = (if (isLtr) valueRange.start + delta else valueRange.endInclusive - delta)
+                                val targetValue = snapValue(rawValue)
+                                dampedDragAnimation.animateToValue(targetValue)
+                                onValueChange(targetValue)
+                            }
                         }
                     }
                     .height(8.dp)
@@ -167,15 +173,25 @@ fun LiquidSlider(
         Box(
             Modifier
                 .graphicsLayer {
-                    translationX =
-                        (-size.width / 2f + trackWidth * dampedDragAnimation.progress)
-                            .fastCoerceIn(-size.width / 4f, trackWidth - size.width * 3f / 4f) * if (isLtr) 1f else -1f
+                    // Hide the thumb until we have a valid width to avoid the "jump" glitch
+                    // where it starts at a default clamped position and snaps to real value.
+                    alpha = if (trackWidth > 0f) 1f else 0f
+
+                    val minX = -size.width / 4f
+                    val maxX = (trackWidth - size.width * 3f / 4f).coerceAtLeast(minX)
                     
+                    // Use a consistent formula that honors the bounds directly.
+                    // Previous formula (-size.width/2 + trackWidth * progress) was wider than 
+                    // the constraints, causing jumps when trackWidth changed from 0 to real.
+                    val travelRange = maxX - minX
+                    val pos = minX + travelRange * dampedDragAnimation.progress
+                    translationX = pos * if (isLtr) 1f else -1f
+
                     scaleX = dampedDragAnimation.scaleX
                     scaleY = dampedDragAnimation.scaleY
-                    val velocity = dampedDragAnimation.velocity / 10f
-                    scaleX /= 1f - (velocity * 0.75f).fastCoerceIn(-0.2f, 0.2f)
-                    scaleY *= 1f - (velocity * 0.25f).fastCoerceIn(-0.2f, 0.2f)
+                    val absVelocity = abs(dampedDragAnimation.velocity / 10f)
+                    scaleX /= 1f - (absVelocity * 0.75f).fastCoerceIn(-0.2f, 0.2f)
+                    scaleY *= 1f - (absVelocity * 0.25f).fastCoerceIn(-0.2f, 0.2f)
                 }
                 .then(dampedDragAnimation.modifier)
                 .background(

@@ -41,10 +41,8 @@ fun WidgetSwitchVisual(
     cancelArmed: Boolean,
     dragYPx: Float,
     cancelThresholdPx: Float,
-    idleFaded: Boolean,
     editMode: Boolean,
     edge: WidgetEdge,
-    corner: WidgetCorner,
     reducedMotion: Boolean,
     modifier: Modifier = Modifier
 ) {
@@ -53,8 +51,8 @@ fun WidgetSwitchVisual(
     val recording = phase == WidgetGesturePhase.RECORDING
     val sliver = phase == WidgetGesturePhase.SLIVER
 
-    // The switch shrinks INTO its edge/corner, so scaling pivots on the anchored side.
-    val (alignment, origin) = anchorFor(config.shapeMode, edge, corner, editMode)
+    // The switch shrinks INTO its edge, so scaling pivots on the anchored side.
+    val (alignment, origin) = anchorFor(edge, editMode)
 
     // Arming progress drives the depress gate below, so it's computed before the scale.
     val armingProgress = remember { Animatable(0f) }
@@ -76,12 +74,13 @@ fun WidgetSwitchVisual(
         // triggered" moment is meant to be clearly visible.
         recording -> 1.5f
         pressCommitted -> 1f + 0.25f * armingProgress.value
-        // Collapsed edge sliver: a much more aggressive shrink than CORNER's idle-fade, since
-        // the actual touch window has already shrunk to match (see FloatingWidgetManager).
+        // Collapsed edge sliver: a more aggressive shrink than the plain idle-fade, since the
+        // actual touch window has already shrunk to match (see FloatingWidgetManager). Scaled
+        // to roughly fill the sliver window's width (sliverWidthDp) rather than shrinking so far
+        // past it that the shape reads as an almost-invisible sliver-within-a-sliver.
         // ponytail: uniform scale-down of the wedge shape, not a bespoke slim-rectangle Shape —
         // upgrade to a dedicated sliver Shape if the scaled wedge doesn't read cleanly on device.
-        sliver -> 0.3f
-        idleFaded -> 0.75f
+        sliver -> 0.6f
         else -> 1f
     }
     val scale by animateFloatAsState(
@@ -90,14 +89,20 @@ fun WidgetSwitchVisual(
             reducedMotion -> snap()
             recording -> spring(dampingRatio = 0.45f, stiffness = 320f) // bouncy pop on trigger
             pressed -> spring(dampingRatio = 0.7f, stiffness = 900f)
+            // Slower, less bouncy settle than the general case — a deliberate shrink into the
+            // edge instead of a snappy bounce that read as a jarring pop.
+            sliver -> spring(dampingRatio = 0.8f, stiffness = 260f)
             else -> spring(dampingRatio = 0.55f, stiffness = 380f)
         },
         label = "WidgetScale"
     )
+    // The "Idle transparency" setting (config.idleOpacityPct) previously had no effect at all —
+    // the sliver alpha was hardcoded to 0.5f regardless of what the user picked. Wire it here so
+    // the setting actually does something, matching its Settings help text ("how visible the
+    // switch stays after it fades").
     val alpha by animateFloatAsState(
         targetValue = when {
-            sliver -> 0.5f
-            idleFaded && !editMode -> config.idleOpacityPct / 100f
+            sliver -> config.idleOpacityPct / 100f
             else -> 1f
         },
         animationSpec = if (reducedMotion) snap() else tween(500),
@@ -117,9 +122,21 @@ fun WidgetSwitchVisual(
 
     // Elastic drag-down: resistance grows as the finger travels (tanh saturates the trail).
     val cancelProgress = if (recording) (dragYPx / cancelThresholdPx).coerceIn(0f, 1f) else 0f
-    val trailPx = if (recording && dragYPx > 0f) {
+    val trailPxTarget = if (recording && dragYPx > 0f) {
         30f * LocalDensity.current.density * tanh(dragYPx / cancelThresholdPx)
     } else 0f
+    // While recording, track the finger 1:1 (snap) — a spring lag here would make the cancel
+    // drag feel unmoored from the touch. On release the state resets dragY to 0 in the same
+    // frame the scale starts its spring back to rest; without easing this too, the trail used
+    // to snap instantly while scale animated, reading as a jump mid-settle.
+    val trailPx by animateFloatAsState(
+        targetValue = trailPxTarget,
+        animationSpec = when {
+            reducedMotion || recording -> snap()
+            else -> spring(dampingRatio = 0.8f, stiffness = 380f)
+        },
+        label = "WidgetTrail"
+    )
 
     // Red creeps in with the drag so the cancel direction is obvious, then locks full red
     // the moment the threshold arms.
@@ -132,15 +149,8 @@ fun WidgetSwitchVisual(
     val fillColor = lerp(accent, cancelRed, redShift)
     val restColor = lerp(accent.copy(alpha = 1f), cancelRed, redShift)
 
-    val density = LocalDensity.current
     val (visualW, visualH) = config.visualSizeDp()
-    val shape: Shape = when {
-        editMode -> RoundedCornerShape(50)
-        config.shapeMode == WidgetShapeMode.RAMP -> RampWedgeShape(mirrored = edge == WidgetEdge.Left)
-        else -> with(density) {
-            CornerArchShape(corner, config.archDp.dp.toPx(), config.protrusionDp.dp.toPx())
-        }
-    }
+    val shape: Shape = if (editMode) RoundedCornerShape(50) else RampWedgeShape(mirrored = edge == WidgetEdge.Left)
 
     Box(modifier = modifier.fillMaxSize(), contentAlignment = alignment) {
         Box(
@@ -193,34 +203,15 @@ fun WidgetSwitchVisual(
     }
 }
 
-private fun anchorFor(
-    mode: WidgetShapeMode,
-    edge: WidgetEdge,
-    corner: WidgetCorner,
-    editMode: Boolean
-): Pair<Alignment, TransformOrigin> {
+private fun anchorFor(edge: WidgetEdge, editMode: Boolean): Pair<Alignment, TransformOrigin> {
     if (editMode) return Alignment.Center to TransformOrigin.Center
-    return when (mode) {
-        WidgetShapeMode.RAMP -> when (edge) {
-            WidgetEdge.Left -> Alignment.CenterStart to TransformOrigin(0f, 0.5f)
-            WidgetEdge.Right -> Alignment.CenterEnd to TransformOrigin(1f, 0.5f)
-        }
-        WidgetShapeMode.CORNER -> when (corner) {
-            WidgetCorner.TopLeft -> Alignment.TopStart to TransformOrigin(0f, 0f)
-            WidgetCorner.TopRight -> Alignment.TopEnd to TransformOrigin(1f, 0f)
-            WidgetCorner.BottomLeft -> Alignment.BottomStart to TransformOrigin(0f, 1f)
-            WidgetCorner.BottomRight -> Alignment.BottomEnd to TransformOrigin(1f, 1f)
-        }
+    return when (edge) {
+        WidgetEdge.Left -> Alignment.CenterStart to TransformOrigin(0f, 0.5f)
+        WidgetEdge.Right -> Alignment.CenterEnd to TransformOrigin(1f, 0.5f)
     }
 }
 
-/** Visible shape size in dp for the current mode (the window adds invisible touch slack). */
-fun WidgetConfig.visualSizeDp(): Pair<Float, Float> = when (shapeMode) {
+/** Visible shape size in dp (the window adds invisible touch slack). */
+fun WidgetConfig.visualSizeDp(): Pair<Float, Float> =
     // Wedge: inner face + two ramps; protrusion is the visible width off the edge.
-    WidgetShapeMode.RAMP -> protrusionDp.toFloat() to baseHeightDp * 2.2f
-    // Corner arch: square box big enough for the arch plus the two arms.
-    WidgetShapeMode.CORNER -> {
-        val box = maxOf(archDp + 28f, baseHeightDp * 1.6f)
-        box to box
-    }
-}
+    protrusionDp.toFloat() to baseHeightDp * 2.2f

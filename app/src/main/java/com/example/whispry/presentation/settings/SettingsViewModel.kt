@@ -3,6 +3,7 @@ package com.example.whispry.presentation.settings
 import android.content.Context
 import android.content.Intent
 import android.provider.Settings
+import android.util.Log
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.LocaleListCompat
 import androidx.lifecycle.ViewModel
@@ -11,6 +12,8 @@ import androidx.datastore.preferences.core.edit
 import com.example.whispry.data.local.datasource.ApiKeyProvider
 import com.example.whispry.data.local.datasource.DataStoreKeys
 import com.example.whispry.data.local.datasource.SettingsProvider
+import com.example.whispry.data.remote.api.GroqChatApiService
+import com.example.whispry.domain.model.ProviderConfigResolver
 import com.example.whispry.domain.repository.TriggerRepository
 import com.example.whispry.service.BubbleService
 import com.example.whispry.service.ServiceLocator
@@ -31,6 +34,7 @@ class SettingsViewModel @Inject constructor(
     private val transcriptRepository: com.example.whispry.domain.repository.TranscriptRepository,
     private val soundManager: com.example.whispry.service.SoundManager,
     private val floatingWidgetManager: com.example.whispry.service.FloatingWidgetManager,
+    private val groqChatApiService: GroqChatApiService,
     val trainedModelMatcher: TrainedModelMatcher // Make it val
 ) : ViewModel() {
 
@@ -39,33 +43,13 @@ class SettingsViewModel @Inject constructor(
 
     init {
         _state.update { it.copy(
-            apiKey = apiKeyProvider.getApiKey(),
             availableTriggerModes = triggerRepository.getAvailableTriggerModes(),
-            isActionButtonSupported = checkActionButtonSupport(),
             transcriptionApiKey = apiKeyProvider.getRawTranscriptionApiKey(),
             formattingApiKey = apiKeyProvider.getRawFormattingApiKey(),
             appLanguageTag = AppCompatDelegate.getApplicationLocales().toLanguageTags().ifBlank { "system" }
         ) }
         observeSettings()
         refreshStatus()
-    }
-
-    private fun checkActionButtonSupport(): Boolean {
-        // Common keycodes for action/assist buttons
-        val actionKeycodes = intArrayOf(
-            android.view.KeyEvent.KEYCODE_VOICE_ASSIST,
-            android.view.KeyEvent.KEYCODE_ASSIST,
-            219, 231 // Device-specific assist keys
-        )
-        return try {
-            val deviceIds = android.view.InputDevice.getDeviceIds()
-            deviceIds.any { id ->
-                val device = android.view.InputDevice.getDevice(id)
-                device?.hasKeys(*actionKeycodes)?.any { it } == true
-            }
-        } catch (e: Exception) {
-            false
-        }
     }
 
     private fun observeSettings() {
@@ -92,7 +76,9 @@ class SettingsViewModel @Inject constructor(
         settingsProvider.formattingCustomBaseUrl.onEach { v -> _state.update { it.copy(formattingCustomBaseUrl = v) } }.launchIn(viewModelScope)
         settingsProvider.formattingCustomModel.onEach { v -> _state.update { it.copy(formattingCustomModel = v) } }.launchIn(viewModelScope)
         settingsProvider.hinglishOutputEnabled.onEach { v -> _state.update { it.copy(hinglishOutputEnabled = v) } }.launchIn(viewModelScope)
+        settingsProvider.instantModeEnabled.onEach { v -> _state.update { it.copy(instantModeEnabled = v) } }.launchIn(viewModelScope)
         settingsProvider.dataStore.data.map { it[DataStoreKeys.FLOATING_WIDGET_ENABLED] ?: DataStoreKeys.DEFAULT_FLOATING_WIDGET_ENABLED }.onEach { v -> _state.update { it.copy(floatingWidgetEnabled = v) } }.launchIn(viewModelScope)
+        settingsProvider.dataStore.data.map { it[DataStoreKeys.KEYBOARD_LOGO_ENABLED] ?: DataStoreKeys.DEFAULT_KEYBOARD_LOGO_ENABLED }.onEach { v -> _state.update { it.copy(keyboardLogoEnabled = v) } }.launchIn(viewModelScope)
         settingsProvider.dataStore.data.map { it[DataStoreKeys.GLASS_NAVBAR] ?: true }.onEach { v -> _state.update { it.copy(glassNavbar = v) } }.launchIn(viewModelScope)
         settingsProvider.dataStore.data.map { it[DataStoreKeys.GLASS_LIQUID_BACKDROP] ?: true }.onEach { v -> _state.update { it.copy(glassLiquidBackdrop = v) } }.launchIn(viewModelScope)
         
@@ -125,15 +111,6 @@ class SettingsViewModel @Inject constructor(
     fun onIntent(intent: SettingsIntent) {
         viewModelScope.launch {
             when (intent) {
-                is SettingsIntent.UpdateApiKey -> _state.update { it.copy(apiKey = intent.apiKey, isSaved = false) }
-                is SettingsIntent.SaveApiKey -> {
-                    apiKeyProvider.saveApiKey(_state.value.apiKey)
-                    _state.update { it.copy(isSaved = true) }
-                }
-                is SettingsIntent.ClearApiKey -> {
-                    apiKeyProvider.clearApiKey()
-                    _state.update { it.copy(apiKey = "", isSaved = false) }
-                }
                 is SettingsIntent.SetLanguage -> settingsProvider.setLanguage(intent.language)
                 is SettingsIntent.SetDoublePressInterval -> settingsProvider.setDoublePressInterval(intent.ms)
                 is SettingsIntent.SetHapticFeedback -> settingsProvider.setHapticFeedback(intent.enabled)
@@ -142,6 +119,7 @@ class SettingsViewModel @Inject constructor(
                 is SettingsIntent.SetBubbleSize -> settingsProvider.setBubbleSize(intent.size)
                 is SettingsIntent.SetAutoStartBoot -> settingsProvider.setAutoStartBoot(intent.enabled)
                 is SettingsIntent.SetAccentColor -> settingsProvider.setAccentColor(intent.colorName)
+                is SettingsIntent.SetInstantModeEnabled -> settingsProvider.dataStore.edit { it[DataStoreKeys.INSTANT_MODE_ENABLED] = intent.enabled }
                 is SettingsIntent.RefreshStatus -> refreshStatus()
                 is SettingsIntent.OpenAccessibilitySettings -> {
                     val i = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
@@ -177,6 +155,18 @@ class SettingsViewModel @Inject constructor(
                 is SettingsIntent.SetHandsFreeArmingDelay -> settingsProvider.dataStore.edit { it[DataStoreKeys.HANDS_FREE_ARMING_DELAY_MS] = intent.ms }
                 is SettingsIntent.SetSinglePressHoldDelay -> settingsProvider.dataStore.edit { it[DataStoreKeys.SINGLE_PRESS_HOLD_DELAY_MS] = intent.ms }
                 is SettingsIntent.SetFloatingWidgetEnabled -> settingsProvider.dataStore.edit { it[DataStoreKeys.FLOATING_WIDGET_ENABLED] = intent.enabled }
+                is SettingsIntent.SetKeyboardLogoEnabled -> {
+                    settingsProvider.dataStore.edit { it[DataStoreKeys.KEYBOARD_LOGO_ENABLED] = intent.enabled }
+                    // The logo lives inside BubbleService; make sure it is running to host it.
+                    if (intent.enabled) {
+                        try {
+                            val i = Intent(context, BubbleService::class.java)
+                            context.startForegroundService(i)
+                        } catch (e: Exception) {
+                            Log.e("SettingsViewModel", "Failed to start BubbleService for keyboard logo", e)
+                        }
+                    }
+                }
                 is SettingsIntent.SetGlassNavbar -> settingsProvider.dataStore.edit { it[DataStoreKeys.GLASS_NAVBAR] = intent.enabled }
                 is SettingsIntent.SetGlassLiquidBackdrop -> settingsProvider.dataStore.edit { it[DataStoreKeys.GLASS_LIQUID_BACKDROP] = intent.enabled }
                 
@@ -199,7 +189,6 @@ class SettingsViewModel @Inject constructor(
                 is SettingsIntent.SetDuckingEnabled -> settingsProvider.dataStore.edit { it[DataStoreKeys.DUCKING_ENABLED] = intent.enabled }
                 is SettingsIntent.SetDuckingPercent -> settingsProvider.dataStore.edit { it[DataStoreKeys.DUCKING_PERCENT] = intent.percent }
                 is SettingsIntent.SetRetentionPolicy -> settingsProvider.dataStore.edit { it[DataStoreKeys.RETENTION_POLICY] = intent.policy.name }
-                is SettingsIntent.SetWidgetShapeMode -> settingsProvider.dataStore.edit { it[DataStoreKeys.WIDGET_SHAPE_MODE] = intent.mode }
                 is SettingsIntent.SetWidgetIdleOpacity -> settingsProvider.dataStore.edit { it[DataStoreKeys.WIDGET_IDLE_OPACITY_PCT] = intent.pct }
                 is SettingsIntent.SetWidgetFadeDelay -> settingsProvider.dataStore.edit { it[DataStoreKeys.WIDGET_FADE_DELAY_MS] = intent.ms }
                 is SettingsIntent.SetWidgetArmingDelay -> settingsProvider.dataStore.edit { it[DataStoreKeys.WIDGET_ARMING_DELAY_MS] = intent.ms }
@@ -211,17 +200,17 @@ class SettingsViewModel @Inject constructor(
                 is SettingsIntent.SetTranscriptionProviderPreset -> settingsProvider.dataStore.edit { it[DataStoreKeys.TRANSCRIPTION_PROVIDER_PRESET] = intent.preset.name }
                 is SettingsIntent.SetTranscriptionCustomBaseUrl -> settingsProvider.dataStore.edit { it[DataStoreKeys.TRANSCRIPTION_CUSTOM_BASE_URL] = intent.url }
                 is SettingsIntent.SetTranscriptionCustomModel -> settingsProvider.dataStore.edit { it[DataStoreKeys.TRANSCRIPTION_CUSTOM_MODEL] = intent.model }
-                is SettingsIntent.SetTranscriptionApiKey -> {
-                    apiKeyProvider.saveTranscriptionApiKey(intent.apiKey)
-                    _state.update { it.copy(transcriptionApiKey = intent.apiKey) }
+                is SettingsIntent.SetTranscriptionApiKey -> _state.update {
+                    it.copy(transcriptionApiKey = intent.apiKey, transcriptionKeyTestState = ApiKeyTestState.Idle)
                 }
+                is SettingsIntent.TestAndSaveTranscriptionApiKey -> testAndSaveTranscriptionKey()
                 is SettingsIntent.SetFormattingProviderPreset -> settingsProvider.dataStore.edit { it[DataStoreKeys.FORMATTING_PROVIDER_PRESET] = intent.preset.name }
                 is SettingsIntent.SetFormattingCustomBaseUrl -> settingsProvider.dataStore.edit { it[DataStoreKeys.FORMATTING_CUSTOM_BASE_URL] = intent.url }
                 is SettingsIntent.SetFormattingCustomModel -> settingsProvider.dataStore.edit { it[DataStoreKeys.FORMATTING_CUSTOM_MODEL] = intent.model }
-                is SettingsIntent.SetFormattingApiKey -> {
-                    apiKeyProvider.saveFormattingApiKey(intent.apiKey)
-                    _state.update { it.copy(formattingApiKey = intent.apiKey) }
+                is SettingsIntent.SetFormattingApiKey -> _state.update {
+                    it.copy(formattingApiKey = intent.apiKey, formattingKeyTestState = ApiKeyTestState.Idle)
                 }
+                is SettingsIntent.TestAndSaveFormattingApiKey -> testAndSaveFormattingKey()
                 is SettingsIntent.SetHinglishOutputEnabled -> settingsProvider.dataStore.edit { it[DataStoreKeys.HINGLISH_OUTPUT_ENABLED] = intent.enabled }
                 is SettingsIntent.SetAppLanguage -> {
                     val locales = if (intent.languageTag == "system") {
@@ -258,6 +247,54 @@ class SettingsViewModel @Inject constructor(
                 }
             }
         }
+    }
+
+    /** GET .../models with the given key — model-agnostic, so it works for both transcription
+     *  and formatting keys regardless of which model the step is set to use. */
+    private suspend fun testApiKey(baseUrl: String, apiKey: String): ApiKeyTestState {
+        if (apiKey.isBlank()) return ApiKeyTestState.Failure("Enter an API key first.")
+        if (baseUrl.isBlank()) return ApiKeyTestState.Failure("Set a Custom base URL first.")
+        return runCatching {
+            groqChatApiService.listModels(url = baseUrl + "models", authorization = "Bearer $apiKey")
+        }.fold(
+            onSuccess = { response ->
+                when {
+                    response.isSuccessful -> ApiKeyTestState.Success
+                    response.code() == 401 || response.code() == 403 ->
+                        ApiKeyTestState.Failure("Key rejected (${response.code()}). Double-check it.")
+                    else -> ApiKeyTestState.Failure("Couldn't verify (error ${response.code()}).")
+                }
+            },
+            onFailure = { ApiKeyTestState.Failure("Couldn't reach the server — check your connection.") }
+        )
+    }
+
+    private suspend fun testAndSaveTranscriptionKey() {
+        val key = _state.value.transcriptionApiKey.trim()
+        _state.update { it.copy(transcriptionKeyTestState = ApiKeyTestState.Testing) }
+        val resolved = ProviderConfigResolver.resolveTranscription(
+            preset = _state.value.transcriptionProviderPreset,
+            customBaseUrl = _state.value.transcriptionCustomBaseUrl,
+            customModel = _state.value.transcriptionCustomModel,
+            apiKey = key
+        )
+        val result = testApiKey(resolved.baseUrl, key)
+        if (result is ApiKeyTestState.Success) apiKeyProvider.saveTranscriptionApiKey(key)
+        _state.update { it.copy(transcriptionKeyTestState = result) }
+    }
+
+    private suspend fun testAndSaveFormattingKey() {
+        val key = _state.value.formattingApiKey.trim()
+        _state.update { it.copy(formattingKeyTestState = ApiKeyTestState.Testing) }
+        val resolved = ProviderConfigResolver.resolveFormatting(
+            preset = _state.value.formattingProviderPreset,
+            customBaseUrl = _state.value.formattingCustomBaseUrl,
+            customModel = _state.value.formattingCustomModel,
+            apiKey = key
+        )
+        val result = testApiKey(resolved.baseUrl, key)
+        if (result is ApiKeyTestState.Success) apiKeyProvider.saveFormattingApiKey(key)
+        _state.update { it.copy(formattingKeyTestState = result) }
     }
 
     private fun refreshStatus() {

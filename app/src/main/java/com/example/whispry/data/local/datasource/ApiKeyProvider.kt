@@ -18,13 +18,23 @@ class ApiKeyProvider @Inject constructor(
             .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
             .build()
 
-        EncryptedSharedPreferences.create(
+        fun create() = EncryptedSharedPreferences.create(
             context,
             "secure_prefs",
             masterKey,
             EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
             EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
         )
+
+        try {
+            create()
+        } catch (e: Exception) {
+            // Keystore key can't decrypt the existing prefs blob (e.g. restored from a
+            // backup on a new device, where the Keystore-bound key isn't transferable).
+            // Drop the undecryptable file and start fresh rather than crash forever.
+            context.deleteSharedPreferences("secure_prefs")
+            create()
+        }
     }
 
     fun getApiKey(): String =

@@ -3,6 +3,8 @@ package com.example.whispry.presentation.onboarding
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ContentPaste
@@ -33,14 +35,20 @@ fun HowItWorksScreen(
     onContinue: () -> Unit,
     backdrop: Backdrop
 ) {
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        // Tighten the vertical gutters on short screens so the three step cards + CTA fit
+        // without scrolling.
+        val compact = maxHeight < 640.dp
+
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 24.dp),
+            .padding(horizontal = 24.dp)
+            .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.SpaceBetween
     ) {
         Column {
-            Spacer(modifier = Modifier.height(72.dp))
+            Spacer(modifier = Modifier.height(if (compact) 36.dp else 72.dp))
 
             StaggeredTextReveal(
                 text = "How it works",
@@ -65,7 +73,7 @@ fun HowItWorksScreen(
                 delayMs = 200
             )
 
-            Spacer(modifier = Modifier.height(40.dp))
+            Spacer(modifier = Modifier.height(if (compact) 20.dp else 40.dp))
 
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 StepCard(
@@ -111,8 +119,9 @@ fun HowItWorksScreen(
                 )
             }
 
-            Spacer(modifier = Modifier.height(48.dp))
+            Spacer(modifier = Modifier.height(if (compact) 24.dp else 48.dp))
         }
+    }
     }
 }
 

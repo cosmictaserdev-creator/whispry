@@ -12,12 +12,15 @@ import android.telephony.TelephonyManager
 import android.util.Log
 import android.view.KeyEvent
 import android.view.accessibility.AccessibilityEvent
+import android.view.accessibility.AccessibilityNodeInfo
+import android.view.accessibility.AccessibilityWindowInfo
 import com.example.whispry.domain.model.TriggerMode
 import com.example.whispry.domain.repository.TriggerRepository
 import com.example.whispry.util.HapticHelper
 import com.example.whispry.data.local.datasource.DataStoreKeys
 import com.example.whispry.data.local.datasource.SettingsProvider
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
@@ -100,6 +103,9 @@ class TriggerService : AccessibilityService() {
         super.onServiceConnected()
         Log.d(TAG, "onServiceConnected")
         ServiceLocator.triggerService = this
+
+        // Snapshot the keyboard state at connect in case it is already up.
+        detectIme()
 
         // Observe settings
         serviceScope.launch {
@@ -186,10 +192,9 @@ class TriggerService : AccessibilityService() {
     private fun updateServiceInfoForMode(mode: TriggerMode) {
         serviceInfo = serviceInfo.apply {
             flags = when (mode) {
-                is TriggerMode.VolumeButton,
-                is TriggerMode.ActionButton -> 
+                is TriggerMode.VolumeButton ->
                     flags or AccessibilityServiceInfo.FLAG_REQUEST_FILTER_KEY_EVENTS
-                else -> 
+                else ->
                     flags and AccessibilityServiceInfo.FLAG_REQUEST_FILTER_KEY_EVENTS.inv()
             }
         }
@@ -205,13 +210,32 @@ class TriggerService : AccessibilityService() {
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
-        if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
-            val packageName = event.packageName?.toString()
-            if (!packageName.isNullOrBlank() && packageName != this.packageName) {
-                Log.d(TAG, "Foreground package changed to: $packageName")
-                ServiceLocator.lastForegroundPackage = packageName
+        when (event.eventType) {
+            AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> {
+                val packageName = event.packageName?.toString()
+                if (!packageName.isNullOrBlank() && packageName != this.packageName) {
+                    Log.d(TAG, "Foreground package changed to: $packageName")
+                    ServiceLocator.lastForegroundPackage = packageName
+                }
+                // Some OEMs only emit window-state-changed for IME show/hide.
+                detectIme()
             }
+            AccessibilityEvent.TYPE_WINDOWS_CHANGED -> detectIme()
         }
+    }
+
+    /**
+     * Report the soft keyboard's screen bounds to [serviceBridge]. The IME shows up in [windows]
+     * once flagRetrieveInteractiveWindows is set (in accessibility_service_config.xml) and is the
+     * only input-method window while the keyboard is up, disappearing when it is dismissed.
+     */
+    fun detectIme() {
+        val ime = windows.firstOrNull {
+            it.type == AccessibilityWindowInfo.TYPE_INPUT_METHOD
+        }
+        val bounds = android.graphics.Rect()
+        if (ime != null) ime.getBoundsInScreen(bounds) else bounds.setEmpty()
+        serviceBridge.setImeBounds(if (ime != null) bounds else null)
     }
 
     override fun onInterrupt() {
@@ -222,7 +246,6 @@ class TriggerService : AccessibilityService() {
     override fun onKeyEvent(event: KeyEvent): Boolean {
         return when (currentTriggerMode) {
             is TriggerMode.VolumeButton -> handleVolumeKeyEvent(event)
-            is TriggerMode.ActionButton -> handleActionButtonEvent(event)
             else -> false
         }
     }
@@ -246,7 +269,7 @@ class TriggerService : AccessibilityService() {
             return handleHandsFreeEvent(event)
         }
 
-        val consumed = if (consumeVolumeKeys && isSinglePressEnabled) {
+        val consumed = if (isSinglePressEnabled) {
             handleSinglePressLogic(event)
         } else {
             when (triggerState) {
@@ -307,52 +330,6 @@ class TriggerService : AccessibilityService() {
         } catch (e: Exception) {
             Log.e(TAG, "Failed to start BubbleService", e)
             resetToIdle()
-        }
-    }
-
-    private fun handleActionButtonEvent(event: KeyEvent): Boolean {
-        val actionKeycodes = listOf(
-            KeyEvent.KEYCODE_VOICE_ASSIST,
-            KeyEvent.KEYCODE_ASSIST,
-            219, 231
-        )
-        if (event.keyCode !in actionKeycodes) return false
-        
-        return when (event.action) {
-            KeyEvent.ACTION_DOWN -> {
-                if (event.repeatCount == 0) {
-                    triggerState = TriggerState.RECORDING
-                    if (useHaptics) hapticHelper.vibrateShort()
-                    soundManager.play(SoundEvent.TRIGGER_START)
-                    
-                    val intent = android.content.Intent(this, BubbleService::class.java).apply {
-                        action = BubbleService.ACTION_START_RECORDING
-                    }
-                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                        startForegroundService(intent)
-                    } else {
-                        startService(intent)
-                    }
-
-                    serviceBridge.emit(ServiceBridge.TriggerEvent.RecordingStarted)
-                    true
-                } else false
-            }
-            KeyEvent.ACTION_UP -> {
-                if (triggerState == TriggerState.RECORDING) {
-                    triggerState = TriggerState.IDLE
-                    soundManager.play(SoundEvent.TRIGGER_STOP)
-                    
-                    val intent = android.content.Intent(this, BubbleService::class.java).apply {
-                        action = BubbleService.ACTION_STOP_RECORDING
-                    }
-                    startService(intent)
-
-                    serviceBridge.emit(ServiceBridge.TriggerEvent.RecordingStopped)
-                    true
-                } else false
-            }
-            else -> false
         }
     }
 
@@ -596,5 +573,62 @@ class TriggerService : AccessibilityService() {
         triggerState = TriggerState.IDLE
         firstPressTime = 0L
         serviceBridge.emit(ServiceBridge.TriggerEvent.Idle)
+    }
+
+    // ------------------------------------------------------------------
+    // Voice command "calculate": type a tokenized expression into whichever
+    // calculator app VoiceCommandExecutor just launched, then press "=".
+    // Best-effort — button labels differ across calculator apps/OEMs, so a
+    // missing node just stops the automation (the expression is already on
+    // the clipboard as a manual-paste fallback).
+    // ponytail: tested against Google/Samsung calculators; unknown third-party
+    // calculators may not match — add a per-package view-id map if reported broken.
+    // ------------------------------------------------------------------
+
+    fun performCalculatorInput(tokens: List<String>, calculatorPackages: Set<String>) {
+        serviceScope.launch {
+            if (!waitForForegroundPackage(calculatorPackages)) return@launch
+            delay(300) // let the calculator's UI finish laying out after the window switch
+            for (token in tokens) {
+                val node = findClickableNode(rootInActiveWindow, aliasesForCalcToken(token)) ?: return@launch
+                node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                delay(120)
+            }
+        }
+    }
+
+    private suspend fun waitForForegroundPackage(packages: Set<String>, timeoutMs: Long = 1500L): Boolean {
+        val start = System.currentTimeMillis()
+        while (System.currentTimeMillis() - start < timeoutMs) {
+            if (ServiceLocator.lastForegroundPackage in packages) return true
+            delay(100)
+        }
+        return false
+    }
+
+    private fun aliasesForCalcToken(token: String): List<String> = when (token) {
+        "+" -> listOf("+", "plus", "add")
+        "-" -> listOf("-", "−", "minus", "subtract")
+        "×" -> listOf("×", "*", "x", "multiply", "times")
+        "÷" -> listOf("÷", "/", "divide")
+        "=" -> listOf("=", "equals")
+        "." -> listOf(".", "point", "decimal")
+        else -> listOf(token)
+    }
+
+    private fun findClickableNode(root: AccessibilityNodeInfo?, aliases: List<String>): AccessibilityNodeInfo? {
+        if (root == null) return null
+        val queue = ArrayDeque<AccessibilityNodeInfo>()
+        queue.add(root)
+        while (queue.isNotEmpty()) {
+            val node = queue.removeFirst()
+            val text = node.text?.toString()?.trim()
+            val desc = node.contentDescription?.toString()?.trim()
+            if (node.isClickable && aliases.any { it.equals(text, ignoreCase = true) || it.equals(desc, ignoreCase = true) }) {
+                return node
+            }
+            for (i in 0 until node.childCount) node.getChild(i)?.let { queue.add(it) }
+        }
+        return null
     }
 }

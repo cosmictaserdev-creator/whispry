@@ -23,11 +23,8 @@ sealed interface SnapTarget {
     data object RightEdge : SnapTarget
 }
 
-/** Which screen edge the ramp-mode floating widget hugs. */
+/** Which screen edge the floating widget hugs. */
 enum class WidgetEdge { Left, Right }
-
-/** Which screen corner the edge-mode floating widget wraps. */
-enum class WidgetCorner { TopLeft, TopRight, BottomLeft, BottomRight }
 
 class BubblePositionManager(private val density: Float) {
 
@@ -135,19 +132,21 @@ class BubblePositionManager(private val density: Float) {
     }
 
     /**
-     * Position for a ramp-mode widget snapped to [edge]: flush against the edge (the shape
-     * itself renders the half-clipped protrusion), free along y within the safe bounds.
+     * Position for a ramp-mode widget snapped to [edge]: flush against the edge minus the
+     * [edgeClearancePx] (the widget's touch target must physically clear the OS back-gesture zone
+     * on ROMs that ignore gesture exclusions), free along y within the safe bounds.
      */
     fun widgetEdgePosition(
         edge: WidgetEdge,
         currentY: Float,
         widgetWidth: Float,
         widgetHeight: Float,
-        safeBounds: BubbleBounds
+        safeBounds: BubbleBounds,
+        edgeClearancePx: Float = 0f
     ): Pair<Float, Float> {
         val x = when (edge) {
-            WidgetEdge.Left -> safeBounds.left.toFloat()
-            WidgetEdge.Right -> safeBounds.right - widgetWidth
+            WidgetEdge.Left -> safeBounds.left.toFloat() + edgeClearancePx
+            WidgetEdge.Right -> safeBounds.right - widgetWidth - edgeClearancePx
         }
         val y = currentY.coerceIn(
             safeBounds.top.toFloat(),
@@ -159,51 +158,14 @@ class BubblePositionManager(private val density: Float) {
     /** The wedge ramp always points inward, so the shape mirrors on the left edge. */
     fun widgetMirrored(edge: WidgetEdge): Boolean = edge == WidgetEdge.Left
 
-    /** Edge mode snaps to the nearest of the four corners, chosen by the widget's center. */
-    fun widgetCornerTarget(
-        currentX: Float,
-        currentY: Float,
-        widgetWidth: Float,
-        widgetHeight: Float,
-        safeBounds: BubbleBounds
-    ): WidgetCorner {
-        val centerX = currentX + widgetWidth / 2f
-        val centerY = currentY + widgetHeight / 2f
-        val left = centerX < safeBounds.centerX
-        val top = centerY < safeBounds.centerY
-        return when {
-            left && top -> WidgetCorner.TopLeft
-            !left && top -> WidgetCorner.TopRight
-            left -> WidgetCorner.BottomLeft
-            else -> WidgetCorner.BottomRight
-        }
-    }
-
-    /** Position for an edge-mode widget tucked flush into [corner]. */
-    fun widgetCornerPosition(
-        corner: WidgetCorner,
-        widgetWidth: Float,
-        widgetHeight: Float,
-        safeBounds: BubbleBounds
-    ): Pair<Float, Float> {
-        val x = when (corner) {
-            WidgetCorner.TopLeft, WidgetCorner.BottomLeft -> safeBounds.left.toFloat()
-            else -> safeBounds.right - widgetWidth
-        }
-        val y = when (corner) {
-            WidgetCorner.TopLeft, WidgetCorner.TopRight -> safeBounds.top.toFloat()
-            else -> safeBounds.bottom - widgetHeight
-        }
-        return Pair(x, y)
-    }
-
-    /** Out-of-the-box ramp position: lower-mid of the right edge. */
+    /** Out-of-the-box ramp position: lower-mid of the right edge, honoring the default clearance. */
     fun widgetDefaultEdgePosition(
         widgetWidth: Float,
         widgetHeight: Float,
-        safeBounds: BubbleBounds
+        safeBounds: BubbleBounds,
+        edgeClearancePx: Float = 0f
     ): Pair<Float, Float> {
         val y = safeBounds.top + safeBounds.height * 0.62f
-        return widgetEdgePosition(WidgetEdge.Right, y, widgetWidth, widgetHeight, safeBounds)
+        return widgetEdgePosition(WidgetEdge.Right, y, widgetWidth, widgetHeight, safeBounds, edgeClearancePx)
     }
 }

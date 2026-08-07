@@ -16,6 +16,15 @@ sealed interface VoiceAppAction {
      * [packageName] pins a specific note app; blank shows the system chooser.
      */
     data class CreateNote(val text: String, val packageName: String, val label: String) : VoiceAppAction
+    /** Opens the calculator and types out [expression] button by button, ending with "=". */
+    data class Calculate(val expression: String) : VoiceAppAction
+    data class Call(val query: String) : VoiceAppAction
+    data class Sms(val body: String) : VoiceAppAction
+    data class SetAlarm(val message: String) : VoiceAppAction
+    /** [durationSeconds] is null when the spoken duration couldn't be parsed — opens the picker instead. */
+    data class SetTimer(val message: String, val durationSeconds: Int?) : VoiceAppAction
+    data class CalendarEvent(val title: String) : VoiceAppAction
+    data class Email(val body: String) : VoiceAppAction
 }
 
 /**

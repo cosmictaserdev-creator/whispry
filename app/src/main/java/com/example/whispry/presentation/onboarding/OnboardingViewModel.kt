@@ -197,7 +197,8 @@ class OnboardingViewModel @Inject constructor(
                 onSuccess = { response ->
                     when {
                         response.isSuccessful -> {
-                            apiKeyProvider.saveApiKey(key)
+                            apiKeyProvider.saveTranscriptionApiKey(key)
+                            apiKeyProvider.saveFormattingApiKey(key)
                             _state.update { it.copy(isValidatingKey = false, isApiKeyValid = true) }
                         }
                         response.code() == 401 -> _state.update {

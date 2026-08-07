@@ -35,6 +35,7 @@ class ProcessTranscriptUseCase @Inject constructor(
         const val PREFIX_EXPAND = "expand"
         const val PREFIX_INSERT = "insert"
         private val PUNCT = charArrayOf('.', ',', '!', '?', ';', ':', '"', '\'')
+        private val DURATION_REGEX = Regex("(\\d+)\\s*(hours?|hrs?|h|minutes?|mins?|m|seconds?|secs?|s)\\b")
     }
 
     suspend operator fun invoke(
@@ -107,6 +108,25 @@ class ProcessTranscriptUseCase @Inject constructor(
                 if (targetPackage.isBlank()) null
                 else VoiceAppAction.OpenApp(targetPackage, targetLabel.ifBlank { targetPackage }, query)
             }
+            VoiceCommandAction.CALCULATE -> if (query.isBlank()) null else VoiceAppAction.Calculate(query)
+            VoiceCommandAction.CALL -> VoiceAppAction.Call(query)
+            VoiceCommandAction.SMS -> VoiceAppAction.Sms(query)
+            VoiceCommandAction.SET_ALARM -> VoiceAppAction.SetAlarm(query)
+            VoiceCommandAction.SET_TIMER -> VoiceAppAction.SetTimer(query, parseDurationSeconds(query))
+            VoiceCommandAction.CALENDAR_EVENT -> VoiceAppAction.CalendarEvent(query)
+            VoiceCommandAction.EMAIL -> VoiceAppAction.Email(query)
         }
+    }
+
+    /** "5 minutes" / "90 seconds" / "1 hour" -> seconds; null if no duration is found in the words. */
+    private fun parseDurationSeconds(query: String): Int? {
+        val match = DURATION_REGEX.find(query.lowercase()) ?: return null
+        val amount = match.groupValues[1].toIntOrNull() ?: return null
+        val unitSeconds = when {
+            match.groupValues[2].startsWith("h") -> 3600
+            match.groupValues[2].startsWith("m") -> 60
+            else -> 1
+        }
+        return amount * unitSeconds
     }
 }

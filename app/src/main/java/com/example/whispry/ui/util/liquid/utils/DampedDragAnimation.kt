@@ -31,13 +31,13 @@ class DampedDragAnimation(
     private val valueAnimationSpec =
         spring(1f, 1000f, visibilityThreshold)
     private val velocityAnimationSpec =
-        spring(0.5f, 300f, visibilityThreshold * 10f)
+        spring(1f, 300f, visibilityThreshold * 10f)
     private val pressProgressAnimationSpec =
         spring(1f, 1000f, 0.001f)
     private val scaleXAnimationSpec =
-        spring(0.6f, 250f, 0.001f)
+        spring(1f, 250f, 0.001f)
     private val scaleYAnimationSpec =
-        spring(0.7f, 250f, 0.001f)
+        spring(1f, 250f, 0.001f)
 
     private val valueAnimation =
         Animatable(initialValue, visibilityThreshold)
@@ -55,7 +55,10 @@ class DampedDragAnimation(
     private val velocityTracker = VelocityTracker()
 
     val value: Float get() = valueAnimation.value
-    val progress: Float get() = (value - valueRange.start) / (valueRange.endInclusive - valueRange.start)
+    val progress: Float get() {
+        val range = valueRange.endInclusive - valueRange.start
+        return if (range > 0f) ((value - valueRange.start) / range).coerceIn(0f, 1f) else 0f
+    }
     val targetValue: Float get() = valueAnimation.targetValue
     val pressProgress: Float get() = pressProgressAnimation.value
     val scaleX: Float get() = scaleXAnimation.value
@@ -94,7 +97,8 @@ class DampedDragAnimation(
         animationScope.launch {
             awaitFrame()
             if (value != targetValue) {
-                val threshold = (valueRange.endInclusive - valueRange.start) * 0.025f
+                val range = valueRange.endInclusive - valueRange.start
+                val threshold = (range * 0.025f).coerceAtLeast(visibilityThreshold)
                 snapshotFlow { valueAnimation.value }
                     .filter { abs(it - valueAnimation.targetValue) < threshold }
                     .first()
@@ -143,7 +147,12 @@ class DampedDragAnimation(
             System.currentTimeMillis(),
             Offset(value, 0f)
         )
-        val targetVelocity = velocityTracker.calculateVelocity().x / (valueRange.endInclusive - valueRange.start)
+        val range = valueRange.endInclusive - valueRange.start
+        val targetVelocity = if (range > 0f) {
+            velocityTracker.calculateVelocity().x / range
+        } else {
+            0f
+        }
         animationScope.launch { velocityAnimation.animateTo(targetVelocity, velocityAnimationSpec) }
     }
 }

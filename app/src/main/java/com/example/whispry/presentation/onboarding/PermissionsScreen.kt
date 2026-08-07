@@ -4,6 +4,8 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
@@ -15,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -24,6 +27,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.example.whispry.presentation.common.GlassCard
 import com.example.whispry.presentation.onboarding.components.StaggeredTextReveal
+import com.example.whispry.service.OemBatteryOptimization
 import com.example.whispry.ui.theme.WhispryTheme
 import com.example.whispry.ui.theme.WhispryTokens
 import com.example.whispry.ui.util.liquid.components.LiquidButton
@@ -41,6 +45,7 @@ fun PermissionsScreen(
     backdrop: Backdrop
 ) {
     val lifecycleOwner = LocalLifecycleOwner.current
+    val context = LocalContext.current
     
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -54,95 +59,117 @@ fun PermissionsScreen(
         }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 24.dp),
-        horizontalAlignment = Alignment.Start,
-        verticalArrangement = Arrangement.SpaceBetween
-    ) {
-        Column {
-            Spacer(modifier = Modifier.height(64.dp))
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        // Tighten the vertical gutters on short screens so all permission cards fit with less
+        // scrolling.
+        val compact = maxHeight < 640.dp
 
-            StaggeredTextReveal(
-                text = "A few quick things.",
-                style = TextStyle(
-                    color = WhispryTokens.TextPrimary,
-                    fontSize = 34.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = (-0.5).sp
-                )
-            )
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 24.dp)
+                .verticalScroll(rememberScrollState()),
+            horizontalAlignment = Alignment.Start,
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column {
+                Spacer(modifier = Modifier.height(if (compact) 32.dp else 64.dp))
 
-            Spacer(modifier = Modifier.height(16.dp))
-
-            StaggeredTextReveal(
-                text = "Whispry is a hands-free voice input tool. Microphone and Accessibility are required so you can talk-to-type in any app. The bubble is optional.",
-                style = TextStyle(
-                    color = WhispryTokens.TextSecondary,
-                    fontSize = 17.sp,
-                    fontWeight = FontWeight.Normal,
-                    lineHeight = 26.sp
-                ),
-                delayMs = 200
-            )
-
-            Spacer(modifier = Modifier.height(32.dp))
-
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                PermissionCard(
-                    title = "Microphone",
-                    description = "To capture and transcribe your voice",
-                    isGranted = state.micPermissionGranted,
-                    onClick = onGrantMic,
-                    delayMs = 400,
-                    icon = Icons.Rounded.Mic,
-                    backdrop = backdrop,
-                    isRequired = true
+                StaggeredTextReveal(
+                    text = "A few quick things.",
+                    style = TextStyle(
+                        color = WhispryTokens.TextPrimary,
+                        fontSize = 34.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = (-0.5).sp
+                    )
                 )
 
-                PermissionCard(
-                    title = "Accessibility",
-                    description = "So a volume-key press starts recording and your text is pasted into the field you're typing in. Whispry only reads the volume keys and the focused text field — nothing else.",
-                    isGranted = state.accessibilityEnabled,
-                    onClick = onGrantAccessibility,
-                    delayMs = 500,
-                    icon = Icons.Rounded.Gesture,
-                    backdrop = backdrop,
-                    isRequired = true
+                Spacer(modifier = Modifier.height(16.dp))
+
+                StaggeredTextReveal(
+                    text = "Whispry is a hands-free voice input tool. Microphone and Accessibility are required so you can talk-to-type in any app. The bubble is optional.",
+                    style = TextStyle(
+                        color = WhispryTokens.TextSecondary,
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Normal,
+                        lineHeight = 26.sp
+                    ),
+                    delayMs = 200
                 )
 
-                PermissionCard(
-                    title = "Bubble (optional)",
-                    description = "Shows a floating recording bubble with a live waveform. Skip it and voice-to-text still works — you'll just get sound and haptics instead of the visual bubble.",
-                    isGranted = state.overlayPermissionGranted,
-                    onClick = onGrantOverlay,
-                    delayMs = 600,
-                    icon = Icons.Rounded.Layers,
-                    backdrop = backdrop,
-                    isRequired = false
-                )
+                Spacer(modifier = Modifier.height(if (compact) 16.dp else 32.dp))
+
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    PermissionCard(
+                        title = "Microphone",
+                        description = "To capture and transcribe your voice",
+                        isGranted = state.micPermissionGranted,
+                        onClick = onGrantMic,
+                        delayMs = 400,
+                        icon = Icons.Rounded.Mic,
+                        backdrop = backdrop,
+                        isRequired = true
+                    )
+
+                    PermissionCard(
+                        title = "Accessibility",
+                        description = "So a volume-key press starts recording and your text is pasted into the field you're typing in. Whispry only reads the volume keys and the focused text field — nothing else.",
+                        isGranted = state.accessibilityEnabled,
+                        onClick = onGrantAccessibility,
+                        delayMs = 500,
+                        icon = Icons.Rounded.Gesture,
+                        backdrop = backdrop,
+                        isRequired = true
+                    )
+
+                    PermissionCard(
+                        title = "Bubble (optional)",
+                        description = "Shows a floating recording bubble with a live waveform. Skip it and voice-to-text still works — you'll just get sound and haptics instead of the visual bubble.",
+                        isGranted = state.overlayPermissionGranted,
+                        onClick = onGrantOverlay,
+                        delayMs = 600,
+                        icon = Icons.Rounded.Layers,
+                        backdrop = backdrop,
+                        isRequired = false
+                    )
+
+                    if (OemBatteryOptimization.shouldShowPrompt(context)) {
+                        PermissionCard(
+                            title = "Protect from battery killers",
+                            description = "Some phones (Realme, Poco, Oppo, Xiaomi and more) aggressively kill background services, which can stop Whispry mid-recording. Tap Allow to open the battery settings and exempt Whispry.",
+                            isGranted = false,
+                            onClick = {
+                                OemBatteryOptimization.getSettingsIntent(context)?.let { context.startActivity(it) }
+                            },
+                            delayMs = 700,
+                            icon = Icons.Rounded.BatterySaver,
+                            backdrop = backdrop,
+                            isRequired = false
+                        )
+                    }
+                }
             }
-        }
 
-        Column {
-            LiquidButton(
-                onClick = { if (state.allPermissionsGranted) onContinue() },
-                enabled = state.allPermissionsGranted,
-                backdrop = backdrop,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(60.dp)
-            ) {
-                Text(
-                    if (state.allPermissionsGranted) "Continue" else "Permissions Required",
-                    color = if (state.allPermissionsGranted) androidx.compose.ui.graphics.Color.White else Color.White.copy(0.4f),
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 18.sp
-                )
+            Column {
+                LiquidButton(
+                    onClick = { if (state.allPermissionsGranted) onContinue() },
+                    enabled = state.allPermissionsGranted,
+                    backdrop = backdrop,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(60.dp)
+                ) {
+                    Text(
+                        if (state.allPermissionsGranted) "Continue" else "Permissions Required",
+                        color = if (state.allPermissionsGranted) androidx.compose.ui.graphics.Color.White else Color.White.copy(0.4f),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp
+                    )
+                }
+                
+                Spacer(modifier = Modifier.height(if (compact) 24.dp else 48.dp))
             }
-            
-            Spacer(modifier = Modifier.height(48.dp))
         }
     }
 }

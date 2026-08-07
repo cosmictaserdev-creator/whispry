@@ -1,6 +1,7 @@
 package com.example.whispry.service
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
@@ -26,14 +27,14 @@ import androidx.compose.runtime.setValue
 
 /**
  * Floating control card shown while the widget is in edit mode: live sliders for the
- * widget's size (and arch in corner mode) plus Done. Rendered in its own overlay window.
+ * widget's size plus Done. Rendered in its own overlay window.
  */
 @Composable
 fun WidgetEditControlCard(
     config: WidgetConfig,
     onBaseHeight: (Int) -> Unit,
     onProtrusion: (Int) -> Unit,
-    onArch: (Int) -> Unit,
+    onEdgeClearance: (Int) -> Unit,
     onDone: () -> Unit
 ) {
     val accent = WhispryTheme.colors.accent
@@ -59,27 +60,36 @@ fun WidgetEditControlCard(
             )
 
             CardSlider(
-                label = if (config.shapeMode == WidgetShapeMode.RAMP) "Height" else "Size",
+                label = "Height",
                 value = config.baseHeightDp,
                 range = 40f..88f,
                 accent = accent,
                 onChange = onBaseHeight
             )
             CardSlider(
-                label = if (config.shapeMode == WidgetShapeMode.RAMP) "Width" else "Thickness",
+                label = "Width",
                 value = config.protrusionDp,
                 range = 14f..36f,
                 accent = accent,
                 onChange = onProtrusion
             )
-            if (config.shapeMode == WidgetShapeMode.CORNER) {
-                CardSlider(
-                    label = "Corner arch",
-                    value = config.archDp,
-                    range = 16f..64f,
-                    accent = accent,
-                    onChange = onArch
-                )
+
+            Text(
+                text = "Edge clearance",
+                color = Color.White.copy(alpha = 0.7f),
+                fontSize = 12.sp,
+                modifier = Modifier.padding(top = 10.dp)
+            )
+            Text(
+                text = "Wider keeps the swipe-out gesture working on phones whose system back swipe ignores the widget (some Realme/Poco).",
+                color = Color.White.copy(alpha = 0.5f),
+                fontSize = 11.sp,
+                modifier = Modifier.padding(top = 2.dp)
+            )
+            Row(modifier = Modifier.padding(top = 8.dp)) {
+                EdgeClearanceChip("Flush", 0, config.edgeClearanceDp, accent, onEdgeClearance, Modifier.weight(1f))
+                EdgeClearanceChip("Default", 12, config.edgeClearanceDp, accent, onEdgeClearance, Modifier.weight(1f))
+                EdgeClearanceChip("Wide", 24, config.edgeClearanceDp, accent, onEdgeClearance, Modifier.weight(1f))
             }
 
             Button(
@@ -91,6 +101,34 @@ fun WidgetEditControlCard(
             ) {
                 Text("Done", fontWeight = FontWeight.SemiBold)
             }
+    }
+}
+
+@Composable
+private fun EdgeClearanceChip(
+    label: String,
+    value: Int,
+    selected: Int,
+    accent: Color,
+    onSelect: (Int) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val isSelected = selected == value
+    Box(
+        modifier = modifier
+            .padding(end = 6.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(if (isSelected) accent else Color.White.copy(alpha = 0.08f))
+            .clickable { onSelect(value) }
+            .padding(vertical = 8.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = label,
+            color = if (isSelected) Color(0xFF141418) else Color.White.copy(alpha = 0.7f),
+            fontSize = 12.sp,
+            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+        )
     }
 }
 

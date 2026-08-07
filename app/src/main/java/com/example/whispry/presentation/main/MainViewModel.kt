@@ -3,7 +3,8 @@ package com.example.whispry.presentation.main
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.whispry.data.local.datasource.SettingsProvider
-import com.example.whispry.ui.theme.AccentPreset
+import com.example.whispry.ui.theme.AccentColorSet
+import com.example.whispry.ui.theme.resolveAccentColors
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -20,14 +21,12 @@ class MainViewModel @Inject constructor(
     private val _onboardingStartDestination = MutableStateFlow("intro")
     val onboardingStartDestination: StateFlow<String> = _onboardingStartDestination.asStateFlow()
 
-    val accentColor: StateFlow<AccentPreset> = settingsProvider.accentColor
-        .map { colorName ->
-            AccentPreset.entries.find { it.name == colorName } ?: AccentPreset.Purple
-        }
+    val accentColor: StateFlow<AccentColorSet> = settingsProvider.accentColor
+        .map { colorName -> resolveAccentColors(colorName) }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
-            initialValue = AccentPreset.Purple
+            initialValue = resolveAccentColors(null)
         )
 
     init {

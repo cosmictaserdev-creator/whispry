@@ -12,6 +12,7 @@ import org.junit.Before
 import org.junit.Test
 import com.example.whispry.data.local.datasource.SettingsProvider
 import com.example.whispry.domain.model.OutputPreset
+import com.example.whispry.domain.model.TransliterationLanguage
 import com.example.whispry.domain.repository.AudioRepository
 import com.example.whispry.domain.repository.TranscriptRepository
 import com.example.whispry.domain.util.Result
@@ -21,7 +22,7 @@ class TranscribeAudioUseCaseTest {
     private val audioRepository: AudioRepository = mockk()
     private val transcriptRepository: TranscriptRepository = mockk(relaxed = true)
     private val formatTranscriptUseCase: FormatTranscriptUseCase = mockk(relaxed = true)
-    private val hinglishTransliterationUseCase: HinglishTransliterationUseCase = mockk(relaxed = true)
+    private val transliterationUseCase: TransliterationUseCase = mockk(relaxed = true)
     private val settingsProvider: SettingsProvider = mockk()
     private lateinit var useCase: TranscribeAudioUseCase
 
@@ -30,7 +31,7 @@ class TranscribeAudioUseCaseTest {
         every { settingsProvider.hinglishOutputEnabled } returns flowOf(false)
         useCase = TranscribeAudioUseCase(
             audioRepository, transcriptRepository, formatTranscriptUseCase,
-            hinglishTransliterationUseCase, settingsProvider
+            transliterationUseCase, settingsProvider
         )
     }
 
@@ -113,7 +114,7 @@ class TranscribeAudioUseCaseTest {
             audioRepository.transcribeAudio(any(), "hi")
         } returns Result.Success("नमस्ते")
         coEvery {
-            hinglishTransliterationUseCase("नमस्ते")
+            transliterationUseCase("नमस्ते", TransliterationLanguage.HINDI)
         } returns Result.Success("Namaste")
 
         val result = useCase("/path/audio.m4a", 1000L, language = "hi")

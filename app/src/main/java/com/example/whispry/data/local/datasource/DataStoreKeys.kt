@@ -12,6 +12,8 @@ object DataStoreKeys {
     val BUBBLE_SIZE = stringPreferencesKey("bubble_size")
     val AUTO_START_BOOT = booleanPreferencesKey("auto_start_boot")
     val ACCENT_COLOR = stringPreferencesKey("accent_color")
+    // Faster pill/widget animation timing - still animated, just abbreviated (not a snap-to-instant).
+    val INSTANT_MODE_ENABLED = booleanPreferencesKey("instant_mode_enabled")
 
     // Bug 1: Smart Suppression
     val SMART_TRIGGER_SUPPRESSION = booleanPreferencesKey("smart_trigger_suppression")
@@ -111,10 +113,18 @@ object DataStoreKeys {
     // ------------------------------------------------------------------
     val WIDGET_POSITION_X = intPreferencesKey("widget_position_x")
     val WIDGET_POSITION_Y = intPreferencesKey("widget_position_y")
-    val WIDGET_SHAPE_MODE = stringPreferencesKey("widget_shape_mode")           // RAMP | CORNER
+
+    /**
+     * How far (dp) the widget window sits inward from the physical screen edge. OEM gesture nav
+     * (Realme UI/ColorOS, Poco/HyperOS) ignores systemGestureExclusionRects and owns any horizontal
+     * swipe that starts in the edge zone, so the widget needs to physically clear it for the
+     * swipe-to-reveal gesture to win. Values: 0 = Flush, 12 = Default, 24 = Wide.
+     */
+    val WIDGET_EDGE_CLEARANCE = intPreferencesKey("widget_edge_clearance")
+    const val DEFAULT_WIDGET_EDGE_CLEARANCE = 12
+
     val WIDGET_BASE_HEIGHT_DP = intPreferencesKey("widget_base_height_dp")     // inner-face height
     val WIDGET_PROTRUSION_DP = intPreferencesKey("widget_protrusion_dp")       // visible width off the edge
-    val WIDGET_ARCH_DP = intPreferencesKey("widget_arch_dp")                   // corner-mode arch radius
     val WIDGET_IDLE_OPACITY_PCT = intPreferencesKey("widget_idle_opacity_pct")
     val WIDGET_FADE_DELAY_MS = longPreferencesKey("widget_fade_delay_ms")
     val WIDGET_ARMING_DELAY_MS = longPreferencesKey("widget_arming_delay_ms")  // anti-accident slider
@@ -126,6 +136,17 @@ object DataStoreKeys {
 
     /** One-shot migration of the retired TriggerMode.FloatingWidget (see FloatingWidgetManager). */
     val WIDGET_TRIGGER_MODE_MIGRATED = booleanPreferencesKey("widget_trigger_mode_migrated")
+
+    // ------------------------------------------------------------------
+    // Keyboard logo: a standalone record toggle that floats above the soft keyboard.
+    // Not a trigger mode — its own enable toggle; press = start, press again = stop.
+    // ------------------------------------------------------------------
+    val KEYBOARD_LOGO_ENABLED = booleanPreferencesKey("keyboard_logo_enabled")
+    const val DEFAULT_KEYBOARD_LOGO_ENABLED = false
+
+    // X position as a percentage (0-100) of the safe width; right-side default.
+    val KEYBOARD_LOGO_X = intPreferencesKey("keyboard_logo_x")
+    const val DEFAULT_KEYBOARD_LOGO_X = 80
 
     // ------------------------------------------------------------------
     // Multi-provider AI support: transcription and formatting each resolve independently.

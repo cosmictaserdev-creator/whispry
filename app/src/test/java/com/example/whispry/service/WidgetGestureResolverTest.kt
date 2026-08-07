@@ -401,4 +401,105 @@ class WidgetGestureResolverTest {
         assertEquals(WidgetGesturePhase.IDLE, t.state.phase)
         assertFalse(t.effects.contains(WidgetGestureEffect.CollapseWidget))
     }
+
+    // ------------------------------------------------------------------
+    // RAMP-mode sliver: direction-aware edge swipe (reveal inward, collapse outward)
+    // ------------------------------------------------------------------
+
+    @Test
+    fun `swipe the wrong way off the sliver does not reveal`() {
+        val pressed = sliverResolver.reduce(
+            WidgetGestureState(phase = WidgetGesturePhase.SLIVER),
+            WidgetGestureEvent.PointerDown(1000L)
+        ).state
+
+        // Negative dx = toward the edge, not inward — must not reveal.
+        val t = sliverResolver.reduce(pressed, WidgetGestureEvent.PointerMove(1100L, -60f, 0f))
+
+        assertEquals(WidgetGesturePhase.SLIVER, t.state.phase)
+        assertFalse(t.effects.contains(WidgetGestureEffect.RevealWidget))
+    }
+
+    @Test
+    fun `a vertical drag on the sliver does not reveal`() {
+        val pressed = sliverResolver.reduce(
+            WidgetGestureState(phase = WidgetGesturePhase.SLIVER),
+            WidgetGestureEvent.PointerDown(1000L)
+        ).state
+
+        val t = sliverResolver.reduce(pressed, WidgetGestureEvent.PointerMove(1100L, 0f, 200f))
+
+        assertEquals(WidgetGesturePhase.SLIVER, t.state.phase)
+        assertFalse(t.effects.contains(WidgetGestureEffect.RevealWidget))
+    }
+
+    @Test
+    fun `swiping back toward the edge while arming collapses to the sliver`() {
+        val pressed = sliverResolver.reduce(
+            WidgetGestureState(), WidgetGestureEvent.PointerDown(1000L)
+        ).state
+        assertEquals(WidgetGesturePhase.ARMING, pressed.phase)
+
+        val t = sliverResolver.reduce(pressed, WidgetGestureEvent.PointerMove(1100L, -60f, 0f))
+
+        assertEquals(WidgetGesturePhase.SLIVER, t.state.phase)
+        assertTrue(t.effects.contains(WidgetGestureEffect.CollapseWidget))
+    }
+
+    @Test
+    fun `small jitter while arming does not collapse`() {
+        val pressed = sliverResolver.reduce(
+            WidgetGestureState(), WidgetGestureEvent.PointerDown(1000L)
+        ).state
+
+        val t = sliverResolver.reduce(pressed, WidgetGestureEvent.PointerMove(1100L, -10f, 0f))
+
+        assertEquals(WidgetGesturePhase.ARMING, t.state.phase)
+        assertTrue(t.effects.isEmpty())
+    }
+
+    @Test
+    fun `a slow push-back past slop but short of threshold keeps tracking instead of aborting`() {
+        val pressed = sliverResolver.reduce(
+            WidgetGestureState(), WidgetGestureEvent.PointerDown(1000L)
+        ).state
+        assertEquals(WidgetGesturePhase.ARMING, pressed.phase)
+
+        // touchSlopPx=24, revealThresholdPx=56 — this used to hit the accidental-brush abort
+        // before ever reaching the collapse threshold, since 24 < 56 and dx grows continuously.
+        val t = sliverResolver.reduce(pressed, WidgetGestureEvent.PointerMove(1100L, -35f, 0f))
+
+        assertEquals(WidgetGesturePhase.ARMING, t.state.phase)
+        assertTrue(t.effects.contains(WidgetGestureEffect.CancelArmingTimer))
+        assertFalse(t.effects.contains(WidgetGestureEffect.Release))
+    }
+
+    @Test
+    fun `letting go mid push-back settles back to idle, not a tap or a hold`() {
+        val pressed = sliverResolver.reduce(
+            WidgetGestureState(), WidgetGestureEvent.PointerDown(1000L)
+        ).state
+        val dragging = sliverResolver.reduce(pressed, WidgetGestureEvent.PointerMove(1100L, -35f, 0f)).state
+
+        val t = sliverResolver.reduce(dragging, WidgetGestureEvent.PointerUp(1200L))
+
+        assertEquals(WidgetGesturePhase.IDLE, t.state.phase)
+        assertFalse(t.effects.contains(WidgetGestureEffect.SingleTap))
+        assertFalse(t.effects.contains(WidgetGestureEffect.ScheduleTapTimeout))
+    }
+
+    @Test
+    fun `CORNER-mode config never collapses on swipe since it has no sliver`() {
+        val cornerResolver = WidgetGestureResolver(config) // slimSliverEnabled = false by default
+        val pressed = cornerResolver.reduce(
+            WidgetGestureState(), WidgetGestureEvent.PointerDown(1000L)
+        ).state
+
+        // A big swipe would collapse in RAMP mode, but CORNER mode has no sliver to collapse to —
+        // it must fall back to the ordinary accidental-brush abort.
+        val t = cornerResolver.reduce(pressed, WidgetGestureEvent.PointerMove(1100L, -60f, 0f))
+
+        assertEquals(WidgetGesturePhase.CONSUMING, t.state.phase)
+        assertFalse(t.effects.contains(WidgetGestureEffect.CollapseWidget))
+    }
 }

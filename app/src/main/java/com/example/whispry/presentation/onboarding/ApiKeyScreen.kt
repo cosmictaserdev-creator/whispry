@@ -4,6 +4,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
@@ -47,144 +49,151 @@ fun ApiKeyScreen(
 ) {
     val focusManager = LocalFocusManager.current
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.SpaceBetween
-    ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Spacer(modifier = Modifier.height(72.dp))
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        // Tighten the vertical gutters on short screens so the form and button fit without
+        // scrolling.
+        val compact = maxHeight < 640.dp
 
-            StaggeredTextReveal(
-                text = "Connect Groq",
-                style = MaterialTheme.typography.headlineLarge.copy(
-                    fontWeight = FontWeight.ExtraBold,
-                    color = WhispryTokens.TextPrimary,
-                    letterSpacing = (-1).sp,
-                    fontSize = 36.sp
-                )
-            )
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 24.dp)
+                .verticalScroll(rememberScrollState()),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Spacer(modifier = Modifier.height(if (compact) 36.dp else 72.dp))
 
-            Spacer(modifier = Modifier.height(16.dp))
-
-            StaggeredTextReveal(
-                text = "Whispry uses Groq's high-speed inference for instant transcription.",
-                style = MaterialTheme.typography.bodyMedium.copy(
-                    color = WhispryTokens.TextSecondary,
-                    textAlign = TextAlign.Center,
-                    lineHeight = 24.sp,
-                    fontSize = 17.sp
-                ),
-                delayMs = 300
-            )
-
-            Spacer(modifier = Modifier.height(56.dp))
-
-            // API Key Input
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(68.dp)
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(Color.White.copy(alpha = 0.05f))
-                    .border(
-                        width = 1.dp,
-                        color = if (state.isApiKeyValid) WhispryTokens.SuccessGreen.copy(alpha = 0.4f) else Color.White.copy(alpha = 0.15f),
-                        shape = RoundedCornerShape(20.dp)
+                StaggeredTextReveal(
+                    text = "Connect Groq",
+                    style = MaterialTheme.typography.headlineLarge.copy(
+                        fontWeight = FontWeight.ExtraBold,
+                        color = WhispryTokens.TextPrimary,
+                        letterSpacing = (-1).sp,
+                        fontSize = 36.sp
                     )
-                    .padding(horizontal = 20.dp),
-                contentAlignment = Alignment.CenterStart
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Rounded.Key, null, tint = androidx.compose.ui.graphics.Color.White, modifier = Modifier.size(24.dp))
-                    Spacer(Modifier.width(16.dp))
-                    BasicTextField(
-                        value = state.apiKey,
-                        onValueChange = onApiKeyChange,
-                        modifier = Modifier.weight(1f),
-                        textStyle = TextStyle(color = Color.White, fontSize = 17.sp),
-                        cursorBrush = SolidColor(androidx.compose.ui.graphics.Color.White),
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                        keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
-                        decorationBox = { inner ->
-                            if (state.apiKey.isEmpty()) Text("gsk_...", color = Color.White.copy(0.25f), fontSize = 17.sp)
-                            inner()
-                        }
-                    )
-                }
-            }
-
-            if (state.keyValidationError != null) {
-                Text(
-                    text = state.keyValidationError,
-                    color = Color(0xFFFF5252),
-                    style = MaterialTheme.typography.labelSmall,
-                    modifier = Modifier.padding(top = 12.dp)
                 )
-            }
 
-            Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
-            Row(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .clickable { onGetApiKey() }
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    "Don't have a key? Get one free",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = androidx.compose.ui.graphics.Color.White,
-                    fontSize = 15.sp
+                StaggeredTextReveal(
+                    text = "Whispry uses Groq's high-speed inference for instant transcription.",
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        color = WhispryTokens.TextSecondary,
+                        textAlign = TextAlign.Center,
+                        lineHeight = 24.sp,
+                        fontSize = 17.sp
+                    ),
+                    delayMs = 300
                 )
-                Spacer(Modifier.width(6.dp))
-                Icon(Icons.AutoMirrored.Rounded.OpenInNew, null, tint = androidx.compose.ui.graphics.Color.White, modifier = Modifier.size(16.dp))
-            }
 
-            Spacer(modifier = Modifier.height(48.dp))
+                Spacer(modifier = Modifier.height(if (compact) 28.dp else 56.dp))
 
-            GlassCard(backdrop = backdrop, modifier = Modifier.fillMaxWidth()) {
-                Row(modifier = Modifier.padding(20.dp), verticalAlignment = Alignment.Top) {
-                    Icon(Icons.Rounded.PrivacyTip, null, tint = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.7f), modifier = Modifier.size(24.dp))
-                    Spacer(Modifier.width(16.dp))
-                    Column {
-                        Text("Privacy Commitment", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = WhispryTokens.TextPrimary)
-                        Text(
-                            "We never collect or store your audio or transcriptions. Everything is processed directly through Groq's API.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = WhispryTokens.TextTertiary,
-                            lineHeight = 18.sp,
-                            modifier = Modifier.padding(top = 4.dp)
+                // API Key Input
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(68.dp)
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(Color.White.copy(alpha = 0.05f))
+                        .border(
+                            width = 1.dp,
+                            color = if (state.isApiKeyValid) WhispryTokens.SuccessGreen.copy(alpha = 0.4f) else Color.White.copy(alpha = 0.15f),
+                            shape = RoundedCornerShape(20.dp)
+                        )
+                        .padding(horizontal = 20.dp),
+                    contentAlignment = Alignment.CenterStart
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Rounded.Key, null, tint = androidx.compose.ui.graphics.Color.White, modifier = Modifier.size(24.dp))
+                        Spacer(Modifier.width(16.dp))
+                        BasicTextField(
+                            value = state.apiKey,
+                            onValueChange = onApiKeyChange,
+                            modifier = Modifier.weight(1f),
+                            textStyle = TextStyle(color = Color.White, fontSize = 17.sp),
+                            cursorBrush = SolidColor(androidx.compose.ui.graphics.Color.White),
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                            keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
+                            decorationBox = { inner ->
+                                if (state.apiKey.isEmpty()) Text("gsk_...", color = Color.White.copy(0.25f), fontSize = 17.sp)
+                                inner()
+                            }
                         )
                     }
                 }
-            }
-        }
 
-        Column {
-            LiquidButton(
-                onClick = { if (state.isApiKeyValid) onComplete() else onValidate() },
-                backdrop = backdrop,
-                modifier = Modifier.fillMaxWidth().height(60.dp),
-                enabled = !state.isValidatingKey && state.apiKey.isNotBlank()
-            ) {
-                if (state.isValidatingKey) {
-                    CircularProgressIndicator(modifier = Modifier.size(24.dp), color = androidx.compose.ui.graphics.Color.White, strokeWidth = 2.dp)
-                } else {
+                if (state.keyValidationError != null) {
                     Text(
-                        text = if (state.isApiKeyValid) "Continue" else "Test & Save Key",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 18.sp,
-                        color = androidx.compose.ui.graphics.Color.White
+                        text = state.keyValidationError,
+                        color = Color(0xFFFF5252),
+                        style = MaterialTheme.typography.labelSmall,
+                        modifier = Modifier.padding(top = 12.dp)
                     )
                 }
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { onGetApiKey() }
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "Don't have a key? Get one free",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = androidx.compose.ui.graphics.Color.White,
+                        fontSize = 15.sp
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Icon(Icons.AutoMirrored.Rounded.OpenInNew, null, tint = androidx.compose.ui.graphics.Color.White, modifier = Modifier.size(16.dp))
+                }
+
+                Spacer(modifier = Modifier.height(if (compact) 24.dp else 48.dp))
+
+                GlassCard(backdrop = backdrop, modifier = Modifier.fillMaxWidth()) {
+                    Row(modifier = Modifier.padding(20.dp), verticalAlignment = Alignment.Top) {
+                        Icon(Icons.Rounded.PrivacyTip, null, tint = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.7f), modifier = Modifier.size(24.dp))
+                        Spacer(Modifier.width(16.dp))
+                        Column {
+                            Text("Privacy Commitment", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = WhispryTokens.TextPrimary)
+                            Text(
+                                "We never collect or store your audio or transcriptions. Everything is processed directly through Groq's API.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = WhispryTokens.TextTertiary,
+                                lineHeight = 18.sp,
+                                modifier = Modifier.padding(top = 4.dp)
+                            )
+                        }
+                    }
+                }
             }
-            
-            Spacer(modifier = Modifier.height(48.dp))
+
+            Column {
+                LiquidButton(
+                    onClick = { if (state.isApiKeyValid) onComplete() else onValidate() },
+                    backdrop = backdrop,
+                    modifier = Modifier.fillMaxWidth().height(60.dp),
+                    enabled = !state.isValidatingKey && state.apiKey.isNotBlank()
+                ) {
+                    if (state.isValidatingKey) {
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp), color = androidx.compose.ui.graphics.Color.White, strokeWidth = 2.dp)
+                    } else {
+                        Text(
+                            text = if (state.isApiKeyValid) "Continue" else "Test & Save Key",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 18.sp,
+                            color = androidx.compose.ui.graphics.Color.White
+                        )
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(if (compact) 24.dp else 48.dp))
+            }
         }
     }
 }

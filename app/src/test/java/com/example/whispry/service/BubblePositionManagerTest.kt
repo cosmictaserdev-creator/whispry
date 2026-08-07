@@ -290,6 +290,34 @@ class BubblePositionManagerTest {
     }
 
     @Test
+    fun `widget edge position clears the left edge by the clearance`() {
+        val clearancePx = 24f * density
+        val (x, _) = manager.widgetEdgePosition(
+            WidgetEdge.Left, 900f, 80f, 140f, phonePortrait, clearancePx
+        )
+
+        assertEquals(phonePortrait.left.toFloat() + clearancePx, x, 0.01f)
+    }
+
+    @Test
+    fun `widget edge position clears the right edge by the clearance`() {
+        val clearancePx = 12f * density
+        val (x, _) = manager.widgetEdgePosition(
+            WidgetEdge.Right, 900f, 80f, 140f, phonePortrait, clearancePx
+        )
+
+        assertEquals(phonePortrait.right - 80f - clearancePx, x, 0.01f)
+    }
+
+    @Test
+    fun `widget default edge position honors clearance`() {
+        val clearancePx = 12f * density
+        val (x, _) = manager.widgetDefaultEdgePosition(80f, 140f, phonePortrait, clearancePx)
+
+        assertEquals(phonePortrait.right - 80f - clearancePx, x, 0.01f)
+    }
+
+    @Test
     fun `widget edge position sits flush on the right edge`() {
         val (x, _) = manager.widgetEdgePosition(
             WidgetEdge.Right, 900f, 80f, 140f, phonePortrait
@@ -325,60 +353,4 @@ class BubblePositionManagerTest {
         assertEquals(phonePortrait.top + phonePortrait.height * 0.62f, y, 0.01f)
     }
 
-    // ------------------------------------------------------------------
-    // Floating widget: edge mode (4 corners)
-    // ------------------------------------------------------------------
-
-    @Test
-    fun `widget corner target picks the nearest corner in each quadrant`() {
-        val w = 140f
-        val h = 140f
-
-        assertEquals(
-            WidgetCorner.TopLeft,
-            manager.widgetCornerTarget(phonePortrait.left + 10f, phonePortrait.top + 10f, w, h, phonePortrait)
-        )
-        assertEquals(
-            WidgetCorner.TopRight,
-            manager.widgetCornerTarget(phonePortrait.right - 200f, phonePortrait.top + 10f, w, h, phonePortrait)
-        )
-        assertEquals(
-            WidgetCorner.BottomLeft,
-            manager.widgetCornerTarget(phonePortrait.left + 10f, phonePortrait.bottom - 300f, w, h, phonePortrait)
-        )
-        assertEquals(
-            WidgetCorner.BottomRight,
-            manager.widgetCornerTarget(phonePortrait.right - 200f, phonePortrait.bottom - 300f, w, h, phonePortrait)
-        )
-    }
-
-    @Test
-    fun `widget corner position tucks flush into the bottom right corner`() {
-        val (x, y) = manager.widgetCornerPosition(WidgetCorner.BottomRight, 140f, 140f, phonePortrait)
-
-        assertEquals(phonePortrait.right - 140f, x, 0.01f)
-        assertEquals(phonePortrait.bottom - 140f, y, 0.01f)
-    }
-
-    @Test
-    fun `widget corner position tucks flush into the top left corner`() {
-        val (x, y) = manager.widgetCornerPosition(WidgetCorner.TopLeft, 140f, 140f, phonePortrait)
-
-        assertEquals(phonePortrait.left.toFloat(), x, 0.01f)
-        assertEquals(phonePortrait.top.toFloat(), y, 0.01f)
-    }
-
-    @Test
-    fun `widget corner snapping works across orientations`() {
-        // The same normalized spot resolves to the equivalent corner in landscape.
-        val target = manager.widgetCornerTarget(
-            phoneLandscape.right - 300f, phoneLandscape.bottom - 300f, 140f, 140f, phoneLandscape
-        )
-
-        assertEquals(WidgetCorner.BottomRight, target)
-
-        val (x, y) = manager.widgetCornerPosition(target, 140f, 140f, phoneLandscape)
-        assertEquals(phoneLandscape.right - 140f, x, 0.01f)
-        assertEquals(phoneLandscape.bottom - 140f, y, 0.01f)
-    }
 }

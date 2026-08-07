@@ -5,6 +5,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.unit.dp
 
 object WhispryTokens {
@@ -321,6 +323,41 @@ enum class AccentPreset(val label: String, val mainColor: Color, val softColor: 
     )
 }
 
+/** Prefix marking a persisted accent value as a user-picked custom color rather than an [AccentPreset] name — serialized as "CUSTOM:AARRGGBB". */
+private const val CUSTOM_ACCENT_PREFIX = "CUSTOM:"
+
+/** The three colors [WhispryTheme] needs, whether sourced from a curated [AccentPreset] or a custom pick. */
+data class AccentColorSet(val mainColor: Color, val softColor: Color, val glowColor: Color)
+
+private val AccentPreset.colorSet: AccentColorSet
+    get() = AccentColorSet(mainColor, softColor, glowColor)
+
+fun serializeCustomAccent(color: Color): String =
+    CUSTOM_ACCENT_PREFIX + color.toArgb().toUInt().toString(16).padStart(8, '0')
+
+fun isCustomAccent(value: String?): Boolean = value != null && value.startsWith(CUSTOM_ACCENT_PREFIX)
+
+/** Null when [value] isn't a custom accent or fails to parse. */
+fun parseCustomAccentColor(value: String?): Color? {
+    if (!isCustomAccent(value)) return null
+    val argb = value!!.removePrefix(CUSTOM_ACCENT_PREFIX).toULongOrNull(16) ?: return null
+    return Color(argb.toInt())
+}
+
+/** Resolves a persisted accent value — an [AccentPreset] name or a "CUSTOM:AARRGGBB" hex from
+ *  the full color picker — into the colors [WhispryTheme] needs. Soft/glow are derived from the
+ *  custom main color the same way the presets do it: a lighten toward white, a 25%-alpha glow. */
+fun resolveAccentColors(value: String?): AccentColorSet {
+    parseCustomAccentColor(value)?.let { main ->
+        return AccentColorSet(
+            mainColor = main,
+            softColor = lerp(main, Color.White, 0.35f),
+            glowColor = main.copy(alpha = 0.25f)
+        )
+    }
+    return (AccentPreset.entries.find { it.name == value } ?: AccentPreset.Purple).colorSet
+}
+
 @Stable
 class WhispryColors(
     accent: Color,
@@ -363,25 +400,25 @@ val LocalWhispryColors = staticCompositionLocalOf {
 
 @Composable
 fun WhispryTheme(
-    accentPreset: AccentPreset = AccentPreset.Purple,
+    accentColors: AccentColorSet = AccentPreset.Purple.colorSet,
     darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit
 ) {
     val colors = remember {
         WhispryColors(
-            accent = accentPreset.mainColor,
-            accentSoft = accentPreset.softColor,
-            accentGlow = accentPreset.glowColor,
+            accent = accentColors.mainColor,
+            accentSoft = accentColors.softColor,
+            accentGlow = accentColors.glowColor,
             isDark = darkTheme
         )
     }
-    
+
     SideEffect {
         colors.update(
             WhispryColors(
-                accent = accentPreset.mainColor,
-                accentSoft = accentPreset.softColor,
-                accentGlow = accentPreset.glowColor,
+                accent = accentColors.mainColor,
+                accentSoft = accentColors.softColor,
+                accentGlow = accentColors.glowColor,
                 isDark = darkTheme
             )
         )

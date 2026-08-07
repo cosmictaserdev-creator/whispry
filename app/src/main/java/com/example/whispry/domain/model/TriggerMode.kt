@@ -2,6 +2,7 @@ package com.example.whispry.domain.model
 
 sealed class TriggerMode {
     object VolumeButton : TriggerMode()
+    // Retired: kept only so persisted/legacy modes still deserialize to a live mode.
     object ActionButton : TriggerMode()   // OEM-specific physical button
     object WakeWord : TriggerMode()
     // Retired as a trigger MODE: the floating widget is now an always-available surface with
@@ -21,7 +22,7 @@ sealed class TriggerMode {
     companion object {
         fun fromStringId(id: String?): TriggerMode = when(id) {
             "volume_button" -> VolumeButton
-            "action_button" -> ActionButton
+            "action_button" -> Manual // legacy: action-button trigger retired
             "wake_word" -> WakeWord
             "floating_widget" -> Manual // legacy: widget is no longer a trigger mode
             "manual" -> Manual

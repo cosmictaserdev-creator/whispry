@@ -44,6 +44,12 @@ class DefaultsSeeder @Inject constructor(
         voiceCommandRepository.save("maps", VoiceCommandAction.MAPS_SEARCH.name, "", "")
         // "note buy milk" -> opens a notes app with the idea pre-filled (no app pinned: uses chooser).
         voiceCommandRepository.save("note", VoiceCommandAction.NEW_NOTE.name, "", "")
+        // "calculate 3 plus 4" -> opens the calculator and types out the operation.
+        voiceCommandRepository.save("calculate", VoiceCommandAction.CALCULATE.name, "", "")
+        voiceCommandRepository.save("call", VoiceCommandAction.CALL.name, "", "")
+        voiceCommandRepository.save("text", VoiceCommandAction.SMS.name, "", "")
+        voiceCommandRepository.save("alarm", VoiceCommandAction.SET_ALARM.name, "", "")
+        voiceCommandRepository.save("timer", VoiceCommandAction.SET_TIMER.name, "", "")
 
         settingsProvider.dataStore.edit { it[DataStoreKeys.DEFAULTS_SEEDED] = true }
     }

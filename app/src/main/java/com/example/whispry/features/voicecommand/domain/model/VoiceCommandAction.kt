@@ -13,7 +13,14 @@ enum class VoiceCommandAction(val label: String, val description: String) {
     MAPS_SEARCH("Maps Search", "Search on Google Maps"),
     PLAYSTORE_SEARCH("Play Store Search", "Search on the Play Store"),
     NEW_NOTE("New Note", "Open a notes app with your idea pre-filled"),
-    OPEN_APP("Open App", "Launch an app, query copied to clipboard");
+    OPEN_APP("Open App", "Launch an app, query copied to clipboard"),
+    CALCULATE("Calculate", "Opens the calculator and types out the operation"),
+    CALL("Call", "Opens the dialer with the number ready to call"),
+    SMS("Text", "Opens messages with your words pre-filled"),
+    SET_ALARM("Set Alarm", "Opens the alarm screen"),
+    SET_TIMER("Set Timer", "Starts a countdown timer"),
+    CALENDAR_EVENT("Calendar Event", "Opens a new calendar event with a title"),
+    EMAIL("Email", "Opens email with your words pre-filled");
 
     /** OPEN_APP must have a target app; NEW_NOTE can optionally pin one (else a chooser). */
     val needsTargetApp: Boolean get() = this == OPEN_APP

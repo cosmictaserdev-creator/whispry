@@ -18,7 +18,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.core.graphics.createBitmap
 import com.example.whispry.data.local.datasource.SettingsProvider
-import com.example.whispry.ui.theme.AccentPreset
+import com.example.whispry.ui.theme.resolveAccentColors
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -77,8 +77,7 @@ class GlassBackdropCache @Inject constructor(
         canvas.drawColor(0xFF08080F.toInt())
 
         val accentName = settingsProvider.accentColor.first()
-        val preset = AccentPreset.entries.find { it.name == accentName } ?: AccentPreset.Purple
-        val mainColor = preset.mainColor
+        val mainColor = resolveAccentColors(accentName).mainColor
 
         val glowPaint = Paint().apply {
             isAntiAlias = true

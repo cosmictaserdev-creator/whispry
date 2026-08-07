@@ -85,6 +85,9 @@ class SettingsProvider @Inject constructor(
     val hinglishOutputEnabled: Flow<Boolean> =
         dataStore.data.map { it[DataStoreKeys.HINGLISH_OUTPUT_ENABLED] ?: false }
 
+    val instantModeEnabled: Flow<Boolean> =
+        dataStore.data.map { it[DataStoreKeys.INSTANT_MODE_ENABLED] ?: false }
+
     // ------------------------------------------------------------------
     // Setters
     // ------------------------------------------------------------------

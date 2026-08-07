@@ -2,6 +2,7 @@ package com.example.whispry.domain.usecase
 
 import com.example.whispry.data.local.datasource.SettingsProvider
 import com.example.whispry.domain.model.OutputPreset
+import com.example.whispry.domain.model.TransliterationLanguage
 import com.example.whispry.domain.repository.AudioRepository
 import com.example.whispry.domain.repository.TranscriptRepository
 import com.example.whispry.domain.util.Result
@@ -13,7 +14,7 @@ class TranscribeAudioUseCase @Inject constructor(
     private val audioRepository: AudioRepository,
     private val transcriptRepository: TranscriptRepository,
     private val formatTranscriptUseCase: FormatTranscriptUseCase,
-    private val hinglishTransliterationUseCase: HinglishTransliterationUseCase,
+    private val transliterationUseCase: TransliterationUseCase,
     private val settingsProvider: SettingsProvider
 ) {
     suspend operator fun invoke(
@@ -35,10 +36,11 @@ class TranscribeAudioUseCase @Inject constructor(
 
         val rawText = transcribeResult.data
 
-        // Step 1.5 — romanize Devanagari Hindi into Hinglish before any further formatting,
-        // so a downstream output preset always sees Latin-script text.
-        val workingText = if (finalLanguageCode == "hi" && settingsProvider.hinglishOutputEnabled.first()) {
-            val transliterateResult = hinglishTransliterationUseCase(rawText)
+        // Step 1.5 — romanize a native-script transcript before any further formatting, so a
+        // downstream output preset always sees Latin-script text.
+        val transliterationLanguage = TransliterationLanguage.fromCode(finalLanguageCode)
+        val workingText = if (transliterationLanguage != null && settingsProvider.hinglishOutputEnabled.first()) {
+            val transliterateResult = transliterationUseCase(rawText, transliterationLanguage)
             if (transliterateResult is Result.Success) transliterateResult.data else rawText
         } else {
             rawText

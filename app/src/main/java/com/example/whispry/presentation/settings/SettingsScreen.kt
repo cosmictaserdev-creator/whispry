@@ -24,6 +24,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.*
 import androidx.compose.ui.graphics.graphicsLayer
@@ -55,8 +56,11 @@ import com.example.whispry.domain.model.OutputPreset
 import com.example.whispry.domain.model.PressAction
 import com.example.whispry.domain.model.RetentionPolicy
 import com.example.whispry.domain.model.TranscriptionProviderPreset
+import com.example.whispry.domain.model.TransliterationLanguage
 import com.example.whispry.domain.model.TriggerMode
+import com.example.whispry.service.OemBatteryOptimization
 import com.example.whispry.service.TriggerSound
+import com.example.whispry.ui.components.ColorPickerSheet
 import com.example.whispry.ui.components.WhispryBottomSheet
 import com.example.whispry.ui.components.liquidExpand
 import com.example.whispry.ui.components.liquidGlow
@@ -76,6 +80,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import com.example.whispry.ui.theme.AccentPreset
 import com.example.whispry.ui.theme.WhispryTheme
+import com.example.whispry.ui.theme.WhispryTokens
+import com.example.whispry.ui.theme.parseCustomAccentColor
+import com.example.whispry.ui.theme.serializeCustomAccent
 import androidx.compose.runtime.saveable.rememberSaveable
 import com.example.whispry.ui.util.adaptive.MasterDetailScaffold
 import com.example.whispry.ui.util.adaptive.currentWidthSizeClass
@@ -471,13 +478,6 @@ private fun VoiceRecognitionSection(
     onShowLanguagePicker: () -> Unit
 ) {
     SettingsSectionOptimized(title = stringResource(R.string.settings_category_voice), backdrop = backdrop) {
-        ApiKeyField(
-            apiKey = state.apiKey,
-            onValueChange = { viewModel.onIntent(SettingsIntent.UpdateApiKey(it)) }
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
         SettingsRow(
             icon = Icons.Rounded.Language,
             title = "Language",
@@ -486,16 +486,16 @@ private fun VoiceRecognitionSection(
             onClick = onShowLanguagePicker
         )
 
-        AnimatedVisibility(visible = state.language == "hi") {
+        AnimatedVisibility(visible = TransliterationLanguage.fromCode(state.language) != null) {
             Column {
                 Spacer(modifier = Modifier.height(16.dp))
                 LiquidSettingsToggle(
                     icon = Icons.Rounded.Translate,
-                    title = "Hinglish output",
+                    title = "Romanized output",
                     checked = state.hinglishOutputEnabled,
                     onCheckedChange = { viewModel.onIntent(SettingsIntent.SetHinglishOutputEnabled(it)) },
                     backdrop = backdrop,
-                    helpText = "Romanizes the Hindi transcript into Latin letters (\"kaise ho\" instead of \"कैसे हो\") instead of translating it. Whisper transcribes Hindi in Devanagari script by default; this runs it through the formatting AI to romanize it afterward."
+                    helpText = "Romanizes the transcript into Latin letters (\"kaise ho\" instead of \"कैसे हो\") instead of translating it. Whisper transcribes this language in its native script by default; this runs it through the formatting AI to romanize it afterward."
                 )
             }
         }
@@ -550,7 +550,9 @@ private fun AiProviderSection(
         ApiKeyField(
             label = "Transcription API Key",
             apiKey = state.transcriptionApiKey,
-            onValueChange = { viewModel.onIntent(SettingsIntent.SetTranscriptionApiKey(it)) }
+            onValueChange = { viewModel.onIntent(SettingsIntent.SetTranscriptionApiKey(it)) },
+            onTestAndSave = { viewModel.onIntent(SettingsIntent.TestAndSaveTranscriptionApiKey) },
+            testState = state.transcriptionKeyTestState
         )
 
         Spacer(modifier = Modifier.height(20.dp))
@@ -578,7 +580,9 @@ private fun AiProviderSection(
         ApiKeyField(
             label = "Formatting API Key",
             apiKey = state.formattingApiKey,
-            onValueChange = { viewModel.onIntent(SettingsIntent.SetFormattingApiKey(it)) }
+            onValueChange = { viewModel.onIntent(SettingsIntent.SetFormattingApiKey(it)) },
+            onTestAndSave = { viewModel.onIntent(SettingsIntent.TestAndSaveFormattingApiKey) },
+            testState = state.formattingKeyTestState
         )
 
         AnimatedVisibility(
@@ -1049,7 +1053,7 @@ private fun FloatingWidgetSection(
                 viewModel.onIntent(SettingsIntent.SetFloatingWidgetEnabled(enabled))
             },
             backdrop = backdrop,
-            helpText = "A small accent-colored switch that stays on screen. Press and hold it to talk, release to send, or flick it down to cancel. It works alongside your other triggers and fades out of the way when idle."
+            helpText = "A small accent-colored switch that stays on screen. When idle it collapses into a thin edge tab — swipe it inward to reveal the switch, then press and hold it to talk, release to send, or flick it down to cancel. It works alongside your other triggers."
         )
 
         AnimatedVisibility(
@@ -1059,25 +1063,10 @@ private fun FloatingWidgetSection(
         ) {
             Column(modifier = Modifier.padding(top = 16.dp)) {
                 SettingsRow(
-                    icon = Icons.Rounded.Category,
-                    title = "Shape",
-                    value = if (cfg.shapeMode == com.example.whispry.service.WidgetShapeMode.RAMP) "Edge ramp" else "Corner arch",
-                    helpText = "Edge ramp is a slim wedge hugging the left or right edge. Corner arch wraps around a screen corner and follows its curve — adjust the arch in edit mode to match your device.",
-                    onClick = {
-                        val next = if (cfg.shapeMode == com.example.whispry.service.WidgetShapeMode.RAMP)
-                            com.example.whispry.service.WidgetShapeMode.CORNER
-                        else com.example.whispry.service.WidgetShapeMode.RAMP
-                        viewModel.onIntent(SettingsIntent.SetWidgetShapeMode(next.name))
-                    }
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                SettingsRow(
                     icon = Icons.Rounded.OpenWith,
                     title = "Adjust position & size",
                     value = "",
-                    helpText = "Opens a live preview over your home screen. Drag the switch anywhere (it snaps to edges or corners), fine-tune its size, then tap Done.",
+                    helpText = "Opens a live preview over your home screen. Drag the switch anywhere (it snaps to the nearest edge), fine-tune its size, then tap Done.",
                     onClick = { viewModel.onIntent(SettingsIntent.EnterWidgetEditMode) }
                 )
 
@@ -1199,6 +1188,26 @@ private fun FloatingWidgetSection(
                 )
             }
         }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        LiquidSettingsToggle(
+            icon = Icons.Rounded.Keyboard,
+            title = "Keyboard logo",
+            checked = state.keyboardLogoEnabled,
+            onCheckedChange = { enabled ->
+                if (enabled && !android.provider.Settings.canDrawOverlays(context)) {
+                    val intent = android.content.Intent(
+                        android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                        android.net.Uri.parse("package:${context.packageName}")
+                    )
+                    context.startActivity(intent)
+                }
+                viewModel.onIntent(SettingsIntent.SetKeyboardLogoEnabled(enabled))
+            },
+            backdrop = backdrop,
+            helpText = "A small mic button that floats just above your keyboard whenever it opens. Tap it to start recording, tap again to stop — then drag it left or right to park it where it's out of your way."
+        )
     }
 }
 
@@ -1233,8 +1242,8 @@ private fun InterfaceSoundsSection(
         Spacer(modifier = Modifier.height(16.dp))
 
         AccentColorSelector(
-            selectedPreset = AccentPreset.entries.find { it.name == state.accentColor } ?: AccentPreset.Purple,
-            onPresetSelected = { viewModel.onIntent(SettingsIntent.SetAccentColor(it.name)) }
+            selectedAccent = state.accentColor,
+            onAccentSelected = { viewModel.onIntent(SettingsIntent.SetAccentColor(it)) }
         )
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -1261,6 +1270,17 @@ private fun InterfaceSoundsSection(
                 )
             }
         }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        LiquidSettingsToggle(
+            icon = Icons.Rounded.Bolt,
+            title = "Instant Mode",
+            checked = state.instantModeEnabled,
+            onCheckedChange = { viewModel.onIntent(SettingsIntent.SetInstantModeEnabled(it)) },
+            backdrop = backdrop,
+            helpText = "Shortens the pill and widget animations so results land faster. They still animate, just abbreviated instead of the full lingering transition."
+        )
     }
 }
 
@@ -1422,6 +1442,7 @@ private fun ServiceMaintenanceSection(
     backdrop: LayerBackdrop,
     onRevisitTutorial: () -> Unit
 ) {
+    val context = LocalContext.current
     SettingsSectionOptimized(title = "Service & Maintenance", backdrop = backdrop) {
         StatusRow(
             title = "Accessibility Service",
@@ -1462,6 +1483,20 @@ private fun ServiceMaintenanceSection(
             helpText = "Shows the first-visit tips on the Presets and Settings screens again.",
             onClick = { coachVm.replayAll() }
         )
+
+        if (OemBatteryOptimization.shouldShowPrompt(context)) {
+            Spacer(modifier = Modifier.height(16.dp))
+
+            SettingsRow(
+                icon = Icons.Rounded.BatterySaver,
+                title = "Protect from battery killers",
+                value = "Open settings",
+                helpText = "This phone's manufacturer can aggressively kill background services, which may stop Whispry mid-recording. Opens the battery settings so you can exempt Whispry from being killed.",
+                onClick = {
+                    OemBatteryOptimization.getSettingsIntent(context)?.let { context.startActivity(it) }
+                }
+            )
+        }
     }
 }
 
@@ -1904,7 +1939,7 @@ fun TriggerPickerSection(
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         availableModes.forEach { mode ->
-            val isSupported = if (mode is TriggerMode.ActionButton) state.isActionButtonSupported else true
+            val isSupported = true
             val touch = rememberLiquidTouch(intensity = 0.35f)
 
             Box(
@@ -2060,7 +2095,6 @@ private fun isSelected(current: TriggerMode, target: TriggerMode): Boolean {
 
 private fun getTriggerTitle(mode: TriggerMode) = when (mode) {
     is TriggerMode.VolumeButton -> "Volume Button"
-    is TriggerMode.ActionButton -> "Action Button"
     is TriggerMode.FloatingWidget -> "Floating Widget"
     is TriggerMode.Manual -> "Manual Only"
     else -> "Unknown"
@@ -2071,7 +2105,6 @@ private fun getTriggerDescription(mode: TriggerMode, isSupported: Boolean, trigg
         val keyName = if (triggerVolumeKey == "VOLUME_UP") "volume up" else "volume down"
         "Double press and hold $keyName"
     }
-    is TriggerMode.ActionButton -> if (isSupported) "Press and hold your device's action button" else "Hardware not detected on this device"
     is TriggerMode.FloatingWidget -> "Tap the floating bubble to record"
     is TriggerMode.Manual -> "Use the record button inside the app only"
     else -> ""
@@ -2079,7 +2112,6 @@ private fun getTriggerDescription(mode: TriggerMode, isSupported: Boolean, trigg
 
 private fun getTriggerIcon(mode: TriggerMode) = when (mode) {
     is TriggerMode.VolumeButton -> Icons.Rounded.VolumeDown
-    is TriggerMode.ActionButton -> Icons.Rounded.SmartButton
     is TriggerMode.FloatingWidget -> Icons.Rounded.OpenInNew
     is TriggerMode.Manual -> Icons.Rounded.Mic
     else -> Icons.Rounded.QuestionMark
@@ -2215,7 +2247,11 @@ private fun SettingHelpPopup(title: String, text: String, onDismiss: () -> Unit)
                 .border(1.dp, com.example.whispry.ui.theme.WhispryTokens.GlassBorder, ContinuousRoundedRectangle(24.dp))
                 .padding(24.dp)
         ) {
-            Column {
+            Column(
+                modifier = Modifier
+                    .heightIn(max = LocalConfiguration.current.screenHeightDp.dp * 0.7f)
+                    .verticalScroll(rememberScrollState())
+            ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
                         modifier = Modifier
@@ -2294,6 +2330,8 @@ fun LiquidSettingsSlider(
 fun ApiKeyField(
     apiKey: String,
     onValueChange: (String) -> Unit,
+    onTestAndSave: () -> Unit,
+    testState: ApiKeyTestState,
     label: String = "Groq API Key"
 ) {
     var passwordVisible by remember { mutableStateOf(false) }
@@ -2325,14 +2363,65 @@ fun ApiKeyField(
                 unfocusedTextColor = Color.White
             )
         )
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(Color.White.copy(alpha = 0.08f))
+                    .clickable(enabled = apiKey.isNotBlank() && testState != ApiKeyTestState.Testing) { onTestAndSave() }
+                    .padding(horizontal = 16.dp, vertical = 10.dp)
+            ) {
+                if (testState == ApiKeyTestState.Testing) {
+                    CircularProgressIndicator(modifier = Modifier.size(16.dp), color = Color.White, strokeWidth = 2.dp)
+                } else {
+                    Text("Test & Save", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                }
+            }
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            when (val s = testState) {
+                is ApiKeyTestState.Success -> Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Rounded.CheckCircle,
+                        contentDescription = null,
+                        tint = WhispryTokens.SuccessGreen,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Saved and working", color = WhispryTokens.SuccessGreen, fontSize = 12.sp)
+                }
+                is ApiKeyTestState.Failure -> Text(
+                    text = s.message,
+                    color = Color(0xFFFF5252),
+                    fontSize = 12.sp,
+                    modifier = Modifier.weight(1f)
+                )
+                else -> Unit
+            }
+        }
     }
 }
 
+/** Curated subset of [AccentPreset] shown inline — the full 39-color enum stays around so
+ *  anyone who already picked a rarer preset keeps seeing it correctly, but the picker itself
+ *  only surfaces the best few plus the "Custom" tile for everything else. */
+private val curatedAccentPresets = listOf(
+    AccentPreset.Purple, AccentPreset.Blue, AccentPreset.Rose, AccentPreset.Emerald,
+    AccentPreset.Amber, AccentPreset.Cyan, AccentPreset.Crimson, AccentPreset.Violet
+)
+
 @Composable
 fun AccentColorSelector(
-    selectedPreset: AccentPreset,
-    onPresetSelected: (AccentPreset) -> Unit
+    selectedAccent: String,
+    onAccentSelected: (String) -> Unit
 ) {
+    var showPicker by remember { mutableStateOf(false) }
+    val customColor = remember(selectedAccent) { parseCustomAccentColor(selectedAccent) }
+
     Column {
         Text(
             text = "Accent Color",
@@ -2341,87 +2430,144 @@ fun AccentColorSelector(
             color = Color.White
         )
 
-        val configuration = LocalConfiguration.current
-        val screenWidth = configuration.screenWidthDp.dp
-        val cardWidth = screenWidth - 48.dp
-
         LazyRow(
             modifier = Modifier
-                .requiredWidth(cardWidth),
+                .fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(16.dp),
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp)
         ) {
-            items(AccentPreset.entries) { preset ->
-                val isSelected = preset == selectedPreset
-
-                val interactionSource = remember { MutableInteractionSource() }
-                val isPressed by interactionSource.collectIsPressedAsState()
-
-                val scale by animateFloatAsState(
-                    targetValue = if (isPressed) 0.9f else 1f,
-                    animationSpec = spring(dampingRatio = 0.5f, stiffness = Spring.StiffnessLow),
-                    label = "ColorScale"
+            items(curatedAccentPresets) { preset ->
+                ColorSwatch(
+                    color = preset.mainColor,
+                    label = preset.label.split(" ").last(),
+                    isSelected = customColor == null && preset.name == selectedAccent,
+                    onClick = { onAccentSelected(preset.name) }
                 )
-
-                val contentDistortion by animateFloatAsState(
-                    targetValue = if (isPressed) 0.95f else 1f,
-                    animationSpec = spring(dampingRatio = 0.4f, stiffness = Spring.StiffnessLow),
-                    label = "ContentDistortion"
+            }
+            item {
+                ColorSwatch(
+                    color = customColor ?: Color.White,
+                    label = "Custom",
+                    isSelected = customColor != null,
+                    isCustomTile = true,
+                    onClick = { showPicker = true }
                 )
-
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier
-                        .graphicsLayer {
-                            scaleX = scale
-                            scaleY = 1f / scale
-                        }
-                        .clickable(
-                            interactionSource = interactionSource,
-                            indication = null,
-                            onClick = { onPresetSelected(preset) }
-                        )
-                        .padding(vertical = 4.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(48.dp)
-                            .clip(CircleShape)
-                            .background(preset.mainColor)
-                            .border(
-                                width = if (isSelected) 3.dp else 0.dp,
-                                color = Color.White,
-                                shape = CircleShape
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (isSelected) {
-                            Icon(
-                                Icons.Rounded.Check,
-                                null,
-                                tint = Color.Black,
-                                modifier = Modifier
-                                    .size(24.dp)
-                                    .graphicsLayer {
-                                        scaleX = contentDistortion
-                                        scaleY = contentDistortion
-                                    }
-                            )
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = preset.label.split(" ").last(),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = if (isSelected) Color.White else Color.White.copy(alpha = 0.4f),
-                        modifier = Modifier.graphicsLayer {
-                            scaleX = contentDistortion
-                            alpha = contentDistortion
-                        }
-                    )
-                }
             }
         }
+    }
+
+    if (showPicker) {
+        ColorPickerSheet(
+            initialColor = customColor ?: AccentPreset.entries.find { it.name == selectedAccent }?.mainColor
+                ?: AccentPreset.Purple.mainColor,
+            onDismiss = { showPicker = false },
+            onConfirm = { color ->
+                onAccentSelected(serializeCustomAccent(color))
+                showPicker = false
+            }
+        )
+    }
+}
+
+@Composable
+private fun ColorSwatch(
+    color: Color,
+    label: String,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    isCustomTile: Boolean = false
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.9f else 1f,
+        animationSpec = spring(dampingRatio = 0.5f, stiffness = Spring.StiffnessLow),
+        label = "ColorScale"
+    )
+
+    val contentDistortion by animateFloatAsState(
+        targetValue = if (isPressed) 0.95f else 1f,
+        animationSpec = spring(dampingRatio = 0.4f, stiffness = Spring.StiffnessLow),
+        label = "ContentDistortion"
+    )
+
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = 1f / scale
+            }
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick
+            )
+            .padding(vertical = 4.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(48.dp)
+                .clip(CircleShape)
+                .then(
+                    if (isCustomTile && !isSelected) {
+                        // No custom color picked yet: a rainbow swatch invites "pick anything".
+                        Modifier.background(
+                            Brush.sweepGradient(
+                                listOf(
+                                    Color.Red, Color.Yellow, Color.Green,
+                                    Color.Cyan, Color.Blue, Color.Magenta, Color.Red
+                                )
+                            )
+                        )
+                    } else {
+                        Modifier.background(color)
+                    }
+                )
+                .border(
+                    width = if (isSelected) 3.dp else 0.dp,
+                    color = Color.White,
+                    shape = CircleShape
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            if (isSelected) {
+                Icon(
+                    Icons.Rounded.Check,
+                    null,
+                    tint = Color.Black,
+                    modifier = Modifier
+                        .size(24.dp)
+                        .graphicsLayer {
+                            scaleX = contentDistortion
+                            scaleY = contentDistortion
+                        }
+                )
+            } else if (isCustomTile) {
+                Icon(
+                    Icons.Rounded.Colorize,
+                    null,
+                    tint = Color.White,
+                    modifier = Modifier
+                        .size(20.dp)
+                        .graphicsLayer {
+                            scaleX = contentDistortion
+                            scaleY = contentDistortion
+                        }
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = if (isSelected) Color.White else Color.White.copy(alpha = 0.4f),
+            modifier = Modifier.graphicsLayer {
+                scaleX = contentDistortion
+                alpha = contentDistortion
+            }
+        )
     }
 }
 

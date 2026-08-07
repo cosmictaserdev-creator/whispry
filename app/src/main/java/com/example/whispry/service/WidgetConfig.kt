@@ -3,19 +3,6 @@ package com.example.whispry.service
 import androidx.datastore.preferences.core.Preferences
 import com.example.whispry.data.local.datasource.DataStoreKeys
 
-enum class WidgetShapeMode {
-    /** Edge-anchored ramp wedge, snaps to left/right edges (default). */
-    RAMP,
-
-    /** Corner-wrapping arch bar, snaps to the four corners. */
-    CORNER;
-
-    companion object {
-        fun fromName(name: String?): WidgetShapeMode =
-            entries.find { it.name == name } ?: RAMP
-    }
-}
-
 /** Manual override for the springy animations: AUTO follows the OS "remove animations" setting. */
 enum class WidgetMotionSetting {
     AUTO, ON, OFF;
@@ -60,10 +47,9 @@ sealed interface WidgetTapAction {
  */
 data class WidgetConfig(
     val enabled: Boolean = DataStoreKeys.DEFAULT_FLOATING_WIDGET_ENABLED,
-    val shapeMode: WidgetShapeMode = WidgetShapeMode.RAMP,
     val baseHeightDp: Int = 72,
     val protrusionDp: Int = 26,
-    val archDp: Int = 28,
+    val edgeClearanceDp: Int = DataStoreKeys.DEFAULT_WIDGET_EDGE_CLEARANCE,
     val idleOpacityPct: Int = 40,
     val fadeDelayMs: Long = 4000L,
     val armingDelayMs: Long = 350L,
@@ -81,10 +67,10 @@ data class WidgetConfig(
             return WidgetConfig(
                 enabled = prefs[DataStoreKeys.FLOATING_WIDGET_ENABLED]
                     ?: DataStoreKeys.DEFAULT_FLOATING_WIDGET_ENABLED,
-                shapeMode = WidgetShapeMode.fromName(prefs[DataStoreKeys.WIDGET_SHAPE_MODE]),
                 baseHeightDp = prefs[DataStoreKeys.WIDGET_BASE_HEIGHT_DP] ?: defaults.baseHeightDp,
                 protrusionDp = prefs[DataStoreKeys.WIDGET_PROTRUSION_DP] ?: defaults.protrusionDp,
-                archDp = prefs[DataStoreKeys.WIDGET_ARCH_DP] ?: defaults.archDp,
+                edgeClearanceDp = prefs[DataStoreKeys.WIDGET_EDGE_CLEARANCE]
+                    ?: defaults.edgeClearanceDp,
                 idleOpacityPct = prefs[DataStoreKeys.WIDGET_IDLE_OPACITY_PCT] ?: defaults.idleOpacityPct,
                 fadeDelayMs = prefs[DataStoreKeys.WIDGET_FADE_DELAY_MS] ?: defaults.fadeDelayMs,
                 // The anti-accident delay applies always — it's a general safety slider,

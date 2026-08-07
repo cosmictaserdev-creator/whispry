@@ -5,6 +5,8 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.provider.AlarmClock
+import android.provider.CalendarContract
 import com.example.whispry.domain.model.VoiceAppAction
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.net.URLEncoder
@@ -30,6 +32,11 @@ class VoiceCommandExecutor @Inject constructor(
         const val CHROME_PKG = "com.android.chrome"
         const val YOUTUBE_PKG = "com.google.android.youtube"
         const val MAPS_PKG = "com.google.android.apps.maps"
+        val CALCULATOR_PKGS = setOf(
+            "com.google.android.calculator",
+            "com.sec.android.app.popupcalculator",
+            "com.samsung.android.calculator"
+        )
     }
 
     fun execute(action: VoiceAppAction): ExecResult = when (action) {
@@ -39,6 +46,13 @@ class VoiceCommandExecutor @Inject constructor(
         is VoiceAppAction.PlayStoreSearch -> playStoreSearch(action.query)
         is VoiceAppAction.CreateNote -> createNote(action)
         is VoiceAppAction.OpenApp -> openApp(action)
+        is VoiceAppAction.Calculate -> calculate(action)
+        is VoiceAppAction.Call -> call(action)
+        is VoiceAppAction.Sms -> sms(action)
+        is VoiceAppAction.SetAlarm -> setAlarm(action)
+        is VoiceAppAction.SetTimer -> setTimer(action)
+        is VoiceAppAction.CalendarEvent -> calendarEvent(action)
+        is VoiceAppAction.Email -> email(action)
     }
 
     private fun createNote(action: VoiceAppAction.CreateNote): ExecResult {
@@ -116,6 +130,95 @@ class VoiceCommandExecutor @Inject constructor(
         } else {
             ExecResult.Failed("Couldn't open ${action.label}")
         }
+    }
+
+    private fun calculate(action: VoiceAppAction.Calculate): ExecResult {
+        val tokens = tokenizeExpression(action.expression)
+        if (tokens.isEmpty()) return ExecResult.Failed("Couldn't understand that calculation")
+        copyToClipboard(action.expression)
+        val launchIntent = CALCULATOR_PKGS.firstNotNullOfOrNull { pkg ->
+            context.packageManager.getLaunchIntentForPackage(pkg)
+        } ?: return ExecResult.Failed("No calculator app found — copied to clipboard")
+        launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        if (!launch(launchIntent)) return ExecResult.Failed("Couldn't open the calculator")
+        ServiceLocator.triggerService?.performCalculatorInput(tokens, CALCULATOR_PKGS)
+        return ExecResult.Launched("Calculating…")
+    }
+
+    /** Hand-rolled tokenizer — digits, one of +-×÷., ending with "=". No eval(), this only ever
+     *  drives calculator button taps, never runs arithmetic itself. */
+    private fun tokenizeExpression(raw: String): List<String> {
+        val normalized = raw.lowercase()
+            .replace(Regex("\\bplus\\b"), "+")
+            .replace(Regex("\\b(minus|subtract)\\b"), "-")
+            .replace(Regex("\\b(multiplied by|multiply|times)\\b"), "×")
+            .replace(Regex("\\b(divided by|divide)\\b"), "÷")
+            .replace(Regex("\\b(point|decimal)\\b"), ".")
+            .replace(Regex("(?<=[\\d\\s])x(?=[\\d\\s])"), "×")
+            .replace("*", "×")
+            .replace("/", "÷")
+
+        val tokens = mutableListOf<String>()
+        for (c in normalized) {
+            when {
+                c.isDigit() -> tokens += c.toString()
+                c == '+' || c == '-' || c == '×' || c == '÷' || c == '.' -> tokens += c.toString()
+            }
+        }
+        if (tokens.isEmpty()) return emptyList()
+        tokens += "="
+        return tokens
+    }
+
+    private fun call(action: VoiceAppAction.Call): ExecResult {
+        val digits = action.query.filter { it.isDigit() || it == '+' }
+        val intent = Intent(Intent.ACTION_DIAL).apply {
+            if (digits.isNotBlank()) data = Uri.parse("tel:$digits")
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        return if (launch(intent)) ExecResult.Launched("Opening dialer…") else ExecResult.Failed("Couldn't open the dialer")
+    }
+
+    private fun sms(action: VoiceAppAction.Sms): ExecResult {
+        val intent = Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:")).apply {
+            putExtra("sms_body", action.body)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        return if (launch(intent)) ExecResult.Launched("Opening messages…") else ExecResult.Failed("Couldn't open messages")
+    }
+
+    private fun setAlarm(action: VoiceAppAction.SetAlarm): ExecResult {
+        val intent = Intent(AlarmClock.ACTION_SET_ALARM).apply {
+            if (action.message.isNotBlank()) putExtra(AlarmClock.EXTRA_MESSAGE, action.message)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        return if (launch(intent)) ExecResult.Launched("Opening alarm…") else ExecResult.Failed("Couldn't open the alarm app")
+    }
+
+    private fun setTimer(action: VoiceAppAction.SetTimer): ExecResult {
+        val intent = Intent(AlarmClock.ACTION_SET_TIMER).apply {
+            if (action.durationSeconds != null) putExtra(AlarmClock.EXTRA_LENGTH, action.durationSeconds)
+            if (action.message.isNotBlank()) putExtra(AlarmClock.EXTRA_MESSAGE, action.message)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        return if (launch(intent)) ExecResult.Launched("Setting timer…") else ExecResult.Failed("Couldn't open the timer")
+    }
+
+    private fun calendarEvent(action: VoiceAppAction.CalendarEvent): ExecResult {
+        val intent = Intent(Intent.ACTION_INSERT).apply {
+            data = CalendarContract.Events.CONTENT_URI
+            putExtra(CalendarContract.Events.TITLE, action.title)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        return if (launch(intent)) ExecResult.Launched("Opening calendar…") else ExecResult.Failed("Couldn't open the calendar")
+    }
+
+    private fun email(action: VoiceAppAction.Email): ExecResult {
+        val intent = Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:")).apply {
+            putExtra(Intent.EXTRA_TEXT, action.body)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        return if (launch(intent)) ExecResult.Launched("Opening email…") else ExecResult.Failed("Couldn't open an email app")
     }
 
     private fun viewIntent(uri: String): Intent =

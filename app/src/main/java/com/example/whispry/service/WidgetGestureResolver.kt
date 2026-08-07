@@ -1,7 +1,6 @@
 package com.example.whispry.service
 
 import kotlin.math.abs
-import kotlin.math.max
 
 /**
  * Pure reducer for the floating widget's gesture contract:
@@ -135,6 +134,10 @@ sealed interface WidgetGestureEffect {
 
     /** Collapse the full widget back to the slim edge sliver. */
     data object CollapseWidget : WidgetGestureEffect
+
+    /** A push-back drag is in progress: stop the arming timer so it can't race a slow,
+     *  deliberate collapse swipe into starting a recording instead. */
+    data object CancelArmingTimer : WidgetGestureEffect
 }
 
 data class WidgetGestureTransition(
@@ -170,7 +173,8 @@ class WidgetGestureResolver(private val config: WidgetGestureConfig) {
                             phase = WidgetGesturePhase.ARMING,
                             pressedAtMs = timeMs,
                             dragY = 0f,
-                            cancelArmed = false
+                            cancelArmed = false,
+                            revealDrag = 0f
                         ),
                         listOf(WidgetGestureEffect.Depress, WidgetGestureEffect.ScheduleArming)
                     )
@@ -221,7 +225,26 @@ class WidgetGestureResolver(private val config: WidgetGestureConfig) {
     private fun onMove(state: WidgetGestureState, dx: Float, dy: Float): WidgetGestureTransition =
         when (state.phase) {
             WidgetGesturePhase.ARMING -> {
-                if (abs(dx) > config.touchSlopPx || abs(dy) > config.touchSlopPx) {
+                if (config.slimSliverEnabled && dx <= -config.revealThresholdPx) {
+                    // Deliberate swipe back toward the anchored edge: collapse to the sliver
+                    // instead of treating it as an accidental brush that aborts the press.
+                    WidgetGestureTransition(
+                        state.copy(phase = WidgetGesturePhase.SLIVER, revealDrag = 0f),
+                        listOf(WidgetGestureEffect.Release, WidgetGestureEffect.CollapseWidget)
+                    )
+                } else if (config.slimSliverEnabled && dx < -config.touchSlopPx) {
+                    // Outward drag past the accidental-brush slop but short of the collapse
+                    // threshold: a deliberate (if slow) push-back in progress. touchSlopPx is
+                    // smaller than revealThresholdPx, so without this branch every push-back
+                    // hit the brush-abort case below before it could ever reach the collapse
+                    // check above — collapsing by drag was unreachable. Keep tracking instead
+                    // of aborting, and hold off the arming timer so a slow push doesn't get
+                    // raced into starting a recording out from under the user's thumb.
+                    WidgetGestureTransition(
+                        state.copy(revealDrag = -dx),
+                        listOf(WidgetGestureEffect.CancelArmingTimer)
+                    )
+                } else if (abs(dx) > config.touchSlopPx || abs(dy) > config.touchSlopPx) {
                     // Accidental brush: abort the press before it arms.
                     WidgetGestureTransition(
                         state.copy(phase = WidgetGesturePhase.CONSUMING),
@@ -244,14 +267,15 @@ class WidgetGestureResolver(private val config: WidgetGestureConfig) {
                 )
             }
             WidgetGesturePhase.SLIVER -> {
-                val distance = max(abs(dx), abs(dy))
-                if (distance >= config.revealThresholdPx) {
+                // Direction-aware: only a swipe from the edge toward screen center (positive,
+                // inward dx) reveals — a swipe the other way, or a vertical drag, does not.
+                if (dx >= config.revealThresholdPx) {
                     WidgetGestureTransition(
                         state.copy(phase = WidgetGesturePhase.IDLE, revealDrag = 0f),
                         listOf(WidgetGestureEffect.Release, WidgetGestureEffect.RevealWidget)
                     )
                 } else {
-                    WidgetGestureTransition(state.copy(revealDrag = distance))
+                    WidgetGestureTransition(state.copy(revealDrag = dx.coerceAtLeast(0f)))
                 }
             }
             else -> WidgetGestureTransition(state)
@@ -260,8 +284,16 @@ class WidgetGestureResolver(private val config: WidgetGestureConfig) {
     private fun onUp(state: WidgetGestureState, timeMs: Long): WidgetGestureTransition =
         when (state.phase) {
             WidgetGesturePhase.ARMING -> {
+                if (config.slimSliverEnabled && state.revealDrag > config.touchSlopPx) {
+                    // Let go mid push-back, before it crossed the collapse threshold: not a
+                    // tap and not a hold, just settle back to resting revealed.
+                    WidgetGestureTransition(
+                        state.copy(phase = WidgetGesturePhase.IDLE, revealDrag = 0f),
+                        listOf(WidgetGestureEffect.Release)
+                    )
+                }
                 // Released before arming completed: this is a tap.
-                if (config.doubleTapEnabled) {
+                else if (config.doubleTapEnabled) {
                     WidgetGestureTransition(
                         state.copy(
                             phase = WidgetGesturePhase.AWAITING_SECOND_TAP,
