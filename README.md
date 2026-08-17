@@ -77,11 +77,13 @@
 <div align="center">
   <img src="docs/screenshots/home.png" width="30%" alt="Whispry home screen with the hold-to-talk trigger button, service status, and recent transcripts">
   <img src="docs/screenshots/library.png" width="30%" alt="Whispry transcript library screen, noting that transcripts stay on-device">
-  <img src="docs/screenshots/presets.png" width="30%" alt="Whispry AI formatting presets: Raw, Auto-Format, Professional, Casual, Polite, and Concise">
+  <img src="docs/screenshots/presets.png" width="30%" alt="Whispry AI formatting presets in-app: Raw, Auto-Format, Professional, Casual, Polite, and Concise">
   <br>
   <img src="docs/screenshots/settings.png" width="30%" alt="Whispry settings screen showing Voice Commands, My Info, Text Expander, and Memory Bank">
   <img src="docs/screenshots/keyboard-trigger-idle.png" width="30%" alt="Whispry's keyboard-riding trigger button, idle, above the on-screen keyboard in Gmail">
   <img src="docs/screenshots/keyboard-trigger-listening.png" width="30%" alt="Whispry's keyboard trigger actively listening and transcribing speech inside Gmail">
+  <br>
+  <img src="docs/screenshots/output-preset-picker.png" width="30%" alt="Switching Whispry's AI formatting preset mid-dictation from the keyboard trigger, in action inside Gmail">
 </div>
 
 <hr>
