@@ -14,6 +14,13 @@
     <a href="LICENSE">
       <img src="https://img.shields.io/github/license/cosmictaserdev-creator/whispry?style=for-the-badge" alt="License: AGPL-3.0">
     </a>
+    <a href="https://ko-fi.com/cosmictaser">
+      <img src="https://img.shields.io/badge/Ko--fi-Support%20Us-FF5E5B?style=for-the-badge&logo=kofi&logoColor=white" alt="Support on Ko-fi">
+    </a>
+  </p>
+  <p>
+    ☕ <b>Support:</b> <a href="https://ko-fi.com/cosmictaser">Ko-fi</a> &nbsp;•&nbsp;
+    💸 <b>UPI:</b> <code>cosmictaser@okicici</code>
   </p>
 </div>
 
@@ -156,6 +163,7 @@ Bug reports, feature requests, and PRs are welcome. See [CONTRIBUTING.md](CONTRI
           <li><b>Report a bug:</b> <a href="https://github.com/cosmictaserdev-creator/whispry/issues/new?template=bug_report.yml">open an issue</a> — please <a href="https://github.com/cosmictaserdev-creator/whispry/issues">search existing ones</a> first</li>
           <li><b>Request a feature:</b> <a href="https://github.com/cosmictaserdev-creator/whispry/issues/new?template=feature_request.yml">open an issue</a> or start a <a href="https://github.com/cosmictaserdev-creator/whispry/discussions">Discussion</a></li>
         </ul>
+        <p>☕ <b>Support the project:</b> <a href="https://ko-fi.com/cosmictaser">Ko-fi</a> &nbsp;•&nbsp; 💸 <b>UPI:</b> <code>cosmictaser@okicici</code></p>
       </td>
     </tr>
   </table>
