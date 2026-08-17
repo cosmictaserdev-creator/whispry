@@ -179,103 +179,27 @@ fun KeyboardLogoSurface(
             },
         contentAlignment = Alignment.Center
     ) {
-        Row(
+        // Centered Whispry Logo Emblem
+        Box(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 10.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .size(32.dp)
+                .clip(CircleShape)
+                .background(currentAccentColor.copy(alpha = if (isRecording) 0.25f else 0.15f))
+                .border(1.dp, currentAccentColor.copy(alpha = 0.35f), CircleShape)
+                .graphicsLayer {
+                    if (isRecording) {
+                        scaleX = recordingPulse
+                        scaleY = recordingPulse
+                    }
+                },
+            contentAlignment = Alignment.Center
         ) {
-            // Icon Emblem Badge
-            Box(
-                modifier = Modifier
-                    .size(32.dp)
-                    .clip(CircleShape)
-                    .background(currentAccentColor.copy(alpha = if (isRecording) 0.25f else 0.15f))
-                    .border(1.dp, currentAccentColor.copy(alpha = 0.35f), CircleShape)
-                    .graphicsLayer {
-                        if (isRecording) {
-                            scaleX = recordingPulse
-                            scaleY = recordingPulse
-                        }
-                    },
-                contentAlignment = Alignment.Center
-            ) {
-                Image(
-                    painter = painterResource(id = R.drawable.whisperlogo),
-                    contentDescription = if (isRecording) "Stop recording" else "Start recording",
-                    modifier = Modifier.size(18.dp),
-                    contentScale = ContentScale.Fit
-                )
-            }
-
-            Spacer(modifier = Modifier.width(9.dp))
-
-            // Label & Animated Waveform
-            if (isRecording) {
-                Row(
-                    modifier = Modifier.weight(1f),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Text(
-                        text = "Rec",
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 12.sp,
-                        color = Color.White
-                    )
-                    AudioWaveformBars(accentColor = recordingRed)
-                }
-            } else {
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Text(
-                        text = "Whispry",
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp,
-                        letterSpacing = 0.3.sp,
-                        color = Color.White
-                    )
-                    Text(
-                        text = "Voice",
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Medium,
-                        fontSize = 9.sp,
-                        color = Color.White.copy(alpha = 0.5f)
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.width(4.dp))
-
-            // Subtle Drag Grip Indicator
-            Column(
-                verticalArrangement = Arrangement.spacedBy(2.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.padding(end = 4.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(3.dp)
-                        .clip(CircleShape)
-                        .background(Color.White.copy(alpha = 0.35f))
-                )
-                Box(
-                    modifier = Modifier
-                        .size(3.dp)
-                        .clip(CircleShape)
-                        .background(Color.White.copy(alpha = 0.35f))
-                )
-                Box(
-                    modifier = Modifier
-                        .size(3.dp)
-                        .clip(CircleShape)
-                        .background(Color.White.copy(alpha = 0.35f))
-                )
-            }
+            Image(
+                painter = painterResource(id = R.drawable.whisperlogo),
+                contentDescription = if (isRecording) "Stop recording" else "Start recording",
+                modifier = Modifier.size(20.dp),
+                contentScale = ContentScale.Fit
+            )
         }
     }
 }

@@ -353,8 +353,8 @@ class BubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedState
         private const val AMPLITUDE_POLL_INTERVAL_MS = 120L
         private const val CANCEL_HINT_DELAY_MS = 3000L
         private const val BUBBLE_ADD_VIEW_RETRY_DELAY_MS = 150L
-        private const val KEYBOARD_LOGO_WIDTH_DP = 140
-        private const val KEYBOARD_LOGO_HEIGHT_DP = 48
+        private const val KEYBOARD_LOGO_WIDTH_DP = 72
+        private const val KEYBOARD_LOGO_HEIGHT_DP = 42
         private const val KEYBOARD_LOGO_MARGIN_DP = 8
         private const val PRESET_PANEL_WIDTH_DP = 250
         private const val PRESET_PANEL_HEIGHT_DP = 320

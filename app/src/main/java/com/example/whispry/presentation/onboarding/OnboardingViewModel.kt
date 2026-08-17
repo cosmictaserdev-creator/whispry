@@ -199,7 +199,7 @@ class OnboardingViewModel @Inject constructor(
                     url = "https://api.groq.com/openai/v1/chat/completions",
                     authorization = "Bearer $key",
                     request = ChatCompletionRequest(
-                        model = "llama-3.3-70b-versatile",
+                        model = "openai/gpt-oss-120b",
                         messages = listOf(ChatMessage(role = "user", content = "ping")),
                         maxTokens = 1,
                         temperature = 0f

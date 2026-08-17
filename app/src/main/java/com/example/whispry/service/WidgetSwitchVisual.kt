@@ -94,18 +94,10 @@ fun WidgetSwitchVisual(
     }
     val scale by animateFloatAsState(
         targetValue = targetScale,
-        animationSpec = when {
-            reducedMotion -> snap()
-            recording -> spring(dampingRatio = 0.45f, stiffness = 320f) // bouncy pop on trigger
-            pressed -> spring(dampingRatio = 0.7f, stiffness = 900f)
-            // A tween with a KNOWN duration, not a spring — FloatingWidgetManager clips the
-            // window down to the sliver's narrow width on a fixed delay (SLIVER_COLLAPSE_ANIM_MS,
-            // 520ms) after this starts. A spring's settle time is fuzzy, so it used to finish
-            // out of sync with that resize: the shape either got cut off mid-shrink or visibly
-            // snapped once the window caught up. Keep this duration equal to that constant.
-            sliver -> tween(520, easing = FastOutSlowInEasing)
-            else -> spring(dampingRatio = 0.55f, stiffness = 380f)
-        },
+        animationSpec = if (reducedMotion) snap() else spring(
+            dampingRatio = 0.7f,
+            stiffness = 380f
+        ),
         label = "WidgetScale"
     )
     // The "Idle transparency" setting (config.idleOpacityPct) previously had no effect at all —
@@ -234,5 +226,4 @@ private fun anchorFor(edge: WidgetEdge, editMode: Boolean): Pair<Alignment, Tran
 
 /** Visible shape size in dp (the window adds invisible touch slack). */
 fun WidgetConfig.visualSizeDp(): Pair<Float, Float> =
-    // Wedge: inner face + two ramps; protrusion is the visible width off the edge.
-    protrusionDp.toFloat() to baseHeightDp * 2.2f
+    protrusionDp.toFloat() to baseHeightDp.toFloat()

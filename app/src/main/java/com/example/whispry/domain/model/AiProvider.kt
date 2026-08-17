@@ -32,7 +32,7 @@ enum class FormattingProviderPreset(
     val baseUrl: String,
     val defaultModel: String
 ) {
-    GROQ("Groq", "https://api.groq.com/openai/v1/", "llama-3.3-70b-versatile"),
+    GROQ("Groq", "https://api.groq.com/openai/v1/", "openai/gpt-oss-120b"),
     OPENAI("OpenAI", "https://api.openai.com/v1/", "gpt-4o-mini"),
     OPENROUTER("OpenRouter", "https://openrouter.ai/api/v1/", "openai/gpt-4o-mini"),
     TOGETHER("Together", "https://api.together.xyz/v1/", "meta-llama/Llama-3.3-70B-Instruct-Turbo"),

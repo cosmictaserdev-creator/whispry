@@ -55,7 +55,8 @@ class GroqFormatterRepositoryImpl @Inject constructor(
                         )
                     ),
                     maxTokens = 1024,
-                    temperature = 0.3f  // low temperature = consistent formatting
+                    temperature = 0.3f,  // low temperature = consistent formatting
+                    reasoningEffort = "low"
                 )
             )
 

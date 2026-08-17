@@ -1,6 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 package com.example.whispry.presentation.about
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.widget.Toast
+
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.Image
@@ -103,14 +108,44 @@ fun AboutScreen(
         item {
             val crashLog = remember { CrashLogger.latestCrashLog(context) }
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                AboutActionRow(Icons.Rounded.Star, "Rate the app", backdrop) {
-                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=${context.packageName}"))
+                // Star on GitHub / Rate app
+                AboutActionRow(Icons.Rounded.Star, "Star on GitHub", backdrop) {
+                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/cosmictaserdev-creator/whispry"))
                     context.startActivity(intent)
                 }
-                AboutActionRow(Icons.Rounded.BugReport, "Report a bug", backdrop) {
-                    val intent = Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:support@whispry.app"))
+                
+                // Support via Ko-fi
+                AboutActionRow(Icons.Rounded.Favorite, "Support on Ko-fi", backdrop) {
+                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://ko-fi.com/cosmictaserdev"))
                     context.startActivity(intent)
                 }
+                
+                // Support via UPI
+                AboutActionRow(Icons.Rounded.Payments, "Support via UPI (cosmictaserdev@upi)", backdrop) {
+                    val upiUri = Uri.parse("upi://pay?pa=cosmictaserdev@upi&pn=Whispry&cu=INR")
+                    val intent = Intent(Intent.ACTION_VIEW, upiUri)
+                    try {
+                        context.startActivity(Intent.createChooser(intent, "Pay via UPI"))
+                    } catch (e: Exception) {
+                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                        val clip = ClipData.newPlainText("UPI ID", "cosmictaserdev@upi")
+                        clipboard.setPrimaryClip(clip)
+                        Toast.makeText(context, "UPI ID copied: cosmictaserdev@upi", Toast.LENGTH_LONG).show()
+                    }
+                }
+                
+                // GitHub Repository
+                AboutActionRow(Icons.Rounded.Code, "GitHub Repository", backdrop) {
+                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/cosmictaserdev-creator/whispry"))
+                    context.startActivity(intent)
+                }
+
+                // Report a bug on GitHub Issues
+                AboutActionRow(Icons.Rounded.BugReport, "Report an issue", backdrop) {
+                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/cosmictaserdev-creator/whispry/issues"))
+                    context.startActivity(intent)
+                }
+
                 if (crashLog != null) {
                     // On-device only — see CrashLogger. Nothing is sent anywhere until the user
                     // explicitly shares this file themselves.
@@ -124,10 +159,12 @@ fun AboutScreen(
                         context.startActivity(Intent.createChooser(intent, "Share crash log"))
                     }
                 }
+
+                // Share Whispry
                 AboutActionRow(Icons.Rounded.Share, "Share Whispry", backdrop) {
                     val intent = Intent(Intent.ACTION_SEND).apply {
                         type = "text/plain"
-                        putExtra(Intent.EXTRA_TEXT, "Check out Whispry for instant voice transcription!")
+                        putExtra(Intent.EXTRA_TEXT, "Check out Whispry for instant voice transcription: https://github.com/cosmictaserdev-creator/whispry")
                     }
                     context.startActivity(Intent.createChooser(intent, "Share via"))
                 }

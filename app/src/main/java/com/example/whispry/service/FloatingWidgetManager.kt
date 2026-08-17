@@ -570,7 +570,7 @@ class FloatingWidgetManager @Inject constructor(
         // pop clips against the window's own bounds. Sliver never reaches that scale (recording
         // can only start from the fully revealed state), so only the non-sliver case needs it.
         val displayW = if (isSliver) visualW else visualW * WIDGET_MAX_TRIGGER_SCALE
-        val displayH = if (isSliver) visualH else visualH * WIDGET_MAX_TRIGGER_SCALE
+        val displayH = visualH * WIDGET_MAX_TRIGGER_SCALE
         // The clearance folds into the window as inner slack: the wedge is anchored to the
         // window's outer edge, so the widget stays connected to the screen edge (idle sliver
         // and revealed alike) while the touch target still clears the OS back-gesture zone.
