@@ -2,6 +2,8 @@
   <h1>Whispry</h1>
   <h3>Whispry is an open-source, hold-to-talk voice transcription app for Android — dictate anywhere, in any app, without switching context.</h3>
 
+  <img src="docs/hero.jpg" width="100%" alt="Whispry banner: Talk it out, Whispry writes it right — open source, free forever">
+
   <p>
     <a href="https://github.com/cosmictaserdev-creator/whispry/releases/latest">
       <img src="https://img.shields.io/github/v/release/cosmictaserdev-creator/whispry?style=for-the-badge&color=4CAF50" alt="Latest release">
@@ -67,6 +69,20 @@
     </td>
   </tr>
 </table>
+
+<hr>
+
+<h2>📸 Screenshots</h2>
+
+<div align="center">
+  <img src="docs/screenshots/home.png" width="30%" alt="Whispry home screen with the hold-to-talk trigger button, service status, and recent transcripts">
+  <img src="docs/screenshots/library.png" width="30%" alt="Whispry transcript library screen, noting that transcripts stay on-device">
+  <img src="docs/screenshots/presets.png" width="30%" alt="Whispry AI formatting presets: Raw, Auto-Format, Professional, Casual, Polite, and Concise">
+  <br>
+  <img src="docs/screenshots/settings.png" width="30%" alt="Whispry settings screen showing Voice Commands, My Info, Text Expander, and Memory Bank">
+  <img src="docs/screenshots/keyboard-trigger-idle.png" width="30%" alt="Whispry's keyboard-riding trigger button, idle, above the on-screen keyboard in Gmail">
+  <img src="docs/screenshots/keyboard-trigger-listening.png" width="30%" alt="Whispry's keyboard trigger actively listening and transcribing speech inside Gmail">
+</div>
 
 <hr>
 
