@@ -12,6 +12,9 @@ and this project uses [Semantic Versioning](https://semver.org/) —
 - In-app OTA update checker: Settings → Service & Maintenance → Updates,
   checks GitHub Releases, shows changelog, downloads and installs the
   signed APK in place.
+- Auto-versioning: `versionName`/`versionCode` now derive from the git tag
+  (`vX.Y.Z`) instead of a hand-maintained number in `build.gradle.kts` —
+  one less place a release can drift out of sync with its own tag.
 - On-device crash logging (Timber + a local uncaught-exception handler):
   About → Share Crash Log lets you attach the last crash's stack trace to
   a bug report. Nothing is collected or uploaded automatically.

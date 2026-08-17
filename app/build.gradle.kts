@@ -13,6 +13,38 @@ val keystoreProperties = Properties().apply {
     if (file.exists()) file.inputStream().use { load(it) }
 }
 
+/**
+ * Version comes from the git tag, not a hand-maintained number — the release workflow tags
+ * `vX.Y.Z` and that tag IS the release, so versionName/versionCode deriving from anything else
+ * would just be a second place they could drift out of sync (and the in-app updater compares
+ * against exactly this tag format, see updater/SemVer.kt).
+ *
+ * - In CI (release.yml), GITHUB_REF_NAME is the exact tag that triggered the build.
+ * - Locally, falls back to the nearest reachable tag (`git describe --tags --abbrev=0`) so debug
+ *   builds still get a sane version instead of failing outright.
+ * - No tags reachable at all (fresh clone before the first release) -> "0.1.0" / code 1.
+ *
+ * versionCode = major*10_000 + minor*100 + patch, so it's derived deterministically from the tag
+ * and guaranteed to strictly increase release-over-release as long as the tags do.
+ */
+fun resolveVersion(): Pair<String, Int> {
+    val tagPattern = Regex("^v(\\d+)\\.(\\d+)\\.(\\d+)$")
+
+    val tag = System.getenv("GITHUB_REF_NAME")?.takeIf { tagPattern.matches(it) }
+        ?: runCatching {
+            providers.exec {
+                commandLine("git", "describe", "--tags", "--abbrev=0")
+                isIgnoreExitValue = true
+            }.standardOutput.asText.get().trim()
+        }.getOrNull()?.takeIf { tagPattern.matches(it) }
+
+    val match = tag?.let { tagPattern.find(it) } ?: return "0.1.0" to 1
+    val (major, minor, patch) = match.destructured
+    return "$major.$minor.$patch" to (major.toInt() * 10_000 + minor.toInt() * 100 + patch.toInt())
+}
+
+val (resolvedVersionName, resolvedVersionCode) = resolveVersion()
+
 android {
     namespace = "com.example.whispry"
     compileSdk = 37
@@ -21,8 +53,8 @@ android {
         applicationId = "com.example.whispry"
         minSdk = 26
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = resolvedVersionCode
+        versionName = resolvedVersionName
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
