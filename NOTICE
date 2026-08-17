@@ -1,0 +1,17 @@
+Whispry
+Copyright (C) 2026 CosmicIsAryan
+
+Whispry is an open-source Android app that turns a hold-to-talk trigger
+(volume key, floating widget, or on-keyboard button) into an instantly
+formatted transcript — dictate anywhere, in any app, without switching
+context.
+
+Original repository: https://github.com/cosmictaserdev-creator/whispry
+
+Licensed under the GNU Affero General Public License v3.0 or later, with
+an additional Section 7 attribution term — see LICENSE. Any distribution,
+modification, or network-accessible deployment of this software must
+retain this notice (project name, original author, and the repository
+link above), displayed somewhere no less prominent than is customary —
+e.g. an in-app About/Credits screen, or the README of a redistributed
+source repository.

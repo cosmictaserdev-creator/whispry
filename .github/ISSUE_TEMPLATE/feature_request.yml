@@ -1,0 +1,29 @@
+name: Feature Request
+description: Suggest an idea for Whispry
+labels: ["needs-triage", "enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For anything bigger than a small tweak, this is the right place
+        to start — see [CONTRIBUTING.md](../../CONTRIBUTING.md#propose-before-you-build).
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: What are you trying to do that Whispry doesn't support today?
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: What would you like to happen? Rough UX is fine.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered (optional)
+    validations:
+      required: false
