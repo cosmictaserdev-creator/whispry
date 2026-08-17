@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Matches UpdateDownloader's context.getExternalFilesDir("updates") destination. -->
+    <external-files-path name="updates" path="updates/" />
+    <!-- Matches CrashLogger's context.filesDir/crash_logs destination. -->
+    <files-path name="crash_logs" path="crash_logs/" />
+</paths>
