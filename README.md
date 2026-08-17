@@ -123,7 +123,7 @@ Bug reports, feature requests, and PRs are welcome. See [CONTRIBUTING.md](CONTRI
 
 <h2>🙏 Credits</h2>
 
-<p>Built and maintained by <a href="https://github.com/CosmicIsAryan">CosmicIsAryan</a>.</p>
+<p>Built and maintained by <a href="https://github.com/cosmictaserdev-creator">cosmictaser</a>.</p>
 
 <hr>
 
