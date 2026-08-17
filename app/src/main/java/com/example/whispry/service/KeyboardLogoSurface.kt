@@ -1,17 +1,25 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 package com.example.whispry.service
 
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutLinearInEasing
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -24,20 +32,25 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.Image
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -48,11 +61,10 @@ import com.example.whispry.domain.model.PresetGroup
 import com.example.whispry.ui.theme.WhispryTheme
 
 /**
- * The keyboard-anchored record toggle. A compact pill that floats above the soft keyboard:
+ * The keyboard-anchored record toggle. A modern, ultra-aesthetic pill floating above the soft keyboard:
  * tap = start/stop recording, double-tap = open the preset panel, 2D drag moves it freely.
- * The host re-anchors it to the keyboard (saved offset above the IME) and persists the
- * placement when [onDragEnd] fires after a drag. With [onDoubleTap] set, single taps resolve
- * after the double-tap window (~300ms) so the two don't collide.
+ * Features fluid enter/exit animations when the keyboard comes and goes, a sleek glassmorphic container,
+ * dynamic recording audio-wave motion, and tactile press scaling.
  */
 @Composable
 fun KeyboardLogoSurface(
@@ -62,35 +74,98 @@ fun KeyboardLogoSurface(
     onDrag: (dx: Float, dy: Float) -> Unit,
     onDragStart: () -> Unit = {},
     onDragEnd: () -> Unit,
+    isVisible: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     val accent = WhispryTheme.colors.accent
-    val recordingRed = Color(0xFFE5484D)
-    val surface = if (isRecording) recordingRed else accent
+    val recordingRed = Color(0xFFEF4444)
+    val density = LocalDensity.current
 
-    val pulse = if (isRecording) {
-        val transition = rememberInfiniteTransition(label = "LogoPulse")
-        transition.animateFloat(
-            initialValue = 1f,
-            targetValue = 0.82f,
-            animationSpec = infiniteRepeatable(tween(700), RepeatMode.Reverse),
-            label = "LogoPulseAlpha"
-        ).value
-    } else 1f
+    // Smooth visibility transition (entrance/exit when keyboard comes/goes)
+    val visibilityProgress by animateFloatAsState(
+        targetValue = if (isVisible) 1f else 0f,
+        animationSpec = if (isVisible) {
+            spring(
+                dampingRatio = Spring.DampingRatioMediumBouncy,
+                stiffness = Spring.StiffnessMediumLow
+            )
+        } else {
+            tween(durationMillis = 180, easing = FastOutLinearInEasing)
+        },
+        label = "PillVisibilityProgress"
+    )
+
+    // Tactile press state
+    var isPressed by remember { mutableStateOf(false) }
+    val pressScale by animateFloatAsState(
+        targetValue = if (isPressed) 0.94f else 1.0f,
+        animationSpec = spring(stiffness = Spring.StiffnessHigh),
+        label = "PillPressScale"
+    )
+
+    // Animated recording glow & pulse
+    val transition = rememberInfiniteTransition(label = "LogoPulse")
+    val recordingPulse by transition.animateFloat(
+        initialValue = 1f,
+        targetValue = 1.15f,
+        animationSpec = infiniteRepeatable(tween(750), RepeatMode.Reverse),
+        label = "BadgePulse"
+    )
+
+    // Dynamic color morphing between idle and recording
+    val currentAccentColor by animateColorAsState(
+        targetValue = if (isRecording) recordingRed else accent,
+        animationSpec = tween(350),
+        label = "AccentColorMorph"
+    )
+
+    val backgroundBrush = if (isRecording) {
+        Brush.horizontalGradient(listOf(Color(0xFA2C1014), Color(0xFA1D0D12)))
+    } else {
+        Brush.horizontalGradient(listOf(Color(0xFA14151E), Color(0xFA1E1F2C)))
+    }
+
+    val borderBrush = if (isRecording) {
+        Brush.horizontalGradient(listOf(recordingRed.copy(alpha = 0.85f), Color(0xFFFF6B6B).copy(alpha = 0.60f)))
+    } else {
+        Brush.horizontalGradient(
+            listOf(
+                Color.White.copy(alpha = 0.28f),
+                accent.copy(alpha = 0.65f),
+                Color.White.copy(alpha = 0.15f)
+            )
+        )
+    }
+
+    val combinedScale = (0.75f + (0.25f * visibilityProgress)) * pressScale
+    val alphaVal = visibilityProgress.coerceIn(0f, 1f)
+    val translationYPx = with(density) { ((1f - visibilityProgress) * 20.dp.toPx()) }
 
     Box(
         modifier = modifier
             .fillMaxSize()
-            .graphicsLayer { alpha = pulse }
-            .clip(RoundedCornerShape(22.dp))
-            .background(Color(0xF01A1A20))
-            .border(1.dp, surface.copy(alpha = 0.9f), RoundedCornerShape(22.dp))
+            .graphicsLayer {
+                scaleX = combinedScale
+                scaleY = combinedScale
+                alpha = alphaVal
+                translationY = translationYPx
+            }
+            .clip(RoundedCornerShape(24.dp))
+            .background(backgroundBrush)
+            .border(1.dp, borderBrush, RoundedCornerShape(24.dp))
             .pointerInput(Unit) {
-                if (onDoubleTap != null) {
-                    detectTapGestures(onDoubleTap = { onDoubleTap() }, onTap = { onToggle() })
-                } else {
-                    detectTapGestures(onTap = { onToggle() })
-                }
+                detectTapGestures(
+                    onPress = {
+                        isPressed = true
+                        try {
+                            awaitRelease()
+                        } finally {
+                            isPressed = false
+                        }
+                    },
+                    onDoubleTap = { onDoubleTap?.invoke() },
+                    onTap = { onToggle() }
+                )
             }
             .pointerInput(Unit) {
                 detectDragGestures(
@@ -104,11 +179,161 @@ fun KeyboardLogoSurface(
             },
         contentAlignment = Alignment.Center
     ) {
-        Image(
-            painter = painterResource(id = R.drawable.whisperlogo),
-            contentDescription = if (isRecording) "Stop recording" else "Start recording",
-            modifier = Modifier.size(40.dp),
-            contentScale = ContentScale.Fit
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 10.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Icon Emblem Badge
+            Box(
+                modifier = Modifier
+                    .size(32.dp)
+                    .clip(CircleShape)
+                    .background(currentAccentColor.copy(alpha = if (isRecording) 0.25f else 0.15f))
+                    .border(1.dp, currentAccentColor.copy(alpha = 0.35f), CircleShape)
+                    .graphicsLayer {
+                        if (isRecording) {
+                            scaleX = recordingPulse
+                            scaleY = recordingPulse
+                        }
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                Image(
+                    painter = painterResource(id = R.drawable.whisperlogo),
+                    contentDescription = if (isRecording) "Stop recording" else "Start recording",
+                    modifier = Modifier.size(18.dp),
+                    contentScale = ContentScale.Fit
+                )
+            }
+
+            Spacer(modifier = Modifier.width(9.dp))
+
+            // Label & Animated Waveform
+            if (isRecording) {
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(
+                        text = "Rec",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.sp,
+                        color = Color.White
+                    )
+                    AudioWaveformBars(accentColor = recordingRed)
+                }
+            } else {
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Text(
+                        text = "Whispry",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp,
+                        letterSpacing = 0.3.sp,
+                        color = Color.White
+                    )
+                    Text(
+                        text = "Voice",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 9.sp,
+                        color = Color.White.copy(alpha = 0.5f)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.width(4.dp))
+
+            // Subtle Drag Grip Indicator
+            Column(
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.padding(end = 4.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(3.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.35f))
+                )
+                Box(
+                    modifier = Modifier
+                        .size(3.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.35f))
+                )
+                Box(
+                    modifier = Modifier
+                        .size(3.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.35f))
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Dynamic sound wave animation bars displayed inside the pill when recording.
+ */
+@Composable
+private fun AudioWaveformBars(
+    accentColor: Color,
+    modifier: Modifier = Modifier
+) {
+    val infiniteTransition = rememberInfiniteTransition(label = "WaveformAnim")
+
+    val h1 by infiniteTransition.animateFloat(
+        initialValue = 4f,
+        targetValue = 14f,
+        animationSpec = infiniteRepeatable(tween(380, easing = LinearEasing), RepeatMode.Reverse),
+        label = "Bar1"
+    )
+    val h2 by infiniteTransition.animateFloat(
+        initialValue = 12f,
+        targetValue = 5f,
+        animationSpec = infiniteRepeatable(tween(300, easing = LinearEasing), RepeatMode.Reverse),
+        label = "Bar2"
+    )
+    val h3 by infiniteTransition.animateFloat(
+        initialValue = 6f,
+        targetValue = 15f,
+        animationSpec = infiniteRepeatable(tween(460, easing = LinearEasing), RepeatMode.Reverse),
+        label = "Bar3"
+    )
+
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .width(3.dp)
+                .height(h1.dp)
+                .clip(CircleShape)
+                .background(accentColor)
+        )
+        Box(
+            modifier = Modifier
+                .width(3.dp)
+                .height(h2.dp)
+                .clip(CircleShape)
+                .background(accentColor)
+        )
+        Box(
+            modifier = Modifier
+                .width(3.dp)
+                .height(h3.dp)
+                .clip(CircleShape)
+                .background(accentColor)
         )
     }
 }
@@ -138,7 +363,7 @@ fun KeyboardLogoPresetPanel(
                 alpha = scale.value
             }
             .clip(RoundedCornerShape(20.dp))
-            .background(Color(0xF21A1A20))
+            .background(Color(0xF2161722))
             .border(1.dp, accent.copy(alpha = 0.35f), RoundedCornerShape(20.dp))
     ) {
         Text(
@@ -204,3 +429,4 @@ fun KeyboardLogoPresetPanel(
         }
     }
 }
+
