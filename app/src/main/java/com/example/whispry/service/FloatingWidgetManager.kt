@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 package com.example.whispry.service
 
 import android.content.Context
@@ -42,6 +43,7 @@ import com.example.whispry.ui.theme.resolveAccentColors
 import com.example.whispry.util.HapticHelper
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
@@ -120,15 +122,30 @@ class FloatingWidgetManager @Inject constructor(
     private var idleJob: Job? = null
     private var depressTickJob: Job? = null
     private var collapseResizeJob: Job? = null
+    private var keyboardNudgeJob: Job? = null
+
+    /** True while the widget is parked above the keys (nudge in effect). The slide animation's
+     *  job is null once it finishes, so this flag is what actually drives the slide-back. */
+    private var keyboardNudged = false
+
+    /** Last seen IME top edge — detects the keyboard's closing animation (top edge receding)
+     *  so the nudge never re-parks the widget back up while the keyboard is dismissing. */
+    private var lastImeTop: Int? = null
 
     private companion object {
         /** How long a press must survive before it haptically/visually commits. */
         const val DEPRESS_COMMIT_MS = 70L
 
+        /** Gap (dp) between the nudged widget and the keyboard's top edge. */
+        const val KEYBOARD_NUDGE_MARGIN_DP = 8
+
         /** Covers both the sliver-collapse scale spring and its alpha tween (500ms, see
          *  WidgetSwitchVisual) — the window itself must not clip down to the sliver's narrow
          *  width until the visual shrink has actually finished animating into it. */
         const val SLIVER_COLLAPSE_ANIM_MS = 520L
+
+        /** Fixed width for the edit-mode control card's own overlay window (see showControlCard). */
+        const val CONTROL_CARD_WIDTH_DP = 320
     }
 
     /** True while a session started by a tap (toggle) is live — the next tap stops it. */
@@ -141,6 +158,7 @@ class FloatingWidgetManager @Inject constructor(
         observeEnabled()
         observeConfig()
         observeSession()
+        observeImeForKeyboardNudge()
     }
 
     /**
@@ -184,8 +202,10 @@ class FloatingWidgetManager @Inject constructor(
 
     private fun observeEnabled() {
         managerScope.launch {
-            overlayCoordinator.widgetEnabled.collect { enabled ->
-                if (enabled && android.provider.Settings.canDrawOverlays(context)) show() else hide()
+            combine(overlayCoordinator.widgetEnabled, overlayCoordinator.widgetsHidden) { enabled, hidden ->
+                enabled && !hidden && android.provider.Settings.canDrawOverlays(context)
+            }.collect { shouldShow ->
+                if (shouldShow) show() else hide()
             }
         }
     }
@@ -217,6 +237,102 @@ class FloatingWidgetManager @Inject constructor(
                     restartIdleTimer()
                 }
             }
+        }
+    }
+
+    /**
+     * Keyboard-overlap nudge: while the IME is up and the widget's resting spot would sit under
+     * the keys, slide it up to just above the keyboard's top edge (same X), then back when the
+     * IME closes. The saved position is never touched — the nudge is a transient animation only.
+     */
+    private fun observeImeForKeyboardNudge() {
+        managerScope.launch {
+            serviceBridge.imeBounds.collect { ime ->
+                val view = composeView ?: return@collect
+                val lp = layoutParams ?: return@collect
+                if (config.avoidKeyboard && !editModeState.value && ime != null && !ime.isEmpty) {
+                    // Act only while the keyboard is opening (top edge rising) — never during its
+                    // close animation, whose coarse/stale rects would re-nudge the widget back up
+                    // right after it slid home.
+                    val growing = lastImeTop == null || ime.top < lastImeTop!!
+                    lastImeTop = ime.top
+                    if (growing && lp.y + lp.height > ime.top) {
+                        val density = context.resources.displayMetrics.density
+                        val marginPx = (KEYBOARD_NUDGE_MARGIN_DP * density).toInt()
+                        val targetY = (ime.top - lp.height - marginPx)
+                            .coerceAtLeast(getSafeBounds().top)
+                        if (targetY != lp.y) {
+                            keyboardNudged = true
+                            slideWidgetTo(targetY)
+                        }
+                    }
+                    return@collect
+                }
+                lastImeTop = null
+                // Keyboard down / nudge disabled / mid-edit: never nudge, but slide back to the
+                // resting spot if the widget is parked above the keys.
+                if (keyboardNudged && !editModeState.value) {
+                    keyboardNudged = false
+                    slideWidgetTo(restingY(lp))
+                }
+            }
+        }
+    }
+
+    /** The widget's saved resting Y (denormalized), used to slide back after a keyboard nudge.
+     *  Never-positioned widgets fall back to the default edge spot — returning [lp.y] (the nudged
+     *  Y) here made the slide-back a no-op, leaving the widget parked above the keys. */
+    private suspend fun restingY(lp: WindowManager.LayoutParams): Int {
+        val bounds = getSafeBounds().toBubbleBounds()
+        val prefs = settingsProvider.dataStore.data.first()
+        val savedY = prefs[DataStoreKeys.WIDGET_POSITION_Y]
+        val savedX = prefs[DataStoreKeys.WIDGET_POSITION_X]
+        val (rawX, rawY) = if (savedX != null && savedY != null) {
+            positionManager.denormalize(savedX.toFloat(), savedY.toFloat(), bounds)
+        } else {
+            positionManager.widgetDefaultEdgePosition(lp.width.toFloat(), lp.height.toFloat(), bounds)
+        }
+        val (_, y) = snapFor(rawX, rawY, lp.width.toFloat(), lp.height.toFloat(), bounds)
+        return y.roundToInt()
+    }
+
+    /**
+     * Y that parks the widget just above the keys when its resting spot overlaps the IME (a
+     * keyboard nudge in flight), else null. Shared by the IME observer and the reposition paths
+     * so reveal/collapse/config changes keep the widget above the keyboard while it's open.
+     */
+    private fun keyboardNudgeTargetY(restTop: Int, winH: Int): Int? {
+        val ime = serviceBridge.imeBounds.value ?: return null
+        if (ime.isEmpty) return null
+        if (!config.avoidKeyboard || editModeState.value) return null
+        if (restTop + winH <= ime.top) return null
+        val marginPx = (KEYBOARD_NUDGE_MARGIN_DP * context.resources.displayMetrics.density).toInt()
+        return (ime.top - winH - marginPx).coerceAtLeast(getSafeBounds().top)
+    }
+
+    /** Animate the widget window to [targetY], canceling any prior nudge/slide. */
+    private fun slideWidgetTo(targetY: Int) {        val view = composeView ?: return
+        val lp = layoutParams ?: return
+        if (!view.isAttachedToWindow) return
+        keyboardNudgeJob?.cancel()
+        val startY = lp.y
+        if (startY == targetY) return
+        keyboardNudgeJob = managerScope.launch {
+            val durationMs = 160L
+            val start = SystemClock.uptimeMillis()
+            while (true) {
+                val t = ((SystemClock.uptimeMillis() - start).toFloat() / durationMs).coerceIn(0f, 1f)
+                val eased = 1f - (1f - t) * (1f - t)
+                lp.y = (startY + (targetY - startY) * eased).roundToInt()
+                try {
+                    if (view.isAttachedToWindow) windowManager.updateViewLayout(view, lp)
+                } catch (e: Exception) {
+                    break
+                }
+                if (t >= 1f) break
+                delay(16)
+            }
+            if (keyboardNudgeJob == coroutineContext[Job]) keyboardNudgeJob = null
         }
     }
 
@@ -449,9 +565,18 @@ class FloatingWidgetManager @Inject constructor(
             config.visualSizeDp()
         }
         val slack = if (isSliver) sliverTouchSlackDp else touchSlackDp
-        val winW = ((visualW + slack) * density).roundToInt()
+        // The window never resizes for ARMING/RECORDING — only for sliver vs full — so it must
+        // already contain the shape at its largest transient scale (the recording pop), or that
+        // pop clips against the window's own bounds. Sliver never reaches that scale (recording
+        // can only start from the fully revealed state), so only the non-sliver case needs it.
+        val displayW = if (isSliver) visualW else visualW * WIDGET_MAX_TRIGGER_SCALE
+        val displayH = if (isSliver) visualH else visualH * WIDGET_MAX_TRIGGER_SCALE
+        // The clearance folds into the window as inner slack: the wedge is anchored to the
+        // window's outer edge, so the widget stays connected to the screen edge (idle sliver
+        // and revealed alike) while the touch target still clears the OS back-gesture zone.
+        val winW = ((displayW + slack + config.edgeClearanceDp) * density).roundToInt()
             .coerceAtLeast(((if (isSliver) sliverWidthDp else minTouchWidthDp) * density).roundToInt())
-        val winH = ((visualH + slack * 2) * density).roundToInt()
+        val winH = ((displayH + slack * 2) * density).roundToInt()
         lp.width = winW
         lp.height = winH
 
@@ -471,11 +596,23 @@ class FloatingWidgetManager @Inject constructor(
             val (rawX, rawY) = if (savedX != null && savedY != null) {
                 positionManager.denormalize(savedX.toFloat(), savedY.toFloat(), bounds)
             } else {
-                positionManager.widgetDefaultEdgePosition(winW.toFloat(), winH.toFloat(), bounds, clearancePx)
+                positionManager.widgetDefaultEdgePosition(winW.toFloat(), winH.toFloat(), bounds)
             }
-            val (x, y) = snapFor(rawX, rawY, winW.toFloat(), winH.toFloat(), bounds)
-            lp.x = x.roundToInt()
-            lp.y = y.roundToInt()
+            val edge = positionManager.widgetEdgeTarget(rawX, winW.toFloat(), bounds)
+            edgeState.value = edge
+            val restY = rawY.coerceIn(
+                bounds.top.toFloat(),
+                (bounds.bottom - winH).coerceAtLeast(bounds.top).toFloat()
+            )
+            // Wedge hugs the physical screen edge — flush window, no visible gap.
+            lp.x = positionManager.widgetEdgePosition(
+                edge, restY, winW.toFloat(), winH.toFloat(), bounds
+            ).first.roundToInt()
+            // Repositions (reveal, collapse, config changes) must not drop the widget back under
+            // the keyboard while it's open — stay at the nudge target if one is active.
+            val nudgeY = keyboardNudgeTargetY(restY.roundToInt(), winH)
+            keyboardNudged = nudgeY != null
+            lp.y = nudgeY ?: restY.roundToInt()
         }
 
         try {
@@ -509,15 +646,12 @@ class FloatingWidgetManager @Inject constructor(
 
     /** Snap to the nearest edge and record which one we ended up on (drives mirroring). */
     private fun snapFor(
-        x: Float, y: Float, w: Float, h: Float, bounds: BubbleBounds
+        x: Float, y: Float, w: Float, h: Float, bounds: BubbleBounds, clearance: Float = 0f
     ): Pair<Float, Float> {
         val edge = positionManager.widgetEdgeTarget(x, w, bounds)
         edgeState.value = edge
-        return positionManager.widgetEdgePosition(edge, y, w, h, bounds, clearancePx)
+        return positionManager.widgetEdgePosition(edge, y, w, h, bounds, clearance)
     }
-
-    private val clearancePx: Float
-        get() = config.edgeClearanceDp * context.resources.displayMetrics.density
 
     private fun getSafeBounds(): android.graphics.Rect {
         return if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
@@ -600,6 +734,7 @@ class FloatingWidgetManager @Inject constructor(
     }
 
     private var controlCardView: ComposeView? = null
+    private var controlCardLayoutParams: WindowManager.LayoutParams? = null
 
     /** Floating control card shown during edit mode: live size sliders + Done. */
     private fun showControlCard() {
@@ -616,6 +751,7 @@ class FloatingWidgetManager @Inject constructor(
                         onBaseHeight = { setIntPref(DataStoreKeys.WIDGET_BASE_HEIGHT_DP, it) },
                         onProtrusion = { setIntPref(DataStoreKeys.WIDGET_PROTRUSION_DP, it) },
                         onEdgeClearance = { setIntPref(DataStoreKeys.WIDGET_EDGE_CLEARANCE, it) },
+                        onDrag = { dx, dy -> onCardDrag(dx, dy) },
                         onDone = { exitEditMode(save = true) }
                     )
                 }
@@ -624,8 +760,14 @@ class FloatingWidgetManager @Inject constructor(
             setViewTreeViewModelStoreOwner(this@FloatingWidgetManager)
             setViewTreeSavedStateRegistryOwner(this@FloatingWidgetManager)
         }
+        // A fixed dp width, not MATCH_PARENT: a full-width window wouldn't actually move when
+        // dragged horizontally (it'd still span edge-to-edge), and would keep blocking touches
+        // across the whole row even once the visible card moved off to one side. Fixed (not
+        // WRAP_CONTENT) so the card's own fillMaxWidth() below has an unambiguous width to fill,
+        // same as it always did.
+        val cardWidthPx = (CONTROL_CARD_WIDTH_DP * context.resources.displayMetrics.density).roundToInt()
         val lp = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.MATCH_PARENT,
+            cardWidthPx,
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
@@ -635,11 +777,13 @@ class FloatingWidgetManager @Inject constructor(
             gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
             y = (48 * context.resources.displayMetrics.density).roundToInt()
         }
+        controlCardLayoutParams = lp
         try {
             windowManager.addView(controlCardView, lp)
         } catch (e: Exception) {
             Log.e(TAG, "Error showing edit control card", e)
             controlCardView = null
+            controlCardLayoutParams = null
         }
     }
 
@@ -652,6 +796,34 @@ class FloatingWidgetManager @Inject constructor(
             }
         }
         controlCardView = null
+        controlCardLayoutParams = null
+    }
+
+    /**
+     * Drags the control card itself — it starts gravity-anchored (bottom-center), which would
+     * otherwise sit on top of the widget if the widget's saved spot is also near the bottom,
+     * blocking the very thing edit mode is meant to let you drag. First call converts it from
+     * gravity offsets to absolute coordinates (seeded from its current on-screen location) so it
+     * can then be moved freely like the widget itself; the card is recreated gravity-anchored
+     * next time edit mode opens, so this is never persisted.
+     */
+    private fun onCardDrag(dx: Float, dy: Float) {
+        val lp = controlCardLayoutParams ?: return
+        val view = controlCardView ?: return
+        if (lp.gravity != (Gravity.TOP or Gravity.START)) {
+            val location = IntArray(2)
+            view.getLocationOnScreen(location)
+            lp.gravity = Gravity.TOP or Gravity.START
+            lp.x = location[0]
+            lp.y = location[1]
+        }
+        lp.x += dx.roundToInt()
+        lp.y += dy.roundToInt()
+        try {
+            if (view.isAttachedToWindow) windowManager.updateViewLayout(view, lp)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error dragging control card", e)
+        }
     }
 
     private fun setIntPref(key: androidx.datastore.preferences.core.Preferences.Key<Int>, value: Int) {

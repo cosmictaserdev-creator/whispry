@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 package com.example.whispry.features.voicecommand.domain.repository
 
 import com.example.whispry.features.voicecommand.data.model.VoiceCommandEntity

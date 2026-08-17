@@ -1,7 +1,9 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 package com.example.whispry.service
 
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -27,6 +29,13 @@ import androidx.compose.ui.unit.dp
 import com.example.whispry.ui.theme.WhispryTheme
 import kotlin.math.roundToInt
 import kotlin.math.tanh
+
+/**
+ * Largest transient scale the switch shape reaches (the recording pop). FloatingWidgetManager
+ * reads this too, to leave enough window slack that the pop doesn't clip against the overlay
+ * window's own bounds.
+ */
+const val WIDGET_MAX_TRIGGER_SCALE = 1.5f
 
 /**
  * The contentless "physical plastic switch". Pure visuals — all gesture state is fed in
@@ -72,7 +81,7 @@ fun WidgetSwitchVisual(
         editMode -> 1f
         // Swell while arming, then pop noticeably bigger once recording — the "it
         // triggered" moment is meant to be clearly visible.
-        recording -> 1.5f
+        recording -> WIDGET_MAX_TRIGGER_SCALE
         pressCommitted -> 1f + 0.25f * armingProgress.value
         // Collapsed edge sliver: a more aggressive shrink than the plain idle-fade, since the
         // actual touch window has already shrunk to match (see FloatingWidgetManager). Scaled
@@ -89,9 +98,12 @@ fun WidgetSwitchVisual(
             reducedMotion -> snap()
             recording -> spring(dampingRatio = 0.45f, stiffness = 320f) // bouncy pop on trigger
             pressed -> spring(dampingRatio = 0.7f, stiffness = 900f)
-            // Slower, less bouncy settle than the general case — a deliberate shrink into the
-            // edge instead of a snappy bounce that read as a jarring pop.
-            sliver -> spring(dampingRatio = 0.8f, stiffness = 260f)
+            // A tween with a KNOWN duration, not a spring — FloatingWidgetManager clips the
+            // window down to the sliver's narrow width on a fixed delay (SLIVER_COLLAPSE_ANIM_MS,
+            // 520ms) after this starts. A spring's settle time is fuzzy, so it used to finish
+            // out of sync with that resize: the shape either got cut off mid-shrink or visibly
+            // snapped once the window caught up. Keep this duration equal to that constant.
+            sliver -> tween(520, easing = FastOutSlowInEasing)
             else -> spring(dampingRatio = 0.55f, stiffness = 380f)
         },
         label = "WidgetScale"
@@ -152,6 +164,14 @@ fun WidgetSwitchVisual(
     val (visualW, visualH) = config.visualSizeDp()
     val shape: Shape = if (editMode) RoundedCornerShape(50) else RampWedgeShape(mirrored = edge == WidgetEdge.Left)
 
+    // Slim accent ring that only shows up once a trigger is actually live — a quiet "it's on"
+    // cue distinct from the fill sweep, which also plays while merely arming.
+    val highlightAlpha by animateFloatAsState(
+        targetValue = if (recording) 0.5f else 0f,
+        animationSpec = if (reducedMotion) snap() else tween(300),
+        label = "WidgetTriggerHighlight"
+    )
+
     Box(modifier = modifier.fillMaxSize(), contentAlignment = alignment) {
         Box(
             modifier = (if (editMode) Modifier.fillMaxSize() else Modifier.size(visualW.dp, visualH.dp))
@@ -164,7 +184,8 @@ fun WidgetSwitchVisual(
                 }
                 .clip(shape)
                 // Flat, solid body — no gradients; just the accent at two intensities.
-                .background(restColor.copy(alpha = 0.55f)),
+                .background(restColor.copy(alpha = 0.55f))
+                .border(1.dp, Color.White.copy(alpha = highlightAlpha), shape),
             contentAlignment = Alignment.Center
         ) {
             // Arming fill sweeping up from the bottom; solid while any recording session is

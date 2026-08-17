@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 package com.example.whispry.di
 
 import com.google.gson.Gson
@@ -15,6 +16,8 @@ import java.util.concurrent.TimeUnit
 import javax.inject.Singleton
 import com.example.whispry.data.remote.api.GroqApiService
 import com.example.whispry.data.remote.api.GroqChatApiService
+import com.example.whispry.updater.UpdateApiService
+import com.example.whispry.updater.UpdateConfig
 import javax.inject.Named
 
 @Module
@@ -114,5 +117,25 @@ object NetworkModule {
     @Singleton
     fun provideGroqChatApiService(@Named("ChatRetrofit") retrofit: Retrofit): GroqChatApiService {
         return retrofit.create(GroqChatApiService::class.java)
+    }
+
+    @Provides
+    @Singleton
+    @Named("GithubRetrofit")
+    fun provideGithubRetrofit(
+        okHttpClient: OkHttpClient,
+        gson: Gson
+    ): Retrofit {
+        return Retrofit.Builder()
+            .baseUrl(UpdateConfig.API_BASE_URL)
+            .client(okHttpClient)
+            .addConverterFactory(GsonConverterFactory.create(gson))
+            .build()
+    }
+
+    @Provides
+    @Singleton
+    fun provideUpdateApiService(@Named("GithubRetrofit") retrofit: Retrofit): UpdateApiService {
+        return retrofit.create(UpdateApiService::class.java)
     }
 }

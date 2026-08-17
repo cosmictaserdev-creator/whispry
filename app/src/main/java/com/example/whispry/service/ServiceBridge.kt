@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 package com.example.whispry.service
 
 import android.graphics.Rect
@@ -31,6 +32,15 @@ class ServiceBridge @Inject constructor() {
 
     fun setImeBounds(bounds: Rect?) {
         _imeBounds.value = bounds
+    }
+
+    /** Foreground app package, updated on window-state changes by the accessibility service.
+     *  Drives hidden-apps suppression (and is the source the on-demand resolver falls back to). */
+    private val _foregroundPackage = MutableStateFlow<String?>(null)
+    val foregroundPackage: StateFlow<String?> = _foregroundPackage.asStateFlow()
+
+    fun setForegroundPackage(packageName: String?) {
+        _foregroundPackage.value = packageName
     }
 
     sealed class TriggerEvent {

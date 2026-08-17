@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 package com.example.whispry.navigation
 
 import kotlinx.serialization.Serializable
@@ -31,6 +32,9 @@ sealed interface Route {
     data object AppTones : Route
 
     @Serializable
+    data object HiddenApps : Route
+
+    @Serializable
     data object Memory : Route
 
     @Serializable
@@ -38,6 +42,9 @@ sealed interface Route {
 
     @Serializable
     data object VoiceCommands : Route
+
+    @Serializable
+    data object Updates : Route
 
     companion object {
         fun fromDeepLinkHost(host: String): Route {
@@ -49,9 +56,11 @@ sealed interface Route {
                 "about" -> About
                 "text-expander" -> TextExpander
                 "app-tones" -> AppTones
+                "hidden-apps" -> HiddenApps
                 "memory" -> Memory
                 "my-info" -> MyInfo
                 "voice-commands" -> VoiceCommands
+                "updates" -> Updates
                 else -> Home
             }
         }

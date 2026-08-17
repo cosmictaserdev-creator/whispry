@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 package com.example.whispry.util
 
 import com.example.whispry.domain.model.Transcript

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 package com.example.whispry.features.memory.presentation
 
 import androidx.compose.foundation.background

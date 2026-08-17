@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 package com.example.whispry.presentation.onboarding
 
 import androidx.compose.animation.*
@@ -88,7 +89,7 @@ fun PermissionsScreen(
                 Spacer(modifier = Modifier.height(16.dp))
 
                 StaggeredTextReveal(
-                    text = "Whispry is a hands-free voice input tool. Microphone and Accessibility are required so you can talk-to-type in any app. The bubble is optional.",
+                    text = "Whispry is a hands-free voice input tool. Microphone, Accessibility and Draw over apps are required so the mic button can float above your keyboard.",
                     style = TextStyle(
                         color = WhispryTokens.TextSecondary,
                         fontSize = 17.sp,
@@ -114,7 +115,7 @@ fun PermissionsScreen(
 
                     PermissionCard(
                         title = "Accessibility",
-                        description = "So a volume-key press starts recording and your text is pasted into the field you're typing in. Whispry only reads the volume keys and the focused text field — nothing else.",
+                        description = "So Whispry can see when your keyboard is open, place the mic button above it, and paste your text into the field you're typing in. Whispry only reads the keyboard state and the focused text field — nothing else.",
                         isGranted = state.accessibilityEnabled,
                         onClick = onGrantAccessibility,
                         delayMs = 500,
@@ -124,24 +125,22 @@ fun PermissionsScreen(
                     )
 
                     PermissionCard(
-                        title = "Bubble (optional)",
-                        description = "Shows a floating recording bubble with a live waveform. Skip it and voice-to-text still works — you'll just get sound and haptics instead of the visual bubble.",
+                        title = "Draw over other apps",
+                        description = "Required so the mic button can float above your keyboard and the recording bubble can show while you talk. Tap Allow and flip the Whispry toggle on.",
                         isGranted = state.overlayPermissionGranted,
                         onClick = onGrantOverlay,
                         delayMs = 600,
                         icon = Icons.Rounded.Layers,
                         backdrop = backdrop,
-                        isRequired = false
+                        isRequired = true
                     )
 
                     if (OemBatteryOptimization.shouldShowPrompt(context)) {
                         PermissionCard(
                             title = "Protect from battery killers",
                             description = "Some phones (Realme, Poco, Oppo, Xiaomi and more) aggressively kill background services, which can stop Whispry mid-recording. Tap Allow to open the battery settings and exempt Whispry.",
-                            isGranted = false,
-                            onClick = {
-                                OemBatteryOptimization.getSettingsIntent(context)?.let { context.startActivity(it) }
-                            },
+                            isGranted = state.batteryOptimizationIgnored,
+                            onClick = { OemBatteryOptimization.openSettings(context) },
                             delayMs = 700,
                             icon = Icons.Rounded.BatterySaver,
                             backdrop = backdrop,
@@ -152,6 +151,7 @@ fun PermissionsScreen(
             }
 
             Column {
+                Spacer(modifier = Modifier.height(if (compact) 24.dp else 32.dp))
                 LiquidButton(
                     onClick = { if (state.allPermissionsGranted) onContinue() },
                     enabled = state.allPermissionsGranted,
@@ -263,8 +263,7 @@ private fun PermissionCard(
                     text = description,
                     color = WhispryTokens.TextTertiary,
                     fontSize = 14.sp,
-                    lineHeight = 20.sp,
-                    maxLines = 5
+                    lineHeight = 20.sp
                 )
             }
 

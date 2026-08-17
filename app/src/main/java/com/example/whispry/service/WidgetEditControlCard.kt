@@ -1,7 +1,9 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 package com.example.whispry.service
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
@@ -15,6 +17,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -35,6 +38,7 @@ fun WidgetEditControlCard(
     onBaseHeight: (Int) -> Unit,
     onProtrusion: (Int) -> Unit,
     onEdgeClearance: (Int) -> Unit,
+    onDrag: (Float, Float) -> Unit,
     onDone: () -> Unit
 ) {
     val accent = WhispryTheme.colors.accent
@@ -46,6 +50,31 @@ fun WidgetEditControlCard(
                 .background(Color(0xF0141418))
                 .padding(horizontal = 20.dp, vertical = 16.dp)
         ) {
+            // Drag handle: this card starts pinned bottom-center, which can sit on top of the
+            // widget itself if its saved spot is also near the bottom — drag the card out of the
+            // way by its handle rather than the whole surface, so the sliders below stay usable.
+            // The touch target is padded well beyond the thin visible bar, same idea as a
+            // bottom-sheet grabber.
+            Box(
+                modifier = Modifier
+                    .align(Alignment.CenterHorizontally)
+                    .fillMaxWidth()
+                    .height(24.dp)
+                    .pointerInput(Unit) {
+                        detectDragGestures(onDrag = { change, amount ->
+                            change.consume()
+                            onDrag(amount.x, amount.y)
+                        })
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(width = 36.dp, height = 4.dp)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(Color.White.copy(alpha = 0.25f))
+                )
+            }
             Text(
                 text = "Position & size",
                 color = Color.White,

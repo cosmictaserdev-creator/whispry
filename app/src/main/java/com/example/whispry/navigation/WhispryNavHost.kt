@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 package com.example.whispry.navigation
 
 import androidx.compose.animation.*
@@ -13,6 +14,8 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import com.example.whispry.features.expander.presentation.TextExpanderScreen
 import com.example.whispry.features.expander.presentation.TextExpanderViewModel
+import com.example.whispry.features.hiddenapps.presentation.HiddenAppsScreen
+import com.example.whispry.features.hiddenapps.presentation.HiddenAppsViewModel
 import com.example.whispry.features.memory.presentation.MemoryScreen
 import com.example.whispry.features.memory.presentation.MemoryViewModel
 import com.example.whispry.features.myinfo.presentation.MyInfoScreen
@@ -30,6 +33,8 @@ import com.example.whispry.presentation.presets.PresetsScreen
 import com.example.whispry.presentation.settings.SettingsScreen
 import com.example.whispry.presentation.settings.SettingsViewModel
 import com.example.whispry.ui.components.WhispryHero
+import com.example.whispry.updater.presentation.UpdateScreen
+import com.example.whispry.updater.presentation.UpdateViewModel
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.backdrops.LayerBackdrop
 
@@ -123,9 +128,19 @@ fun WhispryNavHost(
                 onRevisitTutorial = onRevisitTutorial,
                 onNavigateToTextExpander = { navController.navigate(Route.TextExpander) },
                 onNavigateToAppTones = { navController.navigate(Route.AppTones) },
+                onNavigateToHiddenApps = { navController.navigate(Route.HiddenApps) },
                 onNavigateToMemory = { navController.navigate(Route.Memory) },
                 onNavigateToMyInfo = { navController.navigate(Route.MyInfo) },
                 onNavigateToVoiceCommands = { navController.navigate(Route.VoiceCommands) },
+                onNavigateToUpdates = { navController.navigate(Route.Updates) },
+                hero = WhispryHero(this@SharedTransitionLayout, this)
+            )
+        }
+        composable<Route.Updates> {
+            val vm: UpdateViewModel = hiltViewModel()
+            UpdateScreen(
+                viewModel = vm,
+                navController = navController,
                 hero = WhispryHero(this@SharedTransitionLayout, this)
             )
         }
@@ -144,6 +159,15 @@ fun WhispryNavHost(
         composable<Route.AppTones> {
             val vm: AppToneViewModel = hiltViewModel()
             AppToneScreen(
+                viewModel = vm,
+                navController = navController,
+                backdrop = globalGlassBackdrop,
+                hero = WhispryHero(this@SharedTransitionLayout, this)
+            )
+        }
+        composable<Route.HiddenApps> {
+            val vm: HiddenAppsViewModel = hiltViewModel()
+            HiddenAppsScreen(
                 viewModel = vm,
                 navController = navController,
                 backdrop = globalGlassBackdrop,

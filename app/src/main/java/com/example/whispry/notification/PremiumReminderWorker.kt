@@ -1,12 +1,16 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 package com.example.whispry.notification
 
 import android.content.Context
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
+import com.example.whispry.data.local.datasource.DataStoreKeys
+import com.example.whispry.data.local.datasource.SettingsProvider
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
+import kotlinx.coroutines.flow.first
 
 class PremiumReminderWorker(
     context: Context,
@@ -17,6 +21,7 @@ class PremiumReminderWorker(
     @InstallIn(SingletonComponent::class)
     interface PremiumReminderEntryPoint {
         fun notificationManager(): WhispryNotificationManager
+        fun settingsProvider(): SettingsProvider
     }
 
     private data class ReminderMessage(
@@ -30,6 +35,11 @@ class PremiumReminderWorker(
             applicationContext,
             PremiumReminderEntryPoint::class.java
         )
+        val settingsProvider = entryPoint.settingsProvider()
+        val enabled = settingsProvider.dataStore.data.first()[DataStoreKeys.PREMIUM_REMINDERS_ENABLED]
+            ?: DataStoreKeys.DEFAULT_PREMIUM_REMINDERS_ENABLED
+        if (!enabled) return Result.success()
+
         val notificationManager = entryPoint.notificationManager()
 
         val index = (runAttemptCount + System.currentTimeMillis() / 86400000L).toInt() % messages.size

@@ -1,18 +1,21 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 package com.example.whispry.presentation.onboarding
 
 import android.Manifest
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.provider.Settings
+import android.util.Log
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.whispry.data.local.datasource.ApiKeyProvider
-import com.example.whispry.data.local.datasource.DataStoreKeys
 import com.example.whispry.data.local.datasource.SettingsProvider
 import com.example.whispry.data.remote.api.GroqChatApiService
 import com.example.whispry.data.remote.api.dto.ChatCompletionRequest
 import com.example.whispry.data.remote.api.dto.ChatMessage
+import com.example.whispry.service.BubbleService
 import com.example.whispry.service.ServiceBridge
 import com.example.whispry.service.ServiceLocator
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -26,6 +29,7 @@ data class OnboardingState(
     val overlayPermissionGranted: Boolean = false,
     val phoneStatePermissionGranted: Boolean = false,
     val accessibilityEnabled: Boolean = false,
+    val batteryOptimizationIgnored: Boolean = false,
     val apiKey: String = "",
     val isApiKeyValid: Boolean = false,
     val isValidatingKey: Boolean = false,
@@ -33,21 +37,15 @@ data class OnboardingState(
     val allPermissionsGranted: Boolean = false,
     val isCompleted: Boolean = false,
     val tutorialStep: TutorialStep = TutorialStep.Idle,
-    val recordedText: String = "",
-    // Live trigger config so the teach phase mirrors the user's real settings.
-    val triggerVolumeKey: String = "VOLUME_DOWN", // "VOLUME_UP" | "VOLUME_DOWN"
-    val isHoldGesture: Boolean = DataStoreKeys.DEFAULT_SINGLE_PRESS_TRIGGER // true = press-and-hold, false = double-press
-) {
-    /** Human-readable key label for the teach phase, e.g. "Volume Down". */
-    val triggerKeyLabel: String
-        get() = if (triggerVolumeKey == "VOLUME_UP") "Volume Up" else "Volume Down"
-}
+    val recordedText: String = ""
+)
 
 enum class TutorialStep {
     Idle,
-    DoublePressMe,
-    HoldMe,
+    TapField,
+    TapLogo,
     Recording,
+    Processing,
     Success,
     Failed
 }
@@ -64,22 +62,23 @@ class OnboardingViewModel @Inject constructor(
     private val _state = MutableStateFlow(OnboardingState())
     val state: StateFlow<OnboardingState> = _state.asStateFlow()
 
+    /** IME visibility at the moment a step starts, so TapField only advances on a fresh keyboard-open. */
+    private var keyboardWasVisible = false
+
     init {
         checkPermissions()
         observeServiceEvents()
-        observeTriggerConfig()
+        observeImeState()
     }
 
-    private fun observeTriggerConfig() {
-        settingsProvider.dataStore.data
-            .onEach { prefs ->
-                _state.update {
-                    it.copy(
-                        triggerVolumeKey = prefs[DataStoreKeys.TRIGGER_VOLUME_KEY] ?: "VOLUME_DOWN",
-                        isHoldGesture = prefs[DataStoreKeys.SINGLE_PRESS_TRIGGER]
-                            ?: DataStoreKeys.DEFAULT_SINGLE_PRESS_TRIGGER
-                    )
+    private fun observeImeState() {
+        serviceBridge.imeBounds
+            .map { it != null }
+            .onEach { keyboardOpen ->
+                if (keyboardOpen && !keyboardWasVisible && _state.value.tutorialStep == TutorialStep.TapField) {
+                    _state.update { it.copy(tutorialStep = TutorialStep.TapLogo) }
                 }
+                keyboardWasVisible = keyboardOpen
             }
             .launchIn(viewModelScope)
     }
@@ -89,17 +88,17 @@ class OnboardingViewModel @Inject constructor(
             .onEach { event ->
                 when (event) {
                     is ServiceBridge.TriggerEvent.RecordingStarted -> {
-                        if (_state.value.tutorialStep == TutorialStep.HoldMe || _state.value.tutorialStep == TutorialStep.DoublePressMe) {
+                        if (_state.value.tutorialStep == TutorialStep.TapLogo) {
                             _state.update { it.copy(tutorialStep = TutorialStep.Recording) }
                         }
                     }
                     is ServiceBridge.TriggerEvent.RecordingStopped -> {
                         if (_state.value.tutorialStep == TutorialStep.Recording) {
-                            _state.update { it.copy(tutorialStep = TutorialStep.HoldMe) } // Temporary state to show loading
+                            _state.update { it.copy(tutorialStep = TutorialStep.Processing) }
                         }
                     }
                     is ServiceBridge.TriggerEvent.TranscriptionResult -> {
-                        if (_state.value.tutorialStep == TutorialStep.HoldMe || _state.value.tutorialStep == TutorialStep.Recording) {
+                        if (_state.value.tutorialStep == TutorialStep.Recording || _state.value.tutorialStep == TutorialStep.Processing) {
                             _state.update { it.copy(
                                 tutorialStep = TutorialStep.Success,
                                 recordedText = event.text
@@ -110,7 +109,7 @@ class OnboardingViewModel @Inject constructor(
                         // The live-transcription payoff couldn't complete (bad network, API hiccup).
                         // Drop into a graceful failure state instead of hanging on the spinner.
                         val step = _state.value.tutorialStep
-                        if (step == TutorialStep.Recording || step == TutorialStep.HoldMe || step == TutorialStep.DoublePressMe) {
+                        if (step == TutorialStep.Recording || step == TutorialStep.Processing || step == TutorialStep.TapLogo) {
                             _state.update { it.copy(tutorialStep = TutorialStep.Failed) }
                         }
                     }
@@ -124,13 +123,26 @@ class OnboardingViewModel @Inject constructor(
     }
 
     fun startTutorial() {
-        // Enter the flow at the step that matches the user's saved gesture.
-        val firstStep = if (_state.value.isHoldGesture) TutorialStep.HoldMe else TutorialStep.DoublePressMe
-        _state.update { it.copy(tutorialStep = firstStep, recordedText = "") }
+        // Make sure the real keyboard-logo host is running, then reset the step flow.
+        keyboardWasVisible = false
+        try {
+            val i = Intent(context, BubbleService::class.java)
+            context.startForegroundService(i)
+        } catch (e: Exception) {
+            Log.e("OnboardingViewModel", "Failed to start BubbleService for tutorial", e)
+        }
+        _state.update { it.copy(tutorialStep = TutorialStep.TapField, recordedText = "") }
     }
 
     /** Retry the live practice after a failed attempt. */
     fun retryTutorial() = startTutorial()
+
+    /** Remember which onboarding screen the user is on so leaving/reopening resumes there. */
+    fun saveResumeRoute(route: String) {
+        viewModelScope.launch {
+            settingsProvider.setOnboardingResumeRoute(route)
+        }
+    }
 
     fun checkPermissions() {
         val mic = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
@@ -138,16 +150,18 @@ class OnboardingViewModel @Inject constructor(
         val phone = ContextCompat.checkSelfPermission(context, Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_GRANTED
         
         val accessibility = isAccessibilityServiceEnabled() && ServiceLocator.triggerService != null
-        
+        val batteryOptimizationIgnored = com.example.whispry.service.OemBatteryOptimization.isIgnoringBatteryOptimizations(context)
+
         _state.update {
             it.copy(
                 micPermissionGranted = mic,
                 overlayPermissionGranted = overlay,
                 phoneStatePermissionGranted = phone,
                 accessibilityEnabled = accessibility,
-                // Only microphone + accessibility are required to continue. Overlay (the bubble) is
-                // optional with a degraded fallback; Phone State is requested just-in-time in Settings.
-                allPermissionsGranted = mic && accessibility
+                batteryOptimizationIgnored = batteryOptimizationIgnored,
+                // Microphone, Draw-over and Accessibility are all required: the keyboard mic
+                // button is an overlay anchored to the IME via the accessibility service.
+                allPermissionsGranted = mic && overlay && accessibility
             )
         }
     }

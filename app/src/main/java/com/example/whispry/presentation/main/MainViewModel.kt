@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 package com.example.whispry.presentation.main
 
 import androidx.lifecycle.ViewModel
@@ -18,8 +19,8 @@ class MainViewModel @Inject constructor(
     private val _onboardingCompleted = MutableStateFlow<Boolean?>(null)
     val onboardingCompleted: StateFlow<Boolean?> = _onboardingCompleted.asStateFlow()
 
-    private val _onboardingStartDestination = MutableStateFlow("intro")
-    val onboardingStartDestination: StateFlow<String> = _onboardingStartDestination.asStateFlow()
+    private val _onboardingStartDestination = MutableStateFlow<String?>(null)
+    val onboardingStartDestination: StateFlow<String?> = _onboardingStartDestination.asStateFlow()
 
     val accentColor: StateFlow<AccentColorSet> = settingsProvider.accentColor
         .map { colorName -> resolveAccentColors(colorName) }
@@ -35,18 +36,24 @@ class MainViewModel @Inject constructor(
                 _onboardingCompleted.value = it
             }
         }
+        viewModelScope.launch {
+            // Resume the last onboarding screen instead of restarting at Intro on leave/reopen.
+            settingsProvider.onboardingResumeRoute.collect { route ->
+                _onboardingStartDestination.value = route ?: "intro"
+            }
+        }
     }
 
     fun completeOnboarding() {
         viewModelScope.launch {
             settingsProvider.setOnboardingCompleted(true)
-            _onboardingStartDestination.value = "intro" // Reset to default
+            settingsProvider.setOnboardingResumeRoute(null) // Reset to default
         }
     }
 
     fun revisitTutorial() {
         viewModelScope.launch {
-            _onboardingStartDestination.value = "howItWorks"
+            settingsProvider.setOnboardingResumeRoute("howItWorks")
             settingsProvider.setOnboardingCompleted(false)
         }
     }

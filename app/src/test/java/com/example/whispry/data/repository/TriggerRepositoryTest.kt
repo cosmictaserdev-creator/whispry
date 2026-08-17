@@ -42,6 +42,6 @@ class TriggerRepositoryTest {
         every { dataStore.data } returns flowOf(mutablePreferencesOf())
         
         val mode = repository.getActiveTriggerMode().first()
-        assertEquals(TriggerMode.VolumeButton, mode)
+        assertEquals(TriggerMode.Manual, mode)
     }
 }

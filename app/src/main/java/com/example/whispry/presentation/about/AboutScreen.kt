@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 package com.example.whispry.presentation.about
 
 import android.content.Intent
@@ -12,6 +13,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -24,10 +26,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.FileProvider
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.whispry.R
 import com.example.whispry.presentation.common.GlassCard
 import com.example.whispry.ui.theme.DeepPurple
+import com.example.whispry.util.CrashLogger
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.backdrops.LayerBackdrop
 
@@ -97,6 +101,7 @@ fun AboutScreen(
 
         // Actions Section
         item {
+            val crashLog = remember { CrashLogger.latestCrashLog(context) }
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 AboutActionRow(Icons.Rounded.Star, "Rate the app", backdrop) {
                     val intent = Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=${context.packageName}"))
@@ -105,6 +110,19 @@ fun AboutScreen(
                 AboutActionRow(Icons.Rounded.BugReport, "Report a bug", backdrop) {
                     val intent = Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:support@whispry.app"))
                     context.startActivity(intent)
+                }
+                if (crashLog != null) {
+                    // On-device only — see CrashLogger. Nothing is sent anywhere until the user
+                    // explicitly shares this file themselves.
+                    AboutActionRow(Icons.Rounded.WarningAmber, "Share Crash Log", backdrop) {
+                        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", crashLog)
+                        val intent = Intent(Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(Intent.EXTRA_STREAM, uri)
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        }
+                        context.startActivity(Intent.createChooser(intent, "Share crash log"))
+                    }
                 }
                 AboutActionRow(Icons.Rounded.Share, "Share Whispry", backdrop) {
                     val intent = Intent(Intent.ACTION_SEND).apply {
@@ -124,6 +142,33 @@ fun AboutScreen(
                     style = MaterialTheme.typography.labelSmall,
                     color = Color.White.copy(alpha = 0.3f)
                 )
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+        }
+
+        // Required by LICENSE's additional Section 7 term: attribution must travel with the
+        // running app, not just the source repo — see NOTICE.
+        item {
+            Box(modifier = Modifier.animateItem()) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = "Whispry is open source, licensed under AGPL-3.0.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.White.copy(alpha = 0.3f)
+                    )
+                    Text(
+                        text = "github.com/cosmictaserdev-creator/whispry",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.White.copy(alpha = 0.3f),
+                        modifier = Modifier.clickable {
+                            val intent = Intent(
+                                Intent.ACTION_VIEW,
+                                Uri.parse("https://github.com/cosmictaserdev-creator/whispry")
+                            )
+                            context.startActivity(intent)
+                        }
+                    )
+                }
             }
             Spacer(modifier = Modifier.height(140.dp))
         }

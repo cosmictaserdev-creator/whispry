@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 package com.example.whispry.presentation.settings
 
 import com.example.whispry.domain.model.FormattingProviderPreset
@@ -24,13 +25,14 @@ data class SettingsState(
     val autoStartBoot: Boolean = true,
     val isServiceRunning: Boolean = false,
     val isAccessibilityEnabled: Boolean = false,
+    val batteryOptimizationIgnored: Boolean = false,
     val isSaved: Boolean = false,
     val error: String? = null,
     val accentColor: String = "Purple",
     val instantModeEnabled: Boolean = false,
 
     // Trigger
-    val triggerMode: TriggerMode = TriggerMode.VolumeButton,
+    val triggerMode: TriggerMode = TriggerMode.Manual,
     val availableTriggerModes: List<TriggerMode> = emptyList(),
     val smartTriggerSuppression: Boolean = false,
     val consumeVolumeKeys: Boolean = true,
@@ -68,6 +70,9 @@ data class SettingsState(
     val pressActionsEnabled: Boolean = false,
     val singlePressAction: String = "NORMAL",
     val doublePressAction: String = "NORMAL",
+
+    // Premium feature alerts (opt-in)
+    val premiumReminderEnabled: Boolean = false,
 
     // Multi-provider AI support: transcription and formatting resolve independently.
     val transcriptionProviderPreset: TranscriptionProviderPreset = TranscriptionProviderPreset.GROQ,
@@ -151,8 +156,12 @@ sealed class SettingsIntent {
     data class SetWidgetSingleTapAction(val action: String) : SettingsIntent()
     data class SetWidgetDoubleTapAction(val action: String) : SettingsIntent()
     data class SetWidgetSoundMuted(val muted: Boolean) : SettingsIntent()
+    data class SetWidgetAvoidKeyboard(val enabled: Boolean) : SettingsIntent()
     data class SetWidgetMotion(val value: String) : SettingsIntent()
     object EnterWidgetEditMode : SettingsIntent()
+
+    // Premium feature alerts
+    data class SetPremiumReminderEnabled(val enabled: Boolean) : SettingsIntent()
 
     // Multi-provider AI support
     data class SetTranscriptionProviderPreset(val preset: TranscriptionProviderPreset) : SettingsIntent()

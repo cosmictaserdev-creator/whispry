@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 package com.example.whispry.data.local.datasource
 
 import android.content.Context
@@ -26,6 +27,7 @@ class SettingsProvider @Inject constructor(
     val doublePressInterval: Flow<Long> = dataStore.data.map { it[DataStoreKeys.DOUBLE_PRESS_INTERVAL] ?: 400L }
     val hapticFeedback: Flow<Boolean> = dataStore.data.map { it[DataStoreKeys.HAPTIC_FEEDBACK] ?: true }
     val onboardingCompleted: Flow<Boolean> = dataStore.data.map { it[DataStoreKeys.ONBOARDING_COMPLETED] ?: false }
+    val onboardingResumeRoute: Flow<String?> = dataStore.data.map { it[DataStoreKeys.ONBOARDING_RESUME_ROUTE] }
     val customVocabulary: Flow<String> = dataStore.data.map { it[DataStoreKeys.CUSTOM_VOCABULARY] ?: "" }
     val temperature: Flow<Float> = dataStore.data.map { it[DataStoreKeys.TEMPERATURE] ?: 0.0f }
     val bubbleSize: Flow<String> = dataStore.data.map { it[DataStoreKeys.BUBBLE_SIZE] ?: "Medium" }
@@ -96,6 +98,9 @@ class SettingsProvider @Inject constructor(
     suspend fun setDoublePressInterval(value: Long) = dataStore.edit { it[DataStoreKeys.DOUBLE_PRESS_INTERVAL] = value }
     suspend fun setHapticFeedback(value: Boolean) = dataStore.edit { it[DataStoreKeys.HAPTIC_FEEDBACK] = value }
     suspend fun setOnboardingCompleted(value: Boolean) = dataStore.edit { it[DataStoreKeys.ONBOARDING_COMPLETED] = value }
+    suspend fun setOnboardingResumeRoute(value: String?) = dataStore.edit {
+        if (value == null) it.remove(DataStoreKeys.ONBOARDING_RESUME_ROUTE) else it[DataStoreKeys.ONBOARDING_RESUME_ROUTE] = value
+    }
     suspend fun setCustomVocabulary(value: String) = dataStore.edit { it[DataStoreKeys.CUSTOM_VOCABULARY] = value }
     suspend fun setTemperature(value: Float) = dataStore.edit { it[DataStoreKeys.TEMPERATURE] = value }
     suspend fun setBubbleSize(value: String) = dataStore.edit { it[DataStoreKeys.BUBBLE_SIZE] = value }

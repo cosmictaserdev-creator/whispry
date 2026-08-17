@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 package com.example.whispry.domain.usecase
 
 import com.example.whispry.data.local.datasource.SettingsProvider
@@ -25,7 +26,7 @@ class FormatTranscriptUseCase @Inject constructor(
         if (rawText.isBlank()) return Result.Success(rawText)
 
         val appAwareEnabled = !skipAppAware && settingsProvider.appAwareToneEnabled.first()
-        val pkg = ServiceLocator.lastForegroundPackage
+        val pkg = ServiceLocator.currentForegroundApp()
         
         val mapping = if (appAwareEnabled && pkg != null) {
             appToneRepository.getAppToneByPackage(pkg)

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 package com.example.whispry.service
 
 import android.accessibilityservice.AccessibilityService
@@ -216,6 +217,7 @@ class TriggerService : AccessibilityService() {
                 if (!packageName.isNullOrBlank() && packageName != this.packageName) {
                     Log.d(TAG, "Foreground package changed to: $packageName")
                     ServiceLocator.lastForegroundPackage = packageName
+                    serviceBridge.setForegroundPackage(packageName)
                 }
                 // Some OEMs only emit window-state-changed for IME show/hide.
                 detectIme()

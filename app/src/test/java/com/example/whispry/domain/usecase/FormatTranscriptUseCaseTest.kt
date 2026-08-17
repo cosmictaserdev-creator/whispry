@@ -36,6 +36,7 @@ class FormatTranscriptUseCaseTest {
         every { settingsProvider.translateTargetLanguage } returns flowOf("English")
         coEvery { getActiveMemoriesUseCase() } returns emptyList()
         ServiceLocator.lastForegroundPackage = null
+        ServiceLocator.triggerService = null
 
         useCase = FormatTranscriptUseCase(
             groqFormatterRepository,

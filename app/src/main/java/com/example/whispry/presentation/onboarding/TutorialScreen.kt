@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 package com.example.whispry.presentation.onboarding
 
 import androidx.compose.animation.*
@@ -6,21 +7,23 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.Mic
-import androidx.compose.material.icons.rounded.TouchApp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.draw.scale
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -28,15 +31,12 @@ import androidx.compose.ui.unit.sp
 import com.example.whispry.presentation.common.GlassCard
 import com.example.whispry.presentation.onboarding.components.MultiLineStaggeredText
 import com.example.whispry.presentation.onboarding.components.StaggeredTextReveal
-import com.example.whispry.ui.theme.WhispryTheme
 import com.example.whispry.ui.theme.WhispryTokens
 import com.example.whispry.ui.util.liquid.components.LiquidButton
 import com.kyant.backdrop.Backdrop
-import com.kyant.backdrop.drawBackdrop
-import com.kyant.backdrop.effects.blur
-import com.kyant.backdrop.effects.vibrancy
-import com.kyant.capsule.ContinuousRoundedRectangle
+import kotlinx.coroutines.delay
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TutorialScreen(
     state: OnboardingState,
@@ -50,220 +50,318 @@ fun TutorialScreen(
         onStart()
     }
 
+    val focusRequester = remember { FocusRequester() }
+    val keyboardController = LocalSoftwareKeyboardController.current
+    var fieldText by remember { mutableStateOf("") }
+
+    // Open the keyboard for the practice field so the real keyboard-logo mic appears above it.
+    LaunchedEffect(state.tutorialStep) {
+        when (state.tutorialStep) {
+            TutorialStep.TapField -> {
+                fieldText = ""
+                delay(900)
+                focusRequester.requestFocus()
+            }
+            TutorialStep.Success -> {
+                fieldText = state.recordedText
+                // Practice is over: drop the keyboard (and the logo with it) so the card shows.
+                keyboardController?.hide()
+            }
+            TutorialStep.Failed -> keyboardController?.hide()
+            else -> {}
+        }
+    }
+
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-        // Shrink the phone mock and vertical gutters on short screens so the guide and actions
-        // fit without scrolling.
         val compact = maxHeight < 640.dp
 
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 24.dp)
-                .verticalScroll(rememberScrollState()),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Spacer(modifier = Modifier.height(if (compact) 16.dp else 32.dp))
-
-            // Visual Guide
-            Box(
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Column(
                 modifier = Modifier
-                    .size(width = if (compact) 150.dp else 180.dp, height = if (compact) 260.dp else 310.dp)
-                    .shadow(4.dp, com.kyant.capsule.ContinuousRoundedRectangle(36.dp), spotColor = androidx.compose.ui.graphics.Color.Black)
-                    .background(androidx.compose.ui.graphics.Color(0xFF1C1C1E), com.kyant.capsule.ContinuousRoundedRectangle(36.dp))
-                    .border(1.dp, com.example.whispry.ui.theme.WhispryTokens.GlassBorder, com.kyant.capsule.ContinuousRoundedRectangle(36.dp))
-                    .border(1.dp, Color.White.copy(0.12f), ContinuousRoundedRectangle(36.dp)),
-                contentAlignment = Alignment.TopEnd
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp)
+                    .verticalScroll(rememberScrollState()),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
             ) {
-                val infiniteTransition = rememberInfiniteTransition(label = "ButtonPulse")
-                val pulseScale by infiniteTransition.animateFloat(
-                    initialValue = 1f,
-                    targetValue = 1.35f,
-                    animationSpec = infiniteRepeatable(
-                        animation = tween(1200, easing = FastOutSlowInEasing),
-                        repeatMode = RepeatMode.Reverse
-                    ),
-                    label = "PulseScale"
+                Spacer(modifier = Modifier.height(if (compact) 16.dp else 32.dp))
+
+                key(state.tutorialStep) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        StaggeredTextReveal(
+                            text = when (state.tutorialStep) {
+                                TutorialStep.TapField -> "Tap the field below"
+                                TutorialStep.TapLogo -> "Tap the mic button"
+                                TutorialStep.Recording -> "Speak now"
+                                TutorialStep.Processing -> "One sec..."
+                                TutorialStep.Success -> "You're done!"
+                                TutorialStep.Failed -> "Hmm, that didn't go through"
+                                else -> "Get Ready"
+                            },
+                            style = MaterialTheme.typography.headlineSmall.copy(
+                                fontWeight = FontWeight.Bold,
+                                textAlign = TextAlign.Center,
+                                color = WhispryTokens.TextPrimary,
+                                fontSize = 28.sp,
+                                letterSpacing = (-0.5).sp
+                            )
+                        )
+                        StaggeredTextReveal(
+                            text = when (state.tutorialStep) {
+                                TutorialStep.TapField -> "Your keyboard will open, and Whispry's mic button will appear above it."
+                                TutorialStep.TapLogo -> "It's the small accent pill floating above your keyboard. Tap it once to start listening."
+                                TutorialStep.Recording -> "Say what you want to write. Tap the mic button again when you're done."
+                                TutorialStep.Processing -> "Turning your words into text."
+                                TutorialStep.Success -> "Your words were placed in the field. That's how you talk-to-type — anywhere."
+                                TutorialStep.Failed -> "We couldn't transcribe that — usually a weak connection. You can try again or skip."
+                                else -> "Follow the guide."
+                            },
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                color = WhispryTokens.TextSecondary,
+                                textAlign = TextAlign.Center,
+                                lineHeight = 24.sp,
+                                fontSize = 17.sp
+                            ),
+                            delayMs = 250
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(if (compact) 20.dp else 32.dp))
+
+                // The real practice field: focus it to summon the IME and the real keyboard logo.
+                PracticeTextField(
+                    value = fieldText,
+                    onValueChange = { fieldText = it },
+                    isListening = state.tutorialStep == TutorialStep.Recording,
+                    focusRequester = focusRequester,
+                    modifier = Modifier.fillMaxWidth()
                 )
 
-                Box(
-                    modifier = Modifier
-                        .offset(x = 4.dp, y = if (compact) 86.dp else 110.dp)
-                        .size(width = 8.dp, height = 44.dp)
-                        .scale(if (state.tutorialStep == TutorialStep.DoublePressMe || state.tutorialStep == TutorialStep.HoldMe) pulseScale else 1f)
-                        .background(
-                            if (state.tutorialStep == TutorialStep.Recording) androidx.compose.ui.graphics.Color.White 
-                            else androidx.compose.ui.graphics.Color.White.copy(alpha = 0.45f),
-                            RoundedCornerShape(topStart = 4.dp, bottomStart = 4.dp)
-                        )
-                )
-                
-                Box(modifier = Modifier.fillMaxSize().padding(20.dp), contentAlignment = Alignment.Center) {
-                    AnimatedContent(
-                        targetState = state.tutorialStep,
-                        transitionSpec = { fadeIn(tween(400)) togetherWith fadeOut(tween(400)) },
-                        label = "TutorialVisualState"
-                    ) { step ->
-                        when(step) {
-                            TutorialStep.DoublePressMe -> {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Icon(Icons.Rounded.TouchApp, null, tint = androidx.compose.ui.graphics.Color.White, modifier = Modifier.size(48.dp))
-                                    Text("Double Press", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(0.8f))
-                                }
+                Spacer(modifier = Modifier.height(if (compact) 20.dp else 32.dp))
+
+                // Mini progress: which of the three moves has the user completed.
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    StepPill(label = "Tap", done = state.tutorialStep.ordinal > TutorialStep.TapField.ordinal, active = state.tutorialStep == TutorialStep.TapField)
+                    StepPill(label = "Speak", done = state.tutorialStep.ordinal > TutorialStep.Recording.ordinal, active = state.tutorialStep == TutorialStep.Recording)
+                    StepPill(label = "Done", done = state.tutorialStep == TutorialStep.Success, active = state.tutorialStep == TutorialStep.Processing)
+                }
+
+                Spacer(modifier = Modifier.height(if (compact) 20.dp else 32.dp))
+
+                AnimatedVisibility(
+                    visible = state.tutorialStep == TutorialStep.Success,
+                    enter = expandVertically() + fadeIn()
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        GlassCard(backdrop = backdrop, modifier = Modifier.fillMaxWidth()) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.padding(24.dp)
+                            ) {
+                                Icon(
+                                    Icons.Rounded.CheckCircle,
+                                    null,
+                                    tint = WhispryTokens.SuccessGreen,
+                                    modifier = Modifier.size(48.dp)
+                                )
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Text(
+                                    "Your words landed in the field. Nice work!",
+                                    color = WhispryTokens.TextPrimary,
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    textAlign = TextAlign.Center
+                                )
                             }
-                            TutorialStep.HoldMe -> {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Icon(Icons.Rounded.TouchApp, null, tint = androidx.compose.ui.graphics.Color.White, modifier = Modifier.size(48.dp))
-                                    Text("Hold", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(0.8f))
-                                }
-                            }
-                            TutorialStep.Recording -> {
-                                Box(contentAlignment = Alignment.Center) {
-                                    CircularProgressIndicator(color = androidx.compose.ui.graphics.Color.White, strokeWidth = 2.5.dp, modifier = Modifier.size(56.dp))
-                                    Icon(Icons.Rounded.Mic, null, tint = androidx.compose.ui.graphics.Color.White, modifier = Modifier.size(32.dp))
-                                }
-                            }
-                            TutorialStep.Success -> {
-                                Icon(Icons.Rounded.CheckCircle, null, tint = WhispryTokens.SuccessGreen, modifier = Modifier.size(64.dp))
-                            }
-                            TutorialStep.Failed -> {
-                                Icon(Icons.Rounded.ErrorOutline, null, tint = Color(0xFFFF5252), modifier = Modifier.size(64.dp))
-                            }
-                            else -> {}
+                        }
+
+                        Spacer(modifier = Modifier.height(if (compact) 20.dp else 32.dp))
+
+                        LiquidButton(
+                            onClick = onContinue,
+                            backdrop = backdrop,
+                            modifier = Modifier.fillMaxWidth().height(60.dp)
+                        ) {
+                            Text(
+                                "Complete Onboarding",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 18.sp,
+                                color = Color.White
+                            )
                         }
                     }
                 }
-            }
 
-            Spacer(modifier = Modifier.height(48.dp))
-
-            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                key(state.tutorialStep) {
-                    StaggeredTextReveal(
-                        text = when(state.tutorialStep) {
-                            TutorialStep.DoublePressMe -> "Double Press ${state.triggerKeyLabel}"
-                            TutorialStep.HoldMe -> if (state.isHoldGesture) "Hold ${state.triggerKeyLabel}" else "Now Hold it!"
-                            TutorialStep.Recording -> "Recording... Say something!"
-                            TutorialStep.Success -> "Perfect!"
-                            TutorialStep.Failed -> "Hmm, that didn't go through"
-                            else -> "Get Ready"
-                        },
-                        style = MaterialTheme.typography.headlineSmall.copy(
-                            fontWeight = FontWeight.Bold,
-                            textAlign = TextAlign.Center,
-                            color = WhispryTokens.TextPrimary,
-                            fontSize = 28.sp,
-                            letterSpacing = (-0.5).sp
+                // Graceful failure: retry the live practice or skip into the app.
+                AnimatedVisibility(
+                    visible = state.tutorialStep == TutorialStep.Failed,
+                    enter = expandVertically() + fadeIn()
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(
+                            Icons.Rounded.ErrorOutline,
+                            null,
+                            tint = Color(0xFFFF5252),
+                            modifier = Modifier.size(48.dp)
                         )
-                    )
-                    StaggeredTextReveal(
-                        text = when(state.tutorialStep) {
-                            TutorialStep.DoublePressMe -> "Press the ${state.triggerKeyLabel.lowercase()} button twice quickly, then hold."
-                            TutorialStep.HoldMe -> if (state.isHoldGesture) "Press and hold the ${state.triggerKeyLabel.lowercase()} button while you speak." else "Keep holding the button while you speak."
-                            TutorialStep.Recording -> "Release the button when you're finished."
-                            TutorialStep.Success -> "You've mastered the physical gesture!"
-                            TutorialStep.Failed -> "We couldn't transcribe that — usually a weak connection. You can try again or skip and explore the app."
-                            else -> "Follow the guide above."
-                        },
-                        style = MaterialTheme.typography.bodyMedium.copy(
-                            color = WhispryTokens.TextSecondary,
-                            textAlign = TextAlign.Center,
-                            lineHeight = 24.sp,
-                            fontSize = 17.sp
-                        ),
-                        delayMs = 250
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(if (compact) 20.dp else 40.dp))
-
-            AnimatedVisibility(
-                visible = state.tutorialStep == TutorialStep.Success,
-                enter = expandVertically() + fadeIn()
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    GlassCard(backdrop = backdrop, modifier = Modifier.fillMaxWidth()) {
-                        MultiLineStaggeredText(
-                            text = state.recordedText,
-                            style = MaterialTheme.typography.bodyLarge.copy(
-                                fontWeight = FontWeight.Medium,
-                                color = WhispryTokens.TextPrimary,
-                                textAlign = TextAlign.Center,
+                        Spacer(modifier = Modifier.height(16.dp))
+                        LiquidButton(
+                            onClick = onRetry,
+                            backdrop = backdrop,
+                            modifier = Modifier.fillMaxWidth().height(60.dp)
+                        ) {
+                            Text(
+                                "Try Again",
+                                fontWeight = FontWeight.Bold,
                                 fontSize = 18.sp,
-                                lineHeight = 26.sp
-                            ),
-                            modifier = Modifier.padding(24.dp),
-                            delayMs = 500,
-                            staggerPerWordMs = 70
-                        )
-                    }
-
-            Spacer(modifier = Modifier.height(if (compact) 24.dp else 48.dp))
-
-                    LiquidButton(
-                        onClick = onContinue,
-                        backdrop = backdrop,
-                        modifier = Modifier.fillMaxWidth().height(60.dp)
-                    ) {
-                        Text(
-                            "Complete Onboarding",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 18.sp,
-                            color = androidx.compose.ui.graphics.Color.White
-                        )
+                                color = Color.White
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(12.dp))
+                        TextButton(onClick = onSkip) {
+                            Text(
+                                "Skip for now",
+                                fontWeight = FontWeight.Medium,
+                                fontSize = 16.sp,
+                                color = WhispryTokens.TextSecondary
+                            )
+                        }
                     }
                 }
-            }
 
-            // Graceful failure: retry the live practice or skip into the app.
-            AnimatedVisibility(
-                visible = state.tutorialStep == TutorialStep.Failed,
-                enter = expandVertically() + fadeIn()
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    LiquidButton(
-                        onClick = onRetry,
-                        backdrop = backdrop,
-                        modifier = Modifier.fillMaxWidth().height(60.dp)
-                    ) {
-                        Text(
-                            "Try Again",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 18.sp,
-                            color = androidx.compose.ui.graphics.Color.White
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(12.dp))
+                // Always let the user out of the live practice so a stuck step never traps them.
+                AnimatedVisibility(
+                    visible = state.tutorialStep != TutorialStep.Success && state.tutorialStep != TutorialStep.Failed,
+                    enter = fadeIn()
+                ) {
                     TextButton(onClick = onSkip) {
                         Text(
                             "Skip for now",
                             fontWeight = FontWeight.Medium,
                             fontSize = 16.sp,
-                            color = WhispryTokens.TextSecondary
+                            color = WhispryTokens.TextTertiary
                         )
                     }
                 }
-            }
 
-            // Always let the user out of the live practice so a stuck gesture never traps them.
-            AnimatedVisibility(
-                visible = state.tutorialStep != TutorialStep.Success && state.tutorialStep != TutorialStep.Failed,
-                enter = fadeIn()
-            ) {
-                TextButton(onClick = onSkip) {
-                    Text(
-                        "Skip for now",
-                        fontWeight = FontWeight.Medium,
-                        fontSize = 16.sp,
-                        color = WhispryTokens.TextTertiary
-                    )
-                }
+                Spacer(modifier = Modifier.height(if (compact) 16.dp else 32.dp))
             }
-
-            Spacer(modifier = Modifier.height(if (compact) 16.dp else 32.dp))
         }
     }
+}
+
+@Composable
+private fun PracticeTextField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    isListening: Boolean,
+    focusRequester: FocusRequester,
+    modifier: Modifier = Modifier
+) {
+    val infiniteTransition = rememberInfiniteTransition(label = "FieldPulse")
+    val pulseAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.35f,
+        targetValue = 0.15f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(900),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "FieldPulseAlpha"
+    )
+
+    Box(
+        modifier = modifier
+            .heightIn(min = 96.dp)
+            .background(
+                Color.White.copy(alpha = if (isListening) 0.1f else pulseAlpha),
+                RoundedCornerShape(20.dp)
+            )
+            .border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(20.dp))
+            .padding(horizontal = 18.dp, vertical = 14.dp)
+    ) {
+        BasicTextField(
+            value = value,
+            onValueChange = onValueChange,
+            modifier = Modifier.fillMaxWidth().focusRequester(focusRequester),
+            textStyle = TextStyle(
+                color = Color.White,
+                fontSize = 18.sp,
+                lineHeight = 26.sp
+            ),
+            cursorBrush = SolidColor(Color.White),
+            decorationBox = { innerTextField ->
+                Box {
+                    if (value.isEmpty()) {
+                        Text(
+                            text = if (isListening) "Listening... speak now" else "Say something...",
+                            color = Color.White.copy(alpha = 0.35f),
+                            fontSize = 18.sp
+                        )
+                    }
+                    innerTextField()
+                }
+            }
+        )
+        if (isListening) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.align(Alignment.BottomEnd).padding(bottom = 4.dp)
+            ) {
+                Icon(Icons.Rounded.Mic, null, tint = Color(0xFFFF5252), modifier = Modifier.size(16.dp))
+                Text("recording", color = Color(0xFFFF5252), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            }
+        }
+    }
+}
+
+@Composable
+private fun StepPill(
+    label: String,
+    done: Boolean,
+    active: Boolean,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        modifier = modifier
+            .background(
+                when {
+                    done -> WhispryTokens.SuccessGreen.copy(alpha = 0.15f)
+                    active -> Color.White.copy(alpha = 0.12f)
+                    else -> Color.White.copy(alpha = 0.05f)
+                },
+                RoundedCornerShape(50)
+            )
+            .border(
+                1.dp,
+                when {
+                    done -> WhispryTokens.SuccessGreen.copy(alpha = 0.4f)
+                    active -> Color.White.copy(alpha = 0.25f)
+                    else -> Color.White.copy(alpha = 0.08f)
+                },
+                RoundedCornerShape(50)
+            )
+            .padding(horizontal = 14.dp, vertical = 7.dp)
+    ) {
+        if (done) {
+            Icon(
+                Icons.Rounded.CheckCircle,
+                null,
+                tint = WhispryTokens.SuccessGreen,
+                modifier = Modifier.size(14.dp)
+            )
+        }
+        Text(
+            text = label,
+            color = if (done) WhispryTokens.SuccessGreen else if (active) Color.White else Color.White.copy(alpha = 0.5f),
+            fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold
+        )
     }
 }

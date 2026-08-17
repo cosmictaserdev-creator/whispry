@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 package com.example.whispry.ui.components
 
 import androidx.compose.animation.AnimatedVisibilityScope
@@ -72,9 +73,11 @@ class WhispryHero(
 object WhispryHeroKeys {
     const val TextExpander = "hub:text-expander"
     const val AppTones = "hub:app-tones"
+    const val HiddenApps = "hub:hidden-apps"
     const val Memory = "hub:memory"
     const val MyInfo = "hub:my-info"
     const val VoiceCommands = "hub:voice-commands"
+    const val Updates = "hub:updates"
 }
 
 /**

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 package com.example.whispry.notification
 
 import android.app.Notification
@@ -7,7 +8,6 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
-import android.os.Bundle
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.example.whispry.R
@@ -62,7 +62,7 @@ class WhispryNotificationManager @Inject constructor(
 
         return NotificationCompat.Builder(context, NotificationChannels.FOREGROUND_SERVICE)
             .setContentTitle("Whispry is active")
-            .setContentText("Volume trigger ready")
+            .setContentText("Ready to capture")
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setOngoing(true)
             .setContentIntent(pendingIntent)
@@ -89,7 +89,7 @@ class WhispryNotificationManager @Inject constructor(
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val builder = NotificationCompat.Builder(context, NotificationChannels.FOREGROUND_SERVICE)
+        return NotificationCompat.Builder(context, NotificationChannels.FOREGROUND_SERVICE)
             .setContentTitle(title)
             .setContentText(text)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
@@ -97,11 +97,7 @@ class WhispryNotificationManager @Inject constructor(
             .setContentIntent(pendingIntent)
             .setColor(cachedAccentColor)
             .apply { if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) setColorized(true) }
-            .setProgress(usageInfo.dailyLimit, usageInfo.requestsUsed, false)
-
-        addSamsungNowBarExtras(builder, usageInfo)
-
-        return builder.build()
+            .build()
     }
 
     fun updateForegroundNotification(usageInfo: UsageInfo) {
@@ -146,23 +142,5 @@ class WhispryNotificationManager @Inject constructor(
                 notification
             )
         } catch (_: Exception) { }
-    }
-
-    private fun addSamsungNowBarExtras(
-        builder: NotificationCompat.Builder,
-        usageInfo: UsageInfo
-    ) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
-
-        val percent = (usageInfo.requestsPercent * 100).toInt()
-        val extras = Bundle().apply {
-            putInt("android.ongoingActivityNoti.style", 1)
-            putString("android.ongoingActivityNoti.primaryInfo", "Whispry \u00B7 $percent% used")
-            putString("android.ongoingActivityNoti.secondaryInfo", "${usageInfo.requestsUsed} / ${usageInfo.dailyLimit}")
-            putString("android.ongoingActivityNoti.chipExpandedText", "Whispry")
-            putString("android.ongoingActivityNoti.nowbarPrimaryInfo", "Whispry Active")
-            putString("android.ongoingActivityNoti.nowbarSecondaryInfo", "$percent% used today")
-        }
-        builder.setExtras(extras)
     }
 }

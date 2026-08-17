@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 package com.example.whispry.ui.util.liquid.components
 
 import androidx.compose.animation.animateColorAsState

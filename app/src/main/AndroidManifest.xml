@@ -27,6 +27,9 @@
 
     <uses-permission android:name="android.permission.READ_PHONE_STATE"/>
 
+    <!-- OTA updater: install the downloaded release APK over the running app. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
     <!-- Package visibility for Voice Commands (Android 11+). We deliberately avoid the
          sensitive QUERY_ALL_PACKAGES permission and only query launchable apps + the
          schemes we launch (web/maps/play store). -->
@@ -98,6 +101,7 @@
                 <data android:scheme="whispry" android:host="my-info" />
                 <data android:scheme="whispry" android:host="voice-commands" />
                 <data android:scheme="whispry" android:host="about" />
+                <data android:scheme="whispry" android:host="updates" />
             </intent-filter>
         </activity>
         <service
@@ -135,6 +139,17 @@
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
             </intent-filter>
         </receiver>
+
+        <!-- Hands the downloaded update APK to the system installer (see updater/UpdateInstaller). -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
 
     </application>
 

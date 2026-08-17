@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 package com.example.whispry.presentation.onboarding
 
 import android.Manifest
@@ -40,6 +41,11 @@ fun OnboardingNavGraph(
     
     val currentBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = currentBackStackEntry?.destination?.route
+
+    // Persist the current screen so a leave/reopen resumes here instead of restarting at Intro.
+    LaunchedEffect(currentRoute) {
+        if (currentRoute != null) viewModel.saveResumeRoute(currentRoute)
+    }
 
     // Screen-specific optimal background positions
     val glowPosition = remember(currentRoute, config.screenWidthDp, config.screenHeightDp) {

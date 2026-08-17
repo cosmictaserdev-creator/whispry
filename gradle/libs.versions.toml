@@ -29,6 +29,9 @@ okhttp = "5.3.2"
 # Coroutines
 coroutines = "1.10.2"
 
+# Logging
+timber = "5.0.1"
+
 # Testing
 junit4 = "4.13.2"
 junitExt = "1.2.1"
@@ -51,6 +54,7 @@ foundationLayout = "1.11.2"
 [libraries]
 # Core
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
+timber = { group = "com.jakewharton.timber", name = "timber", version.ref = "timber" }
 androidx-appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "appcompat" }
 capsule = { module = "io.github.kyant0:capsule", version.ref = "capsule" }
 material = { group = "com.google.android.material", name = "material", version.ref = "material" }

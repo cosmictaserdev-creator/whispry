@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 package com.example.whispry.presentation.settings
 
 import android.content.Context
@@ -106,6 +107,12 @@ class SettingsViewModel @Inject constructor(
             .map { com.example.whispry.service.WidgetConfig.fromPreferences(it) }
             .onEach { v -> _state.update { it.copy(widgetConfig = v) } }
             .launchIn(viewModelScope)
+
+        // Premium feature alerts (opt-in)
+        settingsProvider.dataStore.data
+            .map { it[DataStoreKeys.PREMIUM_REMINDERS_ENABLED] ?: DataStoreKeys.DEFAULT_PREMIUM_REMINDERS_ENABLED }
+            .onEach { v -> _state.update { it.copy(premiumReminderEnabled = v) } }
+            .launchIn(viewModelScope)
     }
 
     fun onIntent(intent: SettingsIntent) {
@@ -196,6 +203,8 @@ class SettingsViewModel @Inject constructor(
                 is SettingsIntent.SetWidgetSingleTapAction -> settingsProvider.dataStore.edit { it[DataStoreKeys.WIDGET_SINGLE_TAP_ACTION] = intent.action }
                 is SettingsIntent.SetWidgetDoubleTapAction -> settingsProvider.dataStore.edit { it[DataStoreKeys.WIDGET_DOUBLE_TAP_ACTION] = intent.action }
                 is SettingsIntent.SetWidgetSoundMuted -> settingsProvider.dataStore.edit { it[DataStoreKeys.WIDGET_SOUND_MUTED] = intent.muted }
+                is SettingsIntent.SetWidgetAvoidKeyboard -> settingsProvider.dataStore.edit { it[DataStoreKeys.WIDGET_AVOID_KEYBOARD] = intent.enabled }
+                is SettingsIntent.SetPremiumReminderEnabled -> settingsProvider.dataStore.edit { it[DataStoreKeys.PREMIUM_REMINDERS_ENABLED] = intent.enabled }
                 is SettingsIntent.SetWidgetMotion -> settingsProvider.dataStore.edit { it[DataStoreKeys.WIDGET_REDUCED_MOTION] = intent.value }
                 is SettingsIntent.SetTranscriptionProviderPreset -> settingsProvider.dataStore.edit { it[DataStoreKeys.TRANSCRIPTION_PROVIDER_PRESET] = intent.preset.name }
                 is SettingsIntent.SetTranscriptionCustomBaseUrl -> settingsProvider.dataStore.edit { it[DataStoreKeys.TRANSCRIPTION_CUSTOM_BASE_URL] = intent.url }
@@ -300,11 +309,13 @@ class SettingsViewModel @Inject constructor(
     private fun refreshStatus() {
         val isAccessibilityEnabled = isAccessibilityServiceEnabled()
         val isServiceRunning = ServiceLocator.triggerService != null
-        _state.update { 
+        val batteryOptimizationIgnored = com.example.whispry.service.OemBatteryOptimization.isIgnoringBatteryOptimizations(context)
+        _state.update {
             it.copy(
                 isAccessibilityEnabled = isAccessibilityEnabled,
-                isServiceRunning = isServiceRunning
-            ) 
+                isServiceRunning = isServiceRunning,
+                batteryOptimizationIgnored = batteryOptimizationIgnored
+            )
         }
     }
 

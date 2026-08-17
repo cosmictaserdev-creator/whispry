@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 package com.example.whispry.features.tone.domain.usecase
 
 import com.example.whispry.features.tone.domain.repository.AppToneRepository

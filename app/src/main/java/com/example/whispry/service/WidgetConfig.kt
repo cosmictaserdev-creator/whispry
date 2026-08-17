@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 package com.example.whispry.service
 
 import androidx.datastore.preferences.core.Preferences
@@ -58,7 +59,8 @@ data class WidgetConfig(
     val singleTapAction: WidgetTapAction = WidgetTapAction.None,
     val doubleTapAction: WidgetTapAction = WidgetTapAction.None,
     val soundMuted: Boolean = false,
-    val motion: WidgetMotionSetting = WidgetMotionSetting.AUTO
+    val motion: WidgetMotionSetting = WidgetMotionSetting.AUTO,
+    val avoidKeyboard: Boolean = DataStoreKeys.DEFAULT_WIDGET_AVOID_KEYBOARD
 ) {
     companion object {
         fun fromPreferences(prefs: Preferences): WidgetConfig {
@@ -88,7 +90,9 @@ data class WidgetConfig(
                     defaults.doubleTapAction
                 },
                 soundMuted = prefs[DataStoreKeys.WIDGET_SOUND_MUTED] ?: defaults.soundMuted,
-                motion = WidgetMotionSetting.fromName(prefs[DataStoreKeys.WIDGET_REDUCED_MOTION])
+                motion = WidgetMotionSetting.fromName(prefs[DataStoreKeys.WIDGET_REDUCED_MOTION]),
+                avoidKeyboard = prefs[DataStoreKeys.WIDGET_AVOID_KEYBOARD]
+                    ?: DataStoreKeys.DEFAULT_WIDGET_AVOID_KEYBOARD
             )
         }
     }

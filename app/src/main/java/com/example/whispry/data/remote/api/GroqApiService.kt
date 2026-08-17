@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 package com.example.whispry.data.remote.api
 
 import com.example.whispry.data.remote.api.dto.TranscriptionResponseDto

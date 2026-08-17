@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 package com.example.whispry.presentation.onboarding
 
 import androidx.compose.animation.core.*
@@ -63,7 +64,7 @@ fun HowItWorksScreen(
             Spacer(modifier = Modifier.height(14.dp))
 
             StaggeredTextReveal(
-                text = "Talk to type in any app — no keyboard, no switching apps.",
+                text = "Talk to type in any app — right where you're already typing.",
                 style = TextStyle(
                     color = WhispryTokens.TextSecondary,
                     fontSize = 17.sp,
@@ -79,8 +80,8 @@ fun HowItWorksScreen(
                 StepCard(
                     number = 1,
                     icon = Icons.Rounded.TouchApp,
-                    title = "Hold",
-                    description = "Press and hold your volume key to start listening.",
+                    title = "Tap",
+                    description = "Open the app you want to type in. Whispry's mic button appears above your keyboard.",
                     delayMs = 350,
                     backdrop = backdrop
                 )
@@ -88,15 +89,15 @@ fun HowItWorksScreen(
                     number = 2,
                     icon = Icons.Rounded.GraphicEq,
                     title = "Speak",
-                    description = "Say what you want to write, naturally.",
+                    description = "Tap the mic and say what you want to write, naturally.",
                     delayMs = 450,
                     backdrop = backdrop
                 )
                 StepCard(
                     number = 3,
                     icon = Icons.Rounded.ContentPaste,
-                    title = "Release",
-                    description = "Let go — your words are transcribed and placed in the field for you.",
+                    title = "Done",
+                    description = "Tap it again — your words are transcribed and placed right in the field.",
                     delayMs = 550,
                     backdrop = backdrop
                 )

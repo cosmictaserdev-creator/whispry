@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 package com.example.whispry.data.repository
 
 import androidx.datastore.preferences.core.edit
@@ -30,11 +31,13 @@ class TriggerRepositoryImpl @Inject constructor(
     override fun getAvailableTriggerModes(): List<TriggerMode> {
         val modes = mutableListOf<TriggerMode>()
 
-        modes.add(TriggerMode.VolumeButton)
+        // Manual is the recommended default (recording via the keyboard widget / in-app button).
+        // Volume Button is a demoted opt-in for users who want physical-button control.
+        modes.add(TriggerMode.Manual)
 
         // ActionButton retired; FloatingWidget is no longer offered either (the widget coexists
         // with every trigger and is controlled by its own enable toggle in Settings).
-        modes.add(TriggerMode.Manual)
+        modes.add(TriggerMode.VolumeButton)
 
         return modes
     }

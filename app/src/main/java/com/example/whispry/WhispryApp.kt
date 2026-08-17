@@ -1,8 +1,10 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 package com.example.whispry
 
 import android.app.Application
 import dagger.hilt.android.HiltAndroidApp
 
+import android.util.Log
 import androidx.work.*
 import com.example.whispry.notification.NotificationChannels
 import com.example.whispry.notification.PremiumReminderWorker
@@ -10,9 +12,11 @@ import com.example.whispry.service.ServiceWatchdogWorker
 import com.example.whispry.service.TranscriptCleanupWorker
 import com.example.whispry.ui.util.liquid.GlassBackdropCache
 import com.example.whispry.util.CleanupWorker
+import com.example.whispry.util.CrashLogger
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import kotlinx.coroutines.launch
+import timber.log.Timber
 
 @HiltAndroidApp
 class WhispryApp : Application() {
@@ -21,6 +25,8 @@ class WhispryApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        Timber.plant(if (BuildConfig.DEBUG) Timber.DebugTree() else ReleaseTree())
+        CrashLogger.install(this)
         glassBackdropCache.init()
         NotificationChannels.createAll(this)
         scheduleCleanup()
@@ -99,5 +105,16 @@ class WhispryApp : Application() {
             ExistingPeriodicWorkPolicy.KEEP,
             reminderRequest
         )
+    }
+}
+
+/** Release-build Timber tree: DebugTree is explicitly not meant for release (it hardcodes
+ *  reflection-derived tags and full verbosity) — this just forwards warnings/errors to logcat. */
+private class ReleaseTree : Timber.Tree() {
+    override fun isLoggable(tag: String?, priority: Int) = priority >= Log.WARN
+
+    override fun log(priority: Int, tag: String?, message: String, t: Throwable?) {
+        Log.println(priority, tag ?: "Whispry", message)
+        if (t != null) Log.println(priority, tag ?: "Whispry", Log.getStackTraceString(t))
     }
 }

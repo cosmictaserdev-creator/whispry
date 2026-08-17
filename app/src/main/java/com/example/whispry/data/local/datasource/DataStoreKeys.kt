@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 package com.example.whispry.data.local.datasource
 
 import androidx.datastore.preferences.core.*
@@ -7,6 +8,8 @@ object DataStoreKeys {
     val DOUBLE_PRESS_INTERVAL = longPreferencesKey("double_press_interval")
     val HAPTIC_FEEDBACK = booleanPreferencesKey("haptic_feedback")
     val ONBOARDING_COMPLETED = booleanPreferencesKey("onboarding_completed")
+    /** Last onboarding screen the user was on, so leaving mid-flow resumes there instead of restarting at Intro. Cleared on completion. */
+    val ONBOARDING_RESUME_ROUTE = stringPreferencesKey("onboarding_resume_route")
     val CUSTOM_VOCABULARY = stringPreferencesKey("custom_vocabulary")
     val TEMPERATURE = floatPreferencesKey("temperature")
     val BUBBLE_SIZE = stringPreferencesKey("bubble_size")
@@ -134,6 +137,17 @@ object DataStoreKeys {
     val WIDGET_SOUND_MUTED = booleanPreferencesKey("widget_sound_muted")
     val WIDGET_REDUCED_MOTION = stringPreferencesKey("widget_reduced_motion")  // AUTO | ON | OFF
 
+    /** When true (default), the widget nudges up above the IME instead of staying parked under the keyboard. */
+    val WIDGET_AVOID_KEYBOARD = booleanPreferencesKey("widget_avoid_keyboard")
+    const val DEFAULT_WIDGET_AVOID_KEYBOARD = true
+
+    /** Packages that suppress both widgets entirely while foreground (gaming/fullscreen apps). */
+    val HIDDEN_APPS = stringSetPreferencesKey("hidden_apps")
+
+    /** Opt-in premium reminder notifications from PremiumReminderWorker. */
+    val PREMIUM_REMINDERS_ENABLED = booleanPreferencesKey("premium_reminders_enabled")
+    const val DEFAULT_PREMIUM_REMINDERS_ENABLED = false
+
     /** One-shot migration of the retired TriggerMode.FloatingWidget (see FloatingWidgetManager). */
     val WIDGET_TRIGGER_MODE_MIGRATED = booleanPreferencesKey("widget_trigger_mode_migrated")
 
@@ -142,11 +156,17 @@ object DataStoreKeys {
     // Not a trigger mode — its own enable toggle; press = start, press again = stop.
     // ------------------------------------------------------------------
     val KEYBOARD_LOGO_ENABLED = booleanPreferencesKey("keyboard_logo_enabled")
-    const val DEFAULT_KEYBOARD_LOGO_ENABLED = false
+    // On by default: the keyboard widget is the primary trigger, replacing the volume key.
+    const val DEFAULT_KEYBOARD_LOGO_ENABLED = true
 
     // X position as a percentage (0-100) of the safe width; right-side default.
     val KEYBOARD_LOGO_X = intPreferencesKey("keyboard_logo_x")
     const val DEFAULT_KEYBOARD_LOGO_X = 80
+
+    // Vertical offset (px) between the IME's top edge and the logo's bottom. The logo rides the
+    // keyboard: this offset is what "anchors" it to the keyboard as it slides in/out. Persisted
+    // so the user's drag placement survives across keyboard opens.
+    val KEYBOARD_LOGO_Y_OFFSET = intPreferencesKey("keyboard_logo_y_offset")
 
     // ------------------------------------------------------------------
     // Multi-provider AI support: transcription and formatting each resolve independently.

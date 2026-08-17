@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 package com.example.whispry.notification
 
 import android.app.NotificationChannel
@@ -18,9 +19,9 @@ object NotificationChannels {
             NotificationChannel(
                 FOREGROUND_SERVICE,
                 "Whispry Service",
-                NotificationManager.IMPORTANCE_LOW
+                NotificationManager.IMPORTANCE_NONE
             ).apply {
-                description = "Persistent notification for the foreground recording service"
+                description = "Keeps the recording service running without showing in the shade"
             }
         )
 

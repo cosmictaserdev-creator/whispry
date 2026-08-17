@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 package com.example.whispry.domain.model
 
 enum class RetentionPolicy(val displayName: String, val days: Int?, val description: String) {

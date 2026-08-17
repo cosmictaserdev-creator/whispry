@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 package com.example.whispry.service
 
 import android.Manifest
@@ -80,7 +81,15 @@ class BubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedState
     private var keyboardLogoView: ComposeView? = null
     private var keyboardLogoLp: WindowManager.LayoutParams? = null
     private var keyboardLogoXPct = DataStoreKeys.DEFAULT_KEYBOARD_LOGO_X
+    // How far (px) the logo rests above the IME's top edge; persisted so a drag placement survives
+    // across keyboard opens. The logo rides the keyboard by anchoring to this offset.
+    private var keyboardLogoYOffsetPx = 0
     private var keyboardLogoAnimator: ValueAnimator? = null
+    // Preset submenu shown on double-tap; a second overlay window anchored to the pill.
+    private var presetPanelView: ComposeView? = null
+    private var presetPanelLp: WindowManager.LayoutParams? = null
+    // Hidden-apps suppression (see WindowOverlayCoordinator.widgetsHidden).
+    private var widgetsHidden = false
 
     private fun getSafeWindowBounds(): android.graphics.Rect {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -345,6 +354,10 @@ class BubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedState
         private const val KEYBOARD_LOGO_WIDTH_DP = 72
         private const val KEYBOARD_LOGO_HEIGHT_DP = 44
         private const val KEYBOARD_LOGO_MARGIN_DP = 8
+        /** Compact width the pill pops in from / shrinks down to (bounce + shrink animations). */
+        private const val KEYBOARD_LOGO_MIN_WIDTH_DP = 40
+        private const val PRESET_PANEL_WIDTH_DP = 250
+        private const val PRESET_PANEL_HEIGHT_DP = 320
     }
 
     override fun onCreate() {
@@ -487,10 +500,25 @@ class BubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedState
 
     private fun observeKeyboardLogo() {
         serviceScope.launch {
+            overlayCoordinator.widgetsHidden.collect { hidden ->
+                widgetsHidden = hidden
+                updateKeyboardLogo()
+            }
+        }
+        serviceScope.launch {
             settingsProvider.dataStore.data.map { prefs ->
                 prefs[DataStoreKeys.KEYBOARD_LOGO_X] ?: DataStoreKeys.DEFAULT_KEYBOARD_LOGO_X
             }.distinctUntilChanged().collect { xPct ->
                 keyboardLogoXPct = xPct
+                if (keyboardLogoView != null) currentImeBounds?.let { positionKeyboardLogo(it) }
+            }
+        }
+        serviceScope.launch {
+            settingsProvider.dataStore.data.map { prefs ->
+                prefs[DataStoreKeys.KEYBOARD_LOGO_Y_OFFSET]
+                    ?: (KEYBOARD_LOGO_MARGIN_DP * resources.displayMetrics.density).toInt()
+            }.distinctUntilChanged().collect { offset ->
+                keyboardLogoYOffsetPx = offset
                 if (keyboardLogoView != null) currentImeBounds?.let { positionKeyboardLogo(it) }
             }
         }
@@ -512,28 +540,96 @@ class BubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedState
 
     /** Show, hide, or reposition the keyboard logo to match the current enable + IME state. */
     private fun updateKeyboardLogo() {
-        if (!keyboardLogoEnabled) {
+        if (!keyboardLogoEnabled || widgetsHidden) {
             hideKeyboardLogo()
             return
         }
         val ime = currentImeBounds
         if (ime == null) {
             // Keep the window attached; just hide it. Recreating it on every IME open/close
-            // churns the window manager and makes the logo feel laggy.
-            keyboardLogoView?.visibility = View.GONE
+            // churns the window manager and makes the logo feel laggy. Shrink the width in
+            // first so the dismissal reads as a deliberate settle, not a pop.
+            val view = keyboardLogoView
+            if (view != null && view.visibility == View.VISIBLE) animateKeyboardLogoOut()
             return
         }
         if (keyboardLogoView == null) {
             val view = createKeyboardLogoView() ?: return
             try {
                 windowManager.addView(view, keyboardLogoLp)
+                view.post { animateKeyboardLogoIn() }
             } catch (e: Exception) {
                 Log.e(TAG, "Error showing keyboard logo", e)
                 keyboardLogoView = null
             }
+        } else {
+            val view = keyboardLogoView
+            if (view?.visibility != View.VISIBLE) {
+                view?.visibility = View.VISIBLE
+                view?.post { animateKeyboardLogoIn() }
+            }
         }
-        keyboardLogoView?.visibility = View.VISIBLE
         positionKeyboardLogo(ime)
+    }
+
+    /** Bouncy width pop-in (overshoots the resting width, then settles) on keyboard open. */
+    private fun animateKeyboardLogoIn() {
+        val view = keyboardLogoView ?: return
+        val lp = keyboardLogoLp ?: return
+        if (!view.isAttachedToWindow) return
+        val density = resources.displayMetrics.density
+        val targetWidth = (KEYBOARD_LOGO_WIDTH_DP * density).toInt()
+        if (lp.width >= targetWidth) {
+            // First show: the window was created at full width — start the bounce from the
+            // compact width instead.
+            lp.width = (KEYBOARD_LOGO_MIN_WIDTH_DP * density).toInt()
+            try { windowManager.updateViewLayout(view, lp) } catch (e: Exception) { return }
+        }
+        keyboardLogoAnimator?.cancel()
+        keyboardLogoAnimator = ValueAnimator.ofInt(lp.width, targetWidth).apply {
+            duration = 300
+            interpolator = OvershootInterpolator(1.6f)
+            addUpdateListener { anim ->
+                lp.width = anim.animatedValue as Int
+                try {
+                    if (view.isAttachedToWindow) windowManager.updateViewLayout(view, lp)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error bouncing keyboard logo", e)
+                }
+            }
+            start()
+        }
+    }
+
+    /** Shrink the width down when the keyboard closes, then GONE once it's settled. */
+    private fun animateKeyboardLogoOut() {
+        val view = keyboardLogoView ?: return
+        val lp = keyboardLogoLp ?: return
+        val endWidth = (KEYBOARD_LOGO_MIN_WIDTH_DP * resources.displayMetrics.density).toInt()
+        if (lp.width <= endWidth) {
+            view.visibility = View.GONE
+            return
+        }
+        keyboardLogoAnimator?.cancel()
+        keyboardLogoAnimator = ValueAnimator.ofInt(lp.width, endWidth).apply {
+            duration = 180
+            addUpdateListener { anim ->
+                lp.width = anim.animatedValue as Int
+                try {
+                    if (view.isAttachedToWindow) windowManager.updateViewLayout(view, lp)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error shrinking keyboard logo", e)
+                }
+            }
+            addListener(object : AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: Animator) {
+                    // The keyboard can reopen mid-shrink — only hide if it's still closed.
+                    val ime = currentImeBounds
+                    if (ime == null || ime.isEmpty) view.visibility = View.GONE
+                }
+            })
+            start()
+        }
     }
 
     private fun createKeyboardLogoView(): ComposeView? {
@@ -562,26 +658,31 @@ class BubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedState
                     KeyboardLogoSurface(
                         isRecording = isRecording.value,
                         onToggle = { onKeyboardLogoToggle() },
-                        onDragX = { dx -> moveKeyboardLogo(dx) },
-                        onDragEnd = { persistKeyboardLogoX() }
+                        onDoubleTap = {
+                            if (presetPanelView != null) hideKeyboardLogoPresetPanel()
+                            else showKeyboardLogoPresetPanel()
+                        },
+                        onDrag = { dx, dy -> moveKeyboardLogo(dx, dy) },
+                        onDragStart = { hideKeyboardLogoPresetPanel() },
+                        onDragEnd = { persistKeyboardLogoPosition() }
                     )
                 }
             }
         }.also { keyboardLogoView = it }
     }
 
-    /** Anchor the logo just above the IME's top edge, at the saved X percentage. */
+    /** Anchor the logo a saved offset above the IME's top edge, at the saved X percentage. */
     private fun positionKeyboardLogo(ime: android.graphics.Rect) {
         val view = keyboardLogoView ?: return
         val lp = keyboardLogoLp ?: return
         val safeBounds = getSafeWindowBounds()
-        val density = resources.displayMetrics.density
-        val marginPx = (KEYBOARD_LOGO_MARGIN_DP * density).toInt()
 
         val maxX = (safeBounds.right - lp.width).coerceAtLeast(safeBounds.left)
         val x = safeBounds.left + ((safeBounds.width() - lp.width) * (keyboardLogoXPct / 100f)).toInt()
         lp.x = x.coerceIn(safeBounds.left, maxX)
-        val targetY = (ime.top - lp.height - marginPx).coerceAtLeast(safeBounds.top)
+        // Rest never overlaps keys: the offset is clamped to at least the resting margin.
+        val offsetPx = keyboardLogoYOffsetPx.coerceAtLeast((KEYBOARD_LOGO_MARGIN_DP * resources.displayMetrics.density).toInt())
+        val targetY = (ime.top - lp.height - offsetPx).coerceAtLeast(safeBounds.top)
 
         keyboardLogoAnimator?.cancel()
         // Not attached yet (first show): set directly, nothing to animate from.
@@ -608,11 +709,12 @@ class BubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedState
         }
     }
 
-    private fun moveKeyboardLogo(dx: Float) {
+    private fun moveKeyboardLogo(dx: Float, dy: Float) {
         val view = keyboardLogoView ?: return
         val lp = keyboardLogoLp ?: return
         val safeBounds = getSafeWindowBounds()
         lp.x = (lp.x + dx.toInt()).coerceIn(safeBounds.left, (safeBounds.right - lp.width).coerceAtLeast(safeBounds.left))
+        lp.y = (lp.y + dy.toInt()).coerceIn(safeBounds.top, (safeBounds.bottom - lp.height).coerceAtLeast(safeBounds.top))
         try {
             if (view.isAttachedToWindow) windowManager.updateViewLayout(view, lp)
         } catch (e: Exception) {
@@ -620,8 +722,9 @@ class BubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedState
         }
     }
 
-    private fun persistKeyboardLogoX() {
+    private fun persistKeyboardLogoPosition() {
         val lp = keyboardLogoLp ?: return
+        val ime = currentImeBounds ?: return
         val safeBounds = getSafeWindowBounds()
         val usable = safeBounds.width() - lp.width
         val pct = if (usable > 0) {
@@ -629,9 +732,22 @@ class BubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedState
         } else {
             DataStoreKeys.DEFAULT_KEYBOARD_LOGO_X
         }
+        // Re-derive the anchor offset from where the drag dropped the logo: distance from the
+        // IME's top edge to the logo's bottom. Clamped so the logo never rests on the keys.
+        val marginPx = (KEYBOARD_LOGO_MARGIN_DP * resources.displayMetrics.density).toInt()
+        val rawOffset = ime.top - (lp.y + lp.height)
+        val offset = rawOffset.coerceAtLeast(marginPx)
         keyboardLogoXPct = pct
+        keyboardLogoYOffsetPx = offset
         serviceScope.launch {
-            settingsProvider.dataStore.edit { prefs -> prefs[DataStoreKeys.KEYBOARD_LOGO_X] = pct }
+            settingsProvider.dataStore.edit { prefs ->
+                prefs[DataStoreKeys.KEYBOARD_LOGO_X] = pct
+                prefs[DataStoreKeys.KEYBOARD_LOGO_Y_OFFSET] = offset
+            }
+        }
+        // If the drop spot overlaps the keys, snap up to the clamped resting offset right away.
+        if (rawOffset != offset) {
+            positionKeyboardLogo(ime)
         }
     }
 
@@ -639,7 +755,89 @@ class BubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedState
         val view = keyboardLogoView ?: return
         keyboardLogoAnimator?.cancel()
         keyboardLogoView = null
+        hideKeyboardLogoPresetPanel()
         try { windowManager.removeView(view) } catch (e: Exception) {}
+    }
+
+    /** Open the preset submenu: a second overlay window anchored to the pill, growing up/down to avoid clipping. */
+    private fun showKeyboardLogoPresetPanel() {
+        val pillLp = keyboardLogoLp ?: return
+        val pillView = keyboardLogoView ?: return
+        if (!pillView.isAttachedToWindow) return
+        if (presetPanelView != null) {
+            presetPanelView?.visibility = View.VISIBLE
+            return
+        }
+        val density = resources.displayMetrics.density
+        val safeBounds = getSafeWindowBounds()
+        val panelWidth = (PRESET_PANEL_WIDTH_DP * density).toInt()
+        val panelHeight = (PRESET_PANEL_HEIGHT_DP * density).toInt()
+
+        presetPanelLp = WindowManager.LayoutParams(
+            panelWidth,
+            panelHeight,
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.TOP or Gravity.START
+            // Anchor to the pill's top-left; x stays under the pill, y flips up or down based on space.
+            x = (pillLp.x - (panelWidth - pillLp.width) / 2)
+                .coerceIn(safeBounds.left, (safeBounds.right - panelWidth).coerceAtLeast(safeBounds.left))
+            val belowSpace = safeBounds.bottom - (pillLp.y + pillLp.height)
+            val aboveSpace = pillLp.y - safeBounds.top
+            y = if (belowSpace >= panelHeight) {
+                pillLp.y + pillLp.height + (KEYBOARD_LOGO_MARGIN_DP * density).toInt()
+            } else {
+                (pillLp.y - panelHeight - (KEYBOARD_LOGO_MARGIN_DP * density).toInt()).coerceAtLeast(safeBounds.top)
+            }
+        }
+        val view = ComposeView(this).apply {
+            setBackgroundColor(android.graphics.Color.TRANSPARENT)
+            setViewTreeLifecycleOwner(this@BubbleService)
+            setViewTreeViewModelStoreOwner(this@BubbleService)
+            setViewTreeSavedStateRegistryOwner(this@BubbleService)
+            setContent {
+                val accentName by settingsProvider.accentColor.collectAsState(initial = "Purple")
+                val accentColors = remember(accentName) { resolveAccentColors(accentName) }
+                val selectedPreset by settingsProvider.dataStore.data
+                    .map { prefs ->
+                        val name = prefs[DataStoreKeys.DEFAULT_OUTPUT_PRESET] ?: OutputPreset.NONE.name
+                        try { OutputPreset.valueOf(name) } catch (e: Exception) { OutputPreset.NONE }
+                    }
+                    .collectAsState(initial = OutputPreset.NONE)
+                WhispryTheme(accentColors = accentColors) {
+                    KeyboardLogoPresetPanel(
+                        selectedPreset = selectedPreset,
+                        onPick = { preset -> selectPresetFromKeyboardLogo(preset) },
+                        onDismiss = { hideKeyboardLogoPresetPanel() }
+                    )
+                }
+            }
+        }
+        try {
+            windowManager.addView(view, presetPanelLp)
+            presetPanelView = view
+        } catch (e: Exception) {
+            Log.e(TAG, "Error showing keyboard logo preset panel", e)
+            presetPanelView = null
+        }
+    }
+
+    private fun hideKeyboardLogoPresetPanel() {
+        val view = presetPanelView ?: return
+        presetPanelView = null
+        try { windowManager.removeView(view) } catch (e: Exception) {}
+    }
+
+    private fun selectPresetFromKeyboardLogo(preset: OutputPreset) {
+        serviceScope.launch {
+            settingsProvider.dataStore.edit { prefs -> prefs[DataStoreKeys.DEFAULT_OUTPUT_PRESET] = preset.name }
+        }
+        hideKeyboardLogoPresetPanel()
     }
 
     private fun onKeyboardLogoToggle() {
@@ -679,6 +877,7 @@ class BubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedState
     }
 
     private fun onRecordingStarted() {
+        hideKeyboardLogoPresetPanel()
         if (isRecording.value) return
         if (duckingEnabled) audioDuckingManager.duck(duckPercent)
         mainHandler.removeCallbacksAndMessages(null)

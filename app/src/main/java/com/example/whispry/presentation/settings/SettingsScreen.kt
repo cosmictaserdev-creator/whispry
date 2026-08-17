@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 package com.example.whispry.presentation.settings
 
 import androidx.compose.animation.*
@@ -63,7 +64,6 @@ import com.example.whispry.service.TriggerSound
 import com.example.whispry.ui.components.ColorPickerSheet
 import com.example.whispry.ui.components.WhispryBottomSheet
 import com.example.whispry.ui.components.liquidExpand
-import com.example.whispry.ui.components.liquidGlow
 import com.example.whispry.ui.components.rememberLiquidTouch
 import com.example.whispry.ui.components.WhispryHero
 import com.example.whispry.ui.components.WhispryHeroKeys
@@ -122,9 +122,11 @@ fun SettingsScreen(
     onRevisitTutorial: () -> Unit,
     onNavigateToTextExpander: () -> Unit = {},
     onNavigateToAppTones: () -> Unit = {},
+    onNavigateToHiddenApps: () -> Unit = {},
     onNavigateToMemory: () -> Unit = {},
     onNavigateToMyInfo: () -> Unit = {},
     onNavigateToVoiceCommands: () -> Unit = {},
+    onNavigateToUpdates: () -> Unit = {},
     hero: WhispryHero? = null,
     modifier: Modifier = Modifier
 ) {
@@ -170,9 +172,11 @@ fun SettingsScreen(
                         onRevisitTutorial = onRevisitTutorial,
                         onNavigateToTextExpander = onNavigateToTextExpander,
                         onNavigateToAppTones = onNavigateToAppTones,
+                        onNavigateToHiddenApps = onNavigateToHiddenApps,
                         onNavigateToMemory = onNavigateToMemory,
                         onNavigateToMyInfo = onNavigateToMyInfo,
                         onNavigateToVoiceCommands = onNavigateToVoiceCommands,
+                        onNavigateToUpdates = onNavigateToUpdates,
                         hero = hero,
                         onShowRetentionPicker = { showRetentionPicker = true }
                     )
@@ -207,7 +211,7 @@ fun SettingsScreen(
                 item { AiProviderSection(state, viewModel, backdrop) }
                 item { TriggerMethodSection(state, viewModel, backdrop) }
                 item { PressActionsSection(state, viewModel, backdrop) }
-                item { FloatingWidgetSection(state, viewModel, backdrop) }
+                item { FloatingWidgetSection(state, viewModel, backdrop, onNavigateToHiddenApps) }
                 item { InterfaceSoundsSection(state, viewModel, backdrop) }
                 item {
                     ProductivitySection(
@@ -218,7 +222,7 @@ fun SettingsScreen(
                     )
                 }
                 item { DataPrivacySection(state, viewModel, backdrop) { showRetentionPicker = true } }
-                item { ServiceMaintenanceSection(state, viewModel, backdrop, onRevisitTutorial) }
+                item { ServiceMaintenanceSection(state, viewModel, backdrop, onRevisitTutorial, onNavigateToUpdates) }
                 item { SettingsFooter(viewModel = viewModel, backdrop = backdrop) }
             }
         }
@@ -302,7 +306,6 @@ private fun SettingsCategoryRow(
                 if (selected) Color.White.copy(alpha = 0.12f) else Color.Transparent,
                 RoundedCornerShape(16.dp)
             )
-            .liquidGlow(touch, RoundedCornerShape(16.dp))
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
@@ -348,9 +351,11 @@ private fun SettingsDetailPane(
     onRevisitTutorial: () -> Unit,
     onNavigateToTextExpander: () -> Unit,
     onNavigateToAppTones: () -> Unit,
+    onNavigateToHiddenApps: () -> Unit,
     onNavigateToMemory: () -> Unit,
     onNavigateToMyInfo: () -> Unit,
     onNavigateToVoiceCommands: () -> Unit,
+    onNavigateToUpdates: () -> Unit,
     hero: WhispryHero? = null,
     onShowRetentionPicker: () -> Unit
 ) {
@@ -379,7 +384,7 @@ private fun SettingsDetailPane(
                     }
                 SettingsCategory.Interface ->
                     Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
-                        FloatingWidgetSection(state, viewModel, backdrop)
+                        FloatingWidgetSection(state, viewModel, backdrop, onNavigateToHiddenApps)
                         InterfaceSoundsSection(state, viewModel, backdrop)
                     }
                 SettingsCategory.Productivity ->
@@ -392,7 +397,7 @@ private fun SettingsDetailPane(
                 SettingsCategory.Data ->
                     DataPrivacySection(state, viewModel, backdrop, onShowRetentionPicker)
                 SettingsCategory.Service ->
-                    ServiceMaintenanceSection(state, viewModel, backdrop, onRevisitTutorial)
+                    ServiceMaintenanceSection(state, viewModel, backdrop, onRevisitTutorial, onNavigateToUpdates)
             }
         }
     }
@@ -695,6 +700,27 @@ private fun TriggerMethodSection(
     backdrop: LayerBackdrop
 ) {
     SettingsSectionOptimized(title = stringResource(R.string.settings_category_trigger), backdrop = backdrop) {
+        val context = LocalContext.current
+        LiquidSettingsToggle(
+            icon = Icons.Rounded.Keyboard,
+            title = "Keyboard logo",
+            checked = state.keyboardLogoEnabled,
+            onCheckedChange = { enabled ->
+                if (enabled && !android.provider.Settings.canDrawOverlays(context)) {
+                    val intent = android.content.Intent(
+                        android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                        android.net.Uri.parse("package:${context.packageName}")
+                    )
+                    context.startActivity(intent)
+                }
+                viewModel.onIntent(SettingsIntent.SetKeyboardLogoEnabled(enabled))
+            },
+            backdrop = backdrop,
+            helpText = "A small mic button that floats just above your keyboard whenever it opens. Tap it to start recording, tap again to stop — then drag it left or right to park it where it's out of your way."
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
         TriggerPickerSection(
             state = state,
             onIntent = { viewModel.onIntent(it) },
@@ -993,7 +1019,6 @@ private fun PressActionOptionRow(
             .liquidExpand(touch)
             .clip(RoundedCornerShape(16.dp))
             .background(if (selected) Color.White.copy(alpha = 0.08f) else Color.Transparent)
-            .liquidGlow(touch, RoundedCornerShape(16.dp))
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
@@ -1032,7 +1057,8 @@ private fun PressActionOptionRow(
 private fun FloatingWidgetSection(
     state: SettingsState,
     viewModel: SettingsViewModel,
-    backdrop: LayerBackdrop
+    backdrop: LayerBackdrop,
+    onNavigateToHiddenApps: () -> Unit
 ) {
     val context = LocalContext.current
     val cfg = state.widgetConfig
@@ -1068,6 +1094,27 @@ private fun FloatingWidgetSection(
                     value = "",
                     helpText = "Opens a live preview over your home screen. Drag the switch anywhere (it snaps to the nearest edge), fine-tune its size, then tap Done.",
                     onClick = { viewModel.onIntent(SettingsIntent.EnterWidgetEditMode) }
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                LiquidSettingsToggle(
+                    icon = Icons.Rounded.KeyboardArrowUp,
+                    title = "Avoid keyboard overlap",
+                    checked = cfg.avoidKeyboard,
+                    onCheckedChange = { viewModel.onIntent(SettingsIntent.SetWidgetAvoidKeyboard(it)) },
+                    backdrop = backdrop,
+                    helpText = "When the keyboard opens on top of the switch's saved spot, the switch slides up to sit just above the keys, then slides back when the keyboard closes. Turn off if you'd rather it stay put and let the keyboard cover it."
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                SettingsRow(
+                    icon = Icons.Rounded.VisibilityOff,
+                    title = "Hidden apps",
+                    value = "Keep widgets away in certain apps",
+                    helpText = "While any app on this list is open, the floating switch and the keyboard button both hide so they never cover a game or fullscreen app. They reappear as soon as you leave.",
+                    onClick = onNavigateToHiddenApps
                 )
 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -1190,24 +1237,6 @@ private fun FloatingWidgetSection(
         }
 
         Spacer(modifier = Modifier.height(16.dp))
-
-        LiquidSettingsToggle(
-            icon = Icons.Rounded.Keyboard,
-            title = "Keyboard logo",
-            checked = state.keyboardLogoEnabled,
-            onCheckedChange = { enabled ->
-                if (enabled && !android.provider.Settings.canDrawOverlays(context)) {
-                    val intent = android.content.Intent(
-                        android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                        android.net.Uri.parse("package:${context.packageName}")
-                    )
-                    context.startActivity(intent)
-                }
-                viewModel.onIntent(SettingsIntent.SetKeyboardLogoEnabled(enabled))
-            },
-            backdrop = backdrop,
-            helpText = "A small mic button that floats just above your keyboard whenever it opens. Tap it to start recording, tap again to stop — then drag it left or right to park it where it's out of your way."
-        )
     }
 }
 
@@ -1440,10 +1469,21 @@ private fun ServiceMaintenanceSection(
     state: SettingsState,
     viewModel: SettingsViewModel,
     backdrop: LayerBackdrop,
-    onRevisitTutorial: () -> Unit
+    onRevisitTutorial: () -> Unit,
+    onNavigateToUpdates: () -> Unit
 ) {
     val context = LocalContext.current
     SettingsSectionOptimized(title = "Service & Maintenance", backdrop = backdrop) {
+        SettingsRow(
+            icon = Icons.Rounded.SystemUpdate,
+            title = "Updates",
+            value = "Check & install",
+            helpText = "Checks GitHub Releases for a newer version, shows what changed, and installs it in place — no Play Store needed.",
+            onClick = onNavigateToUpdates
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
         StatusRow(
             title = "Accessibility Service",
             status = if (state.isAccessibilityEnabled) "Running" else "Disabled",
@@ -1475,6 +1515,17 @@ private fun ServiceMaintenanceSection(
 
         Spacer(modifier = Modifier.height(16.dp))
 
+        LiquidSettingsToggle(
+            icon = Icons.Rounded.NotificationsActive,
+            title = "Premium feature alerts",
+            checked = state.premiumReminderEnabled,
+            onCheckedChange = { viewModel.onIntent(SettingsIntent.SetPremiumReminderEnabled(it)) },
+            backdrop = backdrop,
+            helpText = "Occasional notifications introducing Whispry's premium features like Output Presets, Text Expander, and Memory. Off by default."
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
         val coachVm: CoachMarkViewModel = hiltViewModel()
         SettingsRow(
             icon = Icons.Rounded.Lightbulb,
@@ -1490,11 +1541,9 @@ private fun ServiceMaintenanceSection(
             SettingsRow(
                 icon = Icons.Rounded.BatterySaver,
                 title = "Protect from battery killers",
-                value = "Open settings",
+                value = if (state.batteryOptimizationIgnored) "Protected" else "Open settings",
                 helpText = "This phone's manufacturer can aggressively kill background services, which may stop Whispry mid-recording. Opens the battery settings so you can exempt Whispry from being killed.",
-                onClick = {
-                    OemBatteryOptimization.getSettingsIntent(context)?.let { context.startActivity(it) }
-                }
+                onClick = { OemBatteryOptimization.openSettings(context) }
             )
         }
     }
@@ -1598,7 +1647,6 @@ fun RetentionPolicyBottomSheet(
                         .liquidExpand(touch)
                         .clip(RoundedCornerShape(16.dp))
                         .background(if (isSelected) androidx.compose.ui.graphics.Color.White.copy(alpha = 0.05f) else Color.Transparent)
-                        .liquidGlow(touch, RoundedCornerShape(16.dp))
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null,
@@ -1833,7 +1881,6 @@ fun SettingsSectionOptimized(
     backdrop: Backdrop,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    val touch = rememberLiquidTouch(intensity = 0.35f)
     Column {
         Text(
             text = title,
@@ -1848,9 +1895,6 @@ fun SettingsSectionOptimized(
                 .shadow(4.dp, com.kyant.capsule.ContinuousRoundedRectangle(24.dp), spotColor = androidx.compose.ui.graphics.Color.Black)
                     .background(com.example.whispry.ui.theme.WhispryTokens.SurfaceElevated, com.kyant.capsule.ContinuousRoundedRectangle(24.dp))
                     .border(1.dp, com.example.whispry.ui.theme.WhispryTokens.GlassBorder, com.kyant.capsule.ContinuousRoundedRectangle(24.dp))
-                // Glow blooms wherever the card is touched; no scale/stretch so tapping an inner
-                // control (toggle/slider/row) doesn't make the whole section lurch.
-                .liquidGlow(touch, com.kyant.capsule.ContinuousRoundedRectangle(24.dp))
                 .padding(16.dp)
         ) {
             Column(content = content)
@@ -1902,7 +1946,6 @@ fun SoundChip(
                 if (isSelected) Color.Transparent else Color.White.copy(alpha = 0.1f),
                 CircleShape
             )
-            .liquidGlow(touch, CircleShape)
             .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
             .padding(horizontal = 12.dp),
         contentAlignment = Alignment.Center
@@ -1959,7 +2002,6 @@ fun TriggerPickerSection(
                         if (isSelected(selectedMode, mode)) androidx.compose.ui.graphics.Color.White.copy(alpha = 0.08f)
                         else Color.White.copy(alpha = 0.02f)
                     )
-                    .liquidGlow(touch, RoundedCornerShape(16.dp), enabled = isSupported)
                     .clickable(
                         enabled = isSupported,
                         interactionSource = remember { MutableInteractionSource() },
@@ -2103,7 +2145,7 @@ private fun getTriggerTitle(mode: TriggerMode) = when (mode) {
 private fun getTriggerDescription(mode: TriggerMode, isSupported: Boolean, triggerVolumeKey: String) = when (mode) {
     is TriggerMode.VolumeButton -> {
         val keyName = if (triggerVolumeKey == "VOLUME_UP") "volume up" else "volume down"
-        "Double press and hold $keyName"
+        "Optional — double press and hold $keyName"
     }
     is TriggerMode.FloatingWidget -> "Tap the floating bubble to record"
     is TriggerMode.Manual -> "Use the record button inside the app only"
@@ -2173,7 +2215,6 @@ fun SettingsRow(
             .fillMaxWidth()
             .heroSharedBounds(hero, heroKey)
             .liquidExpand(touch, enabled = interactive)
-            .liquidGlow(touch, RoundedCornerShape(12.dp), enabled = interactive)
             .clickable(
                 enabled = interactive,
                 interactionSource = remember { MutableInteractionSource() },
@@ -2601,7 +2642,6 @@ fun StatusRow(
                 if (isRunning) Color.Transparent
                 else Color(0xFFFF5252).copy(alpha = 0.05f)
             )
-            .liquidGlow(touch, RoundedCornerShape(16.dp))
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,

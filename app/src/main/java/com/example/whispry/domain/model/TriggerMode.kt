@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 package com.example.whispry.domain.model
 
 sealed class TriggerMode {
@@ -26,7 +27,8 @@ sealed class TriggerMode {
             "wake_word" -> WakeWord
             "floating_widget" -> Manual // legacy: widget is no longer a trigger mode
             "manual" -> Manual
-            else -> VolumeButton
+            // Default is Manual — the volume key is a demoted opt-in, not the primary trigger.
+            else -> Manual
         }
     }
 }

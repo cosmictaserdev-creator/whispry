@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 package com.example.whispry
 
 import android.content.Intent
@@ -46,7 +47,8 @@ class MainActivity : AppCompatActivity() {
         setContent {
             if (isUiVisible) {
                 val onboardingCompleted = viewModel.onboardingCompleted.collectAsStateWithLifecycle().value
-                val onboardingStartDestination by viewModel.onboardingStartDestination.collectAsStateWithLifecycle()
+                val onboardingStartDestinationState = viewModel.onboardingStartDestination.collectAsStateWithLifecycle()
+                val onboardingStartDestination = onboardingStartDestinationState.value
                 val accentColor by viewModel.accentColor.collectAsStateWithLifecycle()
 
                 CachedGlassProvider(cache = glassBackdropCache) {
@@ -56,7 +58,7 @@ class MainActivity : AppCompatActivity() {
                                 onRevisitTutorial = { viewModel.revisitTutorial() },
                                 deepLinkRoute = deepLinkRoute
                             )
-                            false -> OnboardingNavGraph(
+                            false -> if (onboardingStartDestination != null) OnboardingNavGraph(
                                 onComplete = { viewModel.completeOnboarding() },
                                 startDestination = onboardingStartDestination
                             )
