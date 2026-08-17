@@ -92,6 +92,12 @@ android {
         compose = true
     }
 
+    lint {
+        // CI's lintDebug is new (see ci.yml) and the codebase predates it -- baseline the
+        // existing findings so CI fails on NEW issues a change introduces, not the backlog.
+        baseline = file("lint-baseline.xml")
+    }
+
 }
 
 // Diagnostics: emit per-composable stability + recomposition reports so we can see exactly which
