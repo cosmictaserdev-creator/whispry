@@ -1,8 +1,8 @@
 <div align="center">
   <h1>Whispry</h1>
-  <h3>Whispry is an open-source, hold-to-talk voice transcription app for Android — dictate anywhere, in any app, without switching context.</h3>
+  <h3>Whispry is an open-source, hold-to-talk voice transcription app for Android that dictates anywhere, in any app, without switching context.</h3>
 
-  <img src="docs/hero.jpg" width="100%" alt="Whispry banner: Talk it out, Whispry writes it right — open source, free forever">
+  <img src="docs/hero.jpg" width="100%" alt="Whispry banner: Talk it out, Whispry writes it right. Open source, free forever">
 
   <p>
     <a href="https://github.com/cosmictaserdev-creator/whispry/releases/latest">
@@ -28,9 +28,9 @@
 
 <h2>About</h2>
 
-<p><b>Whispry</b> turns a single trigger — a volume-key press, a floating on-screen switch, or a button riding your keyboard — into an instantly formatted transcript typed straight into whatever app you're in. No copy-paste, no switching apps, no cloud dashboard. It's for anyone who thinks faster than they type: note-taking, messaging, drafting, or just talking instead of thumb-typing.</p>
+<p><b>Whispry</b> turns a single trigger (a volume-key press, a floating on-screen switch, or a button riding your keyboard) into an instantly formatted transcript typed straight into whatever app you're in. No copy-paste, no switching apps, no cloud dashboard. It's for anyone who thinks faster than they type: note-taking, messaging, drafting, or just talking instead of thumb-typing.</p>
 
-<p>Built with Kotlin, Jetpack Compose, and a custom Liquid Glass-style design system, Whispry runs entirely on-device except for the actual transcription/formatting call, which goes directly from your device to whichever AI provider you configure — using your own API key.</p>
+<p>Built with Kotlin, Jetpack Compose, and a custom Liquid Glass-style design system, Whispry runs entirely on-device except for the actual transcription/formatting call, which goes directly from your device to whichever AI provider you configure, using your own API key.</p>
 
 <hr>
 
@@ -42,14 +42,14 @@
       <h3>🎙️ Trigger & Capture</h3>
       <ul>
         <li><b>Three trigger surfaces:</b> a volume-key hold (with hands-free and configurable single/double-press modes), a draggable floating widget that snaps to the screen edge, and a button that rides the on-screen keyboard.</li>
-        <li><b>Smart trigger suppression</b> and per-app hiding — the widgets stay out of the way in apps where you don't want them.</li>
+        <li><b>Smart trigger suppression</b> and per-app hiding: the widgets stay out of the way in apps where you don't want them.</li>
         <li><b>Configurable widget size, position, arming delay, and idle behavior</b> via a live in-app editor.</li>
       </ul>
     </td>
     <td width="50%">
       <h3>🤖 AI & Language</h3>
       <ul>
-        <li><b>Multi-provider AI:</b> transcription and formatting resolve independently — use Groq out of the box, or point either one at any OpenAI-compatible endpoint with your own key.</li>
+        <li><b>Multi-provider AI:</b> transcription and formatting resolve independently. Use Groq out of the box, or point either one at any OpenAI-compatible endpoint with your own key.</li>
         <li><b>Hinglish output:</b> romanizes Hindi transcripts instead of leaving them in Devanagari.</li>
         <li><b>App-aware tone:</b> per-app output style presets, so the same dictation reads differently in a chat app vs. an email draft.</li>
         <li><b>11-language UI</b> localization.</li>
@@ -70,8 +70,8 @@
       <h3>🛡️ Privacy & Updates</h3>
       <ul>
         <li><b>On-device trigger and UI:</b> nothing about when/how you trigger a recording leaves your device.</li>
-        <li><b>Your key, your provider:</b> audio is sent directly from your device to whichever AI provider you configured, using an API key only you hold — see <a href="#-privacy">Privacy</a> below for specifics.</li>
-        <li><b>Built-in OTA updater:</b> checks GitHub Releases in-app, shows the changelog, and installs the signed update in place — no Play Store required.</li>
+        <li><b>Your key, your provider:</b> audio is sent directly from your device to whichever AI provider you configured, using an API key only you hold. See <a href="#-privacy">Privacy</a> below for specifics.</li>
+        <li><b>Built-in OTA updater:</b> checks GitHub Releases in-app, shows the changelog, and installs the signed update in place, no Play Store required.</li>
       </ul>
     </td>
   </tr>
@@ -101,13 +101,18 @@
 2. On your device, allow installing from this source when prompted (Android will walk you through **Settings → Install unknown apps** the first time).
 3. Install and open Whispry, then follow the onboarding flow to grant the accessibility/overlay permissions the trigger you choose needs.
 
-A Play Store listing isn't live yet — GitHub Releases (and the in-app updater below) is the supported distribution channel for now.
+A Play Store listing isn't live yet. GitHub Releases (and the in-app updater below) is the supported distribution channel for now.
+
+Accessibility permission greyed out, or turning itself back off? See
+[docs/accessibility-permission-locked.md](docs/accessibility-permission-locked.md) for the
+Android 13+ restricted-settings unlock step and per-OEM battery/background-killer fixes
+(Xiaomi, Samsung, Oppo/Realme/OnePlus, Vivo, Huawei).
 
 <hr>
 
 <h2>🔄 Updates</h2>
 
-Whispry checks for new versions itself — **Settings → Service & Maintenance → Updates** — against this repo's [GitHub Releases](https://github.com/cosmictaserdev-creator/whispry/releases). When a newer version is out, it shows the release notes and can download + install the signed APK in place, no Play Store or manual download required. Every release is built and signed by the same CI workflow with the same key, so in-app updates always install cleanly over the previous version.
+Whispry checks for new versions itself (**Settings → Service & Maintenance → Updates**) against this repo's [GitHub Releases](https://github.com/cosmictaserdev-creator/whispry/releases). When a newer version is out, it shows the release notes and can download + install the signed APK in place, no Play Store or manual download required. Every release is built and signed by the same CI workflow with the same key, so in-app updates always install cleanly over the previous version.
 
 <hr>
 
@@ -119,7 +124,7 @@ Kotlin + Jetpack Compose, MVI presentation layer, Hilt for DI, Room + DataStore 
 
 <h2>🤝 Contributing</h2>
 
-Bug reports, feature requests, and PRs are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for build setup, code style, and the PR checklist — and please read the [Code of Conduct](CODE_OF_CONDUCT.md).
+Bug reports, feature requests, and PRs are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for build setup, code style, and the PR checklist, and please read the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 <hr>
 
@@ -127,9 +132,9 @@ Bug reports, feature requests, and PRs are welcome. See [CONTRIBUTING.md](CONTRI
 
 <ul>
   <li><strong>No analytics or telemetry:</strong> Whispry doesn't collect or transmit usage data, and there's no backend of its own.</li>
-  <li><strong>Local storage:</strong> transcripts, settings, and API keys are stored on-device (Room + DataStore) — nothing is uploaded to a Whispry-run server, because there isn't one.</li>
-  <li><strong>Third-party AI providers:</strong> when you trigger a transcription, the recorded audio (and, for formatting, the transcript text) is sent directly from your device to whichever provider you've configured in Settings, using the API key you supplied. That provider's own privacy policy governs what happens to that request — Whispry doesn't proxy, log, or see it.</li>
-  <li><strong>Crash logs stay on-device:</strong> if the app crashes, Whispry writes a local stack-trace file to its own app storage (no crash-reporting SDK, no automatic upload). You can attach it from <b>About → Share Crash Log</b> when reporting a bug — it's only ever sent anywhere if you choose to share it yourself.</li>
+  <li><strong>Local storage:</strong> transcripts, settings, and API keys are stored on-device (Room + DataStore). Nothing is uploaded to a Whispry-run server, because there isn't one.</li>
+  <li><strong>Third-party AI providers:</strong> when you trigger a transcription, the recorded audio (and, for formatting, the transcript text) is sent directly from your device to whichever provider you've configured in Settings, using the API key you supplied. That provider's own privacy policy governs what happens to that request. Whispry doesn't proxy, log, or see it.</li>
+  <li><strong>Crash logs stay on-device:</strong> if the app crashes, Whispry writes a local stack-trace file to its own app storage (no crash-reporting SDK, no automatic upload). You can attach it from <b>About → Share Crash Log</b> when reporting a bug. It's only ever sent anywhere if you choose to share it yourself.</li>
 </ul>
 
 <hr>
@@ -142,7 +147,7 @@ Bug reports, feature requests, and PRs are welcome. See [CONTRIBUTING.md](CONTRI
 
 <h2>📄 License</h2>
 
-<p>Whispry is licensed under the <strong>GNU Affero General Public License v3.0</strong>, with an additional Section 7 term requiring attribution to be preserved in any fork or redistribution — see <a href="LICENSE">LICENSE</a> and <a href="NOTICE">NOTICE</a> before you fork this.</p>
+<p>Whispry is licensed under the <strong>GNU Affero General Public License v3.0</strong>, with an additional Section 7 term requiring attribution to be preserved in any fork or redistribution. See <a href="LICENSE">LICENSE</a> and <a href="NOTICE">NOTICE</a> before you fork this.</p>
 
 <hr>
 
@@ -157,10 +162,10 @@ Bug reports, feature requests, and PRs are welcome. See [CONTRIBUTING.md](CONTRI
     <tr>
       <td align="center">
         <h3>💬 Support</h3>
-        <p>This is a community project — support is best-effort, not guaranteed response times.</p>
+        <p>This is a community project. Support is best-effort, not guaranteed response times.</p>
         <ul align="left">
           <li><b>Get help:</b> <a href="https://github.com/cosmictaserdev-creator/whispry/discussions">GitHub Discussions</a></li>
-          <li><b>Report a bug:</b> <a href="https://github.com/cosmictaserdev-creator/whispry/issues/new?template=bug_report.yml">open an issue</a> — please <a href="https://github.com/cosmictaserdev-creator/whispry/issues">search existing ones</a> first</li>
+          <li><b>Report a bug:</b> <a href="https://github.com/cosmictaserdev-creator/whispry/issues/new?template=bug_report.yml">open an issue</a>, please <a href="https://github.com/cosmictaserdev-creator/whispry/issues">search existing ones</a> first</li>
           <li><b>Request a feature:</b> <a href="https://github.com/cosmictaserdev-creator/whispry/issues/new?template=feature_request.yml">open an issue</a> or start a <a href="https://github.com/cosmictaserdev-creator/whispry/discussions">Discussion</a></li>
         </ul>
         <p>☕ <b>Support the project:</b> <a href="https://ko-fi.com/cosmictaser">Ko-fi</a> &nbsp;•&nbsp; 💸 <b>UPI:</b> <code>cosmictaser@okicici</code></p>

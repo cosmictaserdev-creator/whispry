@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 package com.example.whispry.presentation.history
 
+import android.net.Uri
 import com.example.whispry.domain.model.Transcript
 
 enum class HistorySortOrder {
@@ -33,4 +34,5 @@ sealed interface HistoryIntent {
     data class ChangeSortOrder(val order: HistorySortOrder) : HistoryIntent
     data class ChangePreset(val transcriptId: Long, val preset: com.example.whispry.domain.model.OutputPreset) : HistoryIntent
     data class OpenDetail(val transcript: Transcript?) : HistoryIntent
+    data class UploadAudioFile(val uri: Uri, val displayName: String) : HistoryIntent
 }

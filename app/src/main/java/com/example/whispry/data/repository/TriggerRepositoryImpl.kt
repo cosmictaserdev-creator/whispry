@@ -37,7 +37,10 @@ class TriggerRepositoryImpl @Inject constructor(
 
         // ActionButton retired; FloatingWidget is no longer offered either (the widget coexists
         // with every trigger and is controlled by its own enable toggle in Settings).
-        modes.add(TriggerMode.VolumeButton)
+        // Volume Button hidden from Settings (Play Store accessibility-service review risk) —
+        // TriggerService.onKeyEvent still handles it so existing users with it persisted as their
+        // active mode keep working, it's just no longer selectable going forward.
+        // modes.add(TriggerMode.VolumeButton)
 
         return modes
     }

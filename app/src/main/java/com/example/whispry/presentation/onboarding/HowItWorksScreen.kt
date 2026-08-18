@@ -64,7 +64,7 @@ fun HowItWorksScreen(
             Spacer(modifier = Modifier.height(14.dp))
 
             StaggeredTextReveal(
-                text = "Talk to type in any app — right where you're already typing.",
+                text = "Talk to type in any app, right where you're already typing.",
                 style = TextStyle(
                     color = WhispryTokens.TextSecondary,
                     fontSize = 17.sp,
@@ -97,7 +97,7 @@ fun HowItWorksScreen(
                     number = 3,
                     icon = Icons.Rounded.ContentPaste,
                     title = "Done",
-                    description = "Tap it again — your words are transcribed and placed right in the field.",
+                    description = "Tap it again. Your words are transcribed and placed right in the field.",
                     delayMs = 550,
                     backdrop = backdrop
                 )

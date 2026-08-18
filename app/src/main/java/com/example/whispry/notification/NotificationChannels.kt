@@ -10,6 +10,7 @@ object NotificationChannels {
     const val FOREGROUND_SERVICE = "foreground_service"
     const val USAGE_ALERTS = "usage_alerts"
     const val PREMIUM_REMINDER = "premium_reminder"
+    const val FILE_TRANSCRIPTION = "file_transcription"
 
     fun createAll(context: Context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
@@ -42,6 +43,16 @@ object NotificationChannels {
                 NotificationManager.IMPORTANCE_DEFAULT
             ).apply {
                 description = "Discover Whispry's premium features"
+            }
+        )
+
+        manager.createNotificationChannel(
+            NotificationChannel(
+                FILE_TRANSCRIPTION,
+                "File Transcription",
+                NotificationManager.IMPORTANCE_DEFAULT
+            ).apply {
+                description = "Progress and results for audio files you upload for transcription"
             }
         )
     }

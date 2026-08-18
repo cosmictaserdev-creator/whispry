@@ -9,6 +9,11 @@ and this project uses [Semantic Versioning](https://semver.org/) —
 ## [Unreleased]
 
 ### Added
+- Upload audio to transcribe: pick an existing audio file from History
+  (flac, mp3, mp4, m4a, ogg, wav, webm, up to 25MB) instead of recording
+  live. Transcription runs in the background via WorkManager, so it
+  survives the app being backgrounded or killed mid-upload, and a
+  notification links back to History once the transcript is ready.
 - In-app OTA update checker: Settings → Service & Maintenance → Updates,
   checks GitHub Releases, shows changelog, downloads and installs the
   signed APK in place.

@@ -21,7 +21,7 @@ Use one of these instead:
 - **GitHub Private Vulnerability Reporting** (preferred): go to the
   [Security tab](https://github.com/cosmictaserdev-creator/whispry/security/advisories/new)
   of this repo and open a new draft security advisory.
-- **Email**: iamyashvardhan6@gmail.com — include a description of the
+- **Email**: cosmictaser.dev@gmail.com — include a description of the
   issue, steps to reproduce, and the app version affected.
 
 ## What to expect

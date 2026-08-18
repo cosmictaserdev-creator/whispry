@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material3.Icon
@@ -60,8 +59,9 @@ fun WidgetSwitchVisual(
     val recording = phase == WidgetGesturePhase.RECORDING
     val sliver = phase == WidgetGesturePhase.SLIVER
 
-    // The switch shrinks INTO its edge, so scaling pivots on the anchored side.
-    val (alignment, origin) = anchorFor(edge, editMode)
+    // The switch shrinks INTO its edge, so scaling pivots on the anchored side. Edit mode keeps
+    // the real edge anchor too, so the sliders preview the actual resting shape and size.
+    val (alignment, origin) = anchorFor(edge)
 
     // Arming progress drives the depress gate below, so it's computed before the scale.
     val armingProgress = remember { Animatable(0f) }
@@ -154,7 +154,7 @@ fun WidgetSwitchVisual(
     val restColor = lerp(accent.copy(alpha = 1f), cancelRed, redShift)
 
     val (visualW, visualH) = config.visualSizeDp()
-    val shape: Shape = if (editMode) RoundedCornerShape(50) else RampWedgeShape(mirrored = edge == WidgetEdge.Left)
+    val shape: Shape = RampWedgeShape(mirrored = edge == WidgetEdge.Left)
 
     // Slim accent ring that only shows up once a trigger is actually live — a quiet "it's on"
     // cue distinct from the fill sweep, which also plays while merely arming.
@@ -166,7 +166,8 @@ fun WidgetSwitchVisual(
 
     Box(modifier = modifier.fillMaxSize(), contentAlignment = alignment) {
         Box(
-            modifier = (if (editMode) Modifier.fillMaxSize() else Modifier.size(visualW.dp, visualH.dp))
+            modifier = Modifier
+                .size(visualW.dp, visualH.dp)
                 .graphicsLayer {
                     scaleX = scale * pulse
                     scaleY = scale * pulse
@@ -216,8 +217,7 @@ fun WidgetSwitchVisual(
     }
 }
 
-private fun anchorFor(edge: WidgetEdge, editMode: Boolean): Pair<Alignment, TransformOrigin> {
-    if (editMode) return Alignment.Center to TransformOrigin.Center
+private fun anchorFor(edge: WidgetEdge): Pair<Alignment, TransformOrigin> {
     return when (edge) {
         WidgetEdge.Left -> Alignment.CenterStart to TransformOrigin(0f, 0.5f)
         WidgetEdge.Right -> Alignment.CenterEnd to TransformOrigin(1f, 0.5f)

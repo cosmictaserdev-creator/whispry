@@ -18,3 +18,13 @@ local.properties
 keystore.properties
 *.jks
 *.keystore
+
+# Local agent tooling (opencode CLI, codegraph index, ponytail plugin, local Claude settings).
+# Not part of the app, shouldn't have been committed
+/.opencode/
+/opencode.json
+/session-slices.md
+/.codegraph/
+/.claude/settings.local.json
+/hooks/
+/skills/

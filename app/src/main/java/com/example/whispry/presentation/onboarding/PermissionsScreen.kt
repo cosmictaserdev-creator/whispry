@@ -115,7 +115,7 @@ fun PermissionsScreen(
 
                     PermissionCard(
                         title = "Accessibility",
-                        description = "So Whispry can see when your keyboard is open, place the mic button above it, and paste your text into the field you're typing in. Whispry only reads the keyboard state and the focused text field — nothing else.",
+                        description = "So Whispry can see which app and keyboard are in the foreground, to place the mic button correctly and paste your transcribed text into the field you're typing in. It doesn't read, store, or send the content of other apps.",
                         isGranted = state.accessibilityEnabled,
                         onClick = onGrantAccessibility,
                         delayMs = 500,

@@ -134,6 +134,36 @@ class WhispryNotificationManager @Inject constructor(
             .build()
     }
 
+    fun buildUploadResultNotification(success: Boolean, message: String): Notification {
+        val deepLinkIntent = Intent(Intent.ACTION_VIEW, Uri.parse("whispry://history")).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val pendingIntent = PendingIntent.getActivity(
+            context, message.hashCode(), deepLinkIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        return NotificationCompat.Builder(context, NotificationChannels.FILE_TRANSCRIPTION)
+            .setContentTitle(if (success) "Transcription ready" else "Upload failed")
+            .setContentText(message)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(message))
+            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setAutoCancel(true)
+            .setContentIntent(pendingIntent)
+            .setColor(cachedAccentColor)
+            .apply { if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) setColorized(true) }
+            .build()
+    }
+
+    fun showUploadResult(success: Boolean, message: String, notificationId: Int) {
+        try {
+            NotificationManagerCompat.from(context).notify(
+                notificationId,
+                buildUploadResultNotification(success, message)
+            )
+        } catch (_: Exception) { }
+    }
+
     fun showPremiumReminder(title: String, body: String, deepLinkHost: String) {
         try {
             val notification = buildPremiumReminderNotification(title, body, deepLinkHost)

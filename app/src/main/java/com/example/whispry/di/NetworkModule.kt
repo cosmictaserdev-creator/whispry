@@ -60,9 +60,13 @@ object NetworkModule {
             }
             .addInterceptor(loggingInterceptor)
             .connectTimeout(6, TimeUnit.SECONDS)
-            .readTimeout(12, TimeUnit.SECONDS)
-            .writeTimeout(15, TimeUnit.SECONDS)
-            .callTimeout(20, TimeUnit.SECONDS)
+            // Shared by live-mic transcription (short clips) and file-upload transcription
+            // (up to 25MB, minutes of audio). A ceiling, not a floor — fast calls are unaffected;
+            // this just gives large multipart uploads + Groq's processing room to finish instead
+            // of dying mid-flight at the old 20s cap.
+            .readTimeout(120, TimeUnit.SECONDS)
+            .writeTimeout(120, TimeUnit.SECONDS)
+            .callTimeout(180, TimeUnit.SECONDS)
             .build()
     }
 

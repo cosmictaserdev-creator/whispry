@@ -43,12 +43,12 @@ sealed interface WidgetTapAction {
 
 /**
  * Full persisted configuration of the floating widget, snapshotted from DataStore.
- * Defaults follow the PRD: ramp mode on the right edge, 72dp inner face, 26dp
+ * Defaults follow the PRD: ramp mode on the right edge, 84dp inner face, 26dp
  * protrusion, 4s fade to 40% opacity, 350ms anti-accident arming delay.
  */
 data class WidgetConfig(
     val enabled: Boolean = DataStoreKeys.DEFAULT_FLOATING_WIDGET_ENABLED,
-    val baseHeightDp: Int = 72,
+    val baseHeightDp: Int = 84,
     val protrusionDp: Int = 26,
     val edgeClearanceDp: Int = DataStoreKeys.DEFAULT_WIDGET_EDGE_CLEARANCE,
     val idleOpacityPct: Int = 40,

@@ -116,24 +116,41 @@ fun AboutScreen(
                 
                 // Support via Ko-fi
                 AboutActionRow(Icons.Rounded.Favorite, "Support on Ko-fi", backdrop) {
-                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://ko-fi.com/cosmictaserdev"))
+                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://ko-fi.com/cosmictaser"))
                     context.startActivity(intent)
                 }
-                
+
                 // Support via UPI
-                AboutActionRow(Icons.Rounded.Payments, "Support via UPI (cosmictaserdev@upi)", backdrop) {
-                    val upiUri = Uri.parse("upi://pay?pa=cosmictaserdev@upi&pn=Whispry&cu=INR")
+                AboutActionRow(Icons.Rounded.Payments, "Support via UPI (cosmictaser@okicici)", backdrop) {
+                    val upiUri = Uri.parse("upi://pay?pa=cosmictaser@okicici&pn=Whispry&cu=INR")
                     val intent = Intent(Intent.ACTION_VIEW, upiUri)
                     try {
                         context.startActivity(Intent.createChooser(intent, "Pay via UPI"))
                     } catch (e: Exception) {
                         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                        val clip = ClipData.newPlainText("UPI ID", "cosmictaserdev@upi")
+                        val clip = ClipData.newPlainText("UPI ID", "cosmictaser@okicici")
                         clipboard.setPrimaryClip(clip)
-                        Toast.makeText(context, "UPI ID copied: cosmictaserdev@upi", Toast.LENGTH_LONG).show()
+                        Toast.makeText(context, "UPI ID copied: cosmictaser@okicici", Toast.LENGTH_LONG).show()
                     }
                 }
-                
+
+                // Contact via email
+                AboutActionRow(Icons.Rounded.Email, "Contact", backdrop) {
+                    val intent = Intent(Intent.ACTION_SENDTO).apply {
+                        data = Uri.parse("mailto:")
+                        putExtra(Intent.EXTRA_EMAIL, arrayOf("cosmictaser.dev@gmail.com"))
+                        putExtra(Intent.EXTRA_SUBJECT, "Whispry")
+                    }
+                    try {
+                        context.startActivity(intent)
+                    } catch (e: Exception) {
+                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                        val clip = ClipData.newPlainText("Email", "cosmictaser.dev@gmail.com")
+                        clipboard.setPrimaryClip(clip)
+                        Toast.makeText(context, "Email copied: cosmictaser.dev@gmail.com", Toast.LENGTH_LONG).show()
+                    }
+                }
+
                 // GitHub Repository
                 AboutActionRow(Icons.Rounded.Code, "GitHub Repository", backdrop) {
                     val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/cosmictaserdev-creator/whispry"))

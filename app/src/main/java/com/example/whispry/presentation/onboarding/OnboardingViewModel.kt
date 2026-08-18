@@ -185,7 +185,7 @@ class OnboardingViewModel @Inject constructor(
 
         // Cheap shape check first — avoids a network round-trip on an obvious typo.
         if (!key.startsWith("gsk_") || key.length < 40) {
-            _state.update { it.copy(keyValidationError = "That doesn't look like a Groq key — it should start with \"gsk_\".") }
+            _state.update { it.copy(keyValidationError = "That doesn't look like a Groq key. It should start with \"gsk_\".") }
             return
         }
 
@@ -225,7 +225,7 @@ class OnboardingViewModel @Inject constructor(
                 },
                 onFailure = {
                     _state.update {
-                        it.copy(isValidatingKey = false, keyValidationError = "Couldn't reach Groq — check your connection and try again.")
+                        it.copy(isValidatingKey = false, keyValidationError = "Couldn't reach Groq. Check your connection and try again.")
                     }
                 }
             )

@@ -1,17 +1,29 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 package com.example.whispry.presentation.history
 
+import android.content.Context
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.work.Constraints
+import androidx.work.NetworkType
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
+import androidx.work.workDataOf
 import com.example.whispry.domain.repository.TranscriptRepository
 import com.example.whispry.domain.usecase.*
+import com.example.whispry.service.UploadTranscribeWorker
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import java.io.File
 import javax.inject.Inject
 
 @HiltViewModel
 class HistoryViewModel @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val transcriptRepository: TranscriptRepository,
     private val togglePinUseCase: TogglePinUseCase,
     private val deleteTranscriptUseCase: DeleteTranscriptUseCase,
@@ -108,6 +120,45 @@ class HistoryViewModel @Inject constructor(
             is HistoryIntent.OpenDetail -> {
                 _state.update { it.copy(selectedTranscript = intent.transcript) }
             }
+            is HistoryIntent.UploadAudioFile -> uploadAudioFile(intent.uri, intent.displayName)
+        }
+    }
+
+    /** Copies the picked audio file into app cache and enqueues background transcription, which
+     *  survives the app being backgrounded or killed mid-upload; result lands in history via
+     *  [UploadTranscribeWorker]. Runs in [viewModelScope], not a UI-scoped coroutine, so switching
+     *  away from the History tab mid-copy doesn't silently cancel the upload. */
+    private fun uploadAudioFile(uri: Uri, displayName: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val extension = displayName.substringAfterLast('.', "").lowercase().ifBlank { "m4a" }
+            val destDir = File(context.cacheDir, "uploads").apply { mkdirs() }
+            val destFile = File(destDir, "upload_${System.currentTimeMillis()}.$extension")
+            try {
+                val copied = context.contentResolver.openInputStream(uri)?.use { input ->
+                    destFile.outputStream().use { output -> input.copyTo(output) }
+                    true
+                } ?: false
+                if (!copied) {
+                    destFile.delete()
+                    return@launch
+                }
+            } catch (e: Exception) {
+                destFile.delete()
+                return@launch
+            }
+
+            val request = OneTimeWorkRequestBuilder<UploadTranscribeWorker>()
+                .setInputData(
+                    workDataOf(
+                        UploadTranscribeWorker.KEY_FILE_PATH to destFile.absolutePath,
+                        UploadTranscribeWorker.KEY_DISPLAY_NAME to displayName
+                    )
+                )
+                .setConstraints(
+                    Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()
+                )
+                .build()
+            WorkManager.getInstance(context).enqueue(request)
         }
     }
 

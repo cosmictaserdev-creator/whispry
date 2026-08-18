@@ -115,8 +115,8 @@ fun TutorialScreen(
                                 TutorialStep.TapLogo -> "It's the small accent pill floating above your keyboard. Tap it once to start listening."
                                 TutorialStep.Recording -> "Say what you want to write. Tap the mic button again when you're done."
                                 TutorialStep.Processing -> "Turning your words into text."
-                                TutorialStep.Success -> "Your words were placed in the field. That's how you talk-to-type — anywhere."
-                                TutorialStep.Failed -> "We couldn't transcribe that — usually a weak connection. You can try again or skip."
+                                TutorialStep.Success -> "Your words were placed in the field. That's how you talk-to-type, anywhere."
+                                TutorialStep.Failed -> "We couldn't transcribe that, usually a weak connection. You can try again or skip."
                                 else -> "Follow the guide."
                             },
                             style = MaterialTheme.typography.bodyMedium.copy(

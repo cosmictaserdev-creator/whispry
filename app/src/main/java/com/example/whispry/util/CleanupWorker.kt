@@ -15,22 +15,26 @@ class CleanupWorker(
     override suspend fun doWork(): Result {
         Log.d("CleanupWorker", "Starting audio cache cleanup")
         return try {
-            val recordingsDir = File(applicationContext.cacheDir, "recordings")
-            if (recordingsDir.exists() && recordingsDir.isDirectory) {
-                val files = recordingsDir.listFiles()
-                val now = System.currentTimeMillis()
-                files?.forEach { file ->
-                    // Delete files older than 24 hours
-                    if (now - file.lastModified() > 24 * 60 * 60 * 1000) {
-                        Log.d("CleanupWorker", "Deleting old recording: ${file.name}")
-                        file.delete()
-                    }
-                }
-            }
+            deleteOlderThan(File(applicationContext.cacheDir, "recordings"), "recording")
+            // Upload temp files normally self-delete when UploadTranscribeWorker finishes, but a
+            // process death mid-doWork() (before its finally runs) can orphan one — sweep those too.
+            deleteOlderThan(File(applicationContext.cacheDir, "uploads"), "upload")
             Result.success()
         } catch (e: Exception) {
             Log.e("CleanupWorker", "Error during cleanup", e)
             Result.failure()
+        }
+    }
+
+    private fun deleteOlderThan(dir: File, label: String) {
+        if (!dir.exists() || !dir.isDirectory) return
+        val now = System.currentTimeMillis()
+        dir.listFiles()?.forEach { file ->
+            // Delete files older than 24 hours
+            if (now - file.lastModified() > 24 * 60 * 60 * 1000) {
+                Log.d("CleanupWorker", "Deleting old $label: ${file.name}")
+                file.delete()
+            }
         }
     }
 }

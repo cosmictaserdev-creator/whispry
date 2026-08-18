@@ -2,9 +2,10 @@
     <string name="app_name">Whispry</string>
 
     <string name="accessibility_service_description">
-    Whispry uses accessibility to detect the double press and hold volume
-    button gesture to start voice recording. It does not read screen content
-    or collect any personal data.</string>
+    Whispry uses accessibility to know which app and keyboard are in the
+    foreground, so it can position the mic button correctly and paste your
+    transcribed text into the field you\'re typing in. It does not read,
+    store, or transmit the content of other apps.</string>
 
     <!-- Bottom navigation -->
     <string name="nav_home">Home</string>
@@ -32,11 +33,11 @@
     <string name="app_language_display_language">Display language</string>
     <string name="app_language_sheet_title">Display Language</string>
     <string name="app_language_follow_device">Follow device</string>
-    <string name="app_language_help">Changes the language Whispry\'s own screens and menus are shown in — separate from the transcription language above, which controls what language your speech is recognized as.</string>
+    <string name="app_language_help">Changes the language Whispry\'s own screens and menus are shown in, separate from the transcription language above, which controls what language your speech is recognized as.</string>
 
     <!-- Trigger Method section -->
     <string name="trigger_hands_free">Hands-free</string>
-    <string name="trigger_hands_free_help">No need to hold the key down. Trigger once to start recording, speak as long as you like, then trigger again to stop. Respects your single/double-press choice — single mode toggles on one press; double mode needs a quick double press to start, but just one press to stop.</string>
-    <string name="trigger_hands_free_subtitle">Trigger to start, trigger again to stop — no holding.</string>
-    <string name="trigger_press_actions_override">Press Actions (below) has taken over the trigger key — Hands-free and the hold/double-press settings here don\'t apply until you turn it off.</string>
+    <string name="trigger_hands_free_help">No need to hold the key down. Trigger once to start recording, speak as long as you like, then trigger again to stop. Respects your single/double-press choice: single mode toggles on one press; double mode needs a quick double press to start, but just one press to stop.</string>
+    <string name="trigger_hands_free_subtitle">Trigger to start, trigger again to stop, no holding.</string>
+    <string name="trigger_press_actions_override">Press Actions (below) has taken over the trigger key. Hands-free and the hold/double-press settings here don\'t apply until you turn it off.</string>
 </resources>

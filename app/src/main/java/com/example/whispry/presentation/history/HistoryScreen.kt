@@ -2,6 +2,8 @@
 package com.example.whispry.presentation.history
 
 import android.content.Intent
+import android.provider.OpenableColumns
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -9,6 +11,7 @@ import androidx.compose.ui.platform.LocalContext
 import com.example.whispry.util.TranscriptExporter
 import com.example.whispry.util.ExportFormat
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
@@ -189,6 +192,20 @@ fun HistoryScreen(
                     }
                 } catch (e: Exception) {
                     e.printStackTrace()
+                }
+            }
+        }
+    }
+
+    val uploadLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            coroutineScope.launch(Dispatchers.IO) {
+                val displayName = queryDisplayName(context, uri) ?: "Uploaded audio"
+                withContext(Dispatchers.Main) {
+                    viewModel.onIntent(HistoryIntent.UploadAudioFile(uri, displayName))
+                    Toast.makeText(context, "Transcribing \"$displayName\" in background…", Toast.LENGTH_SHORT).show()
                 }
             }
         }
@@ -405,15 +422,27 @@ fun HistoryScreen(
                                 fontWeight = FontWeight.ExtraBold,
                                 color = Color.White
                             )
-                            IconButton(
-                                onClick = { showFilterMenu = !showFilterMenu },
-                                modifier = Modifier
-                                    .size(44.dp)
-                                    .shadow(4.dp, com.kyant.capsule.ContinuousRoundedRectangle(20.dp), spotColor = androidx.compose.ui.graphics.Color.Black)
-                    .background(com.example.whispry.ui.theme.WhispryTokens.SurfaceElevated, com.kyant.capsule.ContinuousRoundedRectangle(20.dp))
-                    .border(1.dp, com.example.whispry.ui.theme.WhispryTokens.GlassBorder, com.kyant.capsule.ContinuousRoundedRectangle(20.dp))
-                            ) {
-                                Icon(Icons.Rounded.FilterList, null, tint = Color.White)
+                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                IconButton(
+                                    onClick = { uploadLauncher.launch(arrayOf("audio/*")) },
+                                    modifier = Modifier
+                                        .size(44.dp)
+                                        .shadow(4.dp, com.kyant.capsule.ContinuousRoundedRectangle(20.dp), spotColor = androidx.compose.ui.graphics.Color.Black)
+                        .background(com.example.whispry.ui.theme.WhispryTokens.SurfaceElevated, com.kyant.capsule.ContinuousRoundedRectangle(20.dp))
+                        .border(1.dp, com.example.whispry.ui.theme.WhispryTokens.GlassBorder, com.kyant.capsule.ContinuousRoundedRectangle(20.dp))
+                                ) {
+                                    Icon(Icons.Rounded.UploadFile, null, tint = Color.White)
+                                }
+                                IconButton(
+                                    onClick = { showFilterMenu = !showFilterMenu },
+                                    modifier = Modifier
+                                        .size(44.dp)
+                                        .shadow(4.dp, com.kyant.capsule.ContinuousRoundedRectangle(20.dp), spotColor = androidx.compose.ui.graphics.Color.Black)
+                        .background(com.example.whispry.ui.theme.WhispryTokens.SurfaceElevated, com.kyant.capsule.ContinuousRoundedRectangle(20.dp))
+                        .border(1.dp, com.example.whispry.ui.theme.WhispryTokens.GlassBorder, com.kyant.capsule.ContinuousRoundedRectangle(20.dp))
+                                ) {
+                                    Icon(Icons.Rounded.FilterList, null, tint = Color.White)
+                                }
                             }
                         }
                     }
@@ -1421,4 +1450,17 @@ fun ExportBottomSheet(
             }
         }
     }
+}
+
+/** Resolves a picked document's display name via [OpenableColumns], falling back to the Uri's
+ *  last path segment when the provider doesn't report one. */
+private fun queryDisplayName(context: android.content.Context, uri: android.net.Uri): String? {
+    return try {
+        context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
+            ?.use { cursor ->
+                if (cursor.moveToFirst()) cursor.getString(0) else null
+            }
+    } catch (e: Exception) {
+        null
+    } ?: uri.lastPathSegment
 }

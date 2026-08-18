@@ -180,27 +180,19 @@ fun KeyboardLogoSurface(
         contentAlignment = Alignment.Center
     ) {
         // Centered Whispry Logo Emblem
-        Box(
+        Image(
+            painter = painterResource(id = R.drawable.whisperlogo),
+            contentDescription = if (isRecording) "Stop recording" else "Start recording",
             modifier = Modifier
-                .size(32.dp)
-                .clip(CircleShape)
-                .background(currentAccentColor.copy(alpha = if (isRecording) 0.25f else 0.15f))
-                .border(1.dp, currentAccentColor.copy(alpha = 0.35f), CircleShape)
+                .size(24.dp)
                 .graphicsLayer {
                     if (isRecording) {
                         scaleX = recordingPulse
                         scaleY = recordingPulse
                     }
                 },
-            contentAlignment = Alignment.Center
-        ) {
-            Image(
-                painter = painterResource(id = R.drawable.whisperlogo),
-                contentDescription = if (isRecording) "Stop recording" else "Start recording",
-                modifier = Modifier.size(20.dp),
-                contentScale = ContentScale.Fit
-            )
-        }
+            contentScale = ContentScale.Fit
+        )
     }
 }
 
