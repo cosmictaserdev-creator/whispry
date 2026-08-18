@@ -8,6 +8,8 @@ and this project uses [Semantic Versioning](https://semver.org/) —
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-08-18
+
 ### Added
 - Upload audio to transcribe: pick an existing audio file from History
   (flac, mp3, mp4, m4a, ogg, wav, webm, up to 25MB) instead of recording
