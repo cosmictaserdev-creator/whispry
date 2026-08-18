@@ -86,6 +86,7 @@ class UploadTranscribeWorker(
         val language = settingsProvider.language.first()
         val languageCode = if (language == "Auto") "en" else language
 
+        var isRetry = false
         val result = when (val transcribed = entryPoint.audioRepository().transcribeAudio(file.absolutePath, languageCode)) {
             is DomainResult.Success -> {
                 val text = transcribed.data
@@ -112,6 +113,7 @@ class UploadTranscribeWorker(
                 if (isTransient && runAttemptCount < MAX_ATTEMPTS) {
                     // Quiet retry — the file stays put; no point alarming the user over one dropped
                     // connection when WorkManager is about to try again on its own.
+                    isRetry = true
                     Result.retry()
                 } else {
                     notificationManager.showUploadResult(
@@ -124,8 +126,10 @@ class UploadTranscribeWorker(
         }
 
         // Retry needs the file to still be there for the next attempt — only clean up once this
-        // upload has truly finished, one way or the other.
-        if (result !is Result.Retry) file.delete()
+        // upload has truly finished, one way or the other. (Can't pattern-match on Result.Retry
+        // directly: it's @RestrictTo(LIBRARY_GROUP) in WorkManager, app code isn't allowed to
+        // reference the concrete subtype, only the isRetry flag set when we chose Result.retry().)
+        if (!isRetry) file.delete()
         return result
     }
 

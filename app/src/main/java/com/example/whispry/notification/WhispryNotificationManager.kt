@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 package com.example.whispry.notification
 
+import android.annotation.SuppressLint
 import android.app.Notification
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -155,6 +156,7 @@ class WhispryNotificationManager @Inject constructor(
             .build()
     }
 
+    @SuppressLint("MissingPermission") // POST_NOTIFICATIONS not granted -> caught below, best-effort
     fun showUploadResult(success: Boolean, message: String, notificationId: Int) {
         try {
             NotificationManagerCompat.from(context).notify(
@@ -164,6 +166,7 @@ class WhispryNotificationManager @Inject constructor(
         } catch (_: Exception) { }
     }
 
+    @SuppressLint("MissingPermission") // POST_NOTIFICATIONS not granted -> caught below, best-effort
     fun showPremiumReminder(title: String, body: String, deepLinkHost: String) {
         try {
             val notification = buildPremiumReminderNotification(title, body, deepLinkHost)
